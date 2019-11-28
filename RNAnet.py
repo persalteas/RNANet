@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import pandas as pd
 import Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, subprocess, sys, time, warnings
-from Bio import AlignIO
+from Bio import AlignIO, SeqIO
 from Bio.PDB import PDBParser, MMCIFParser, MMCIF2Dict, PDBIO, Selection
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
@@ -17,8 +17,8 @@ from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
 
-path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
-path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
+path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
+path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
 hydrogen = re.compile("[123 ]*H.*")
 m = Manager()
 running_stats = m.list()
@@ -611,11 +611,12 @@ def cm_realign(rfam_acc, chains, label):
     # Preparing job folder
     if not os.access(path_to_seq_data + "realigned/", os.F_OK):
         os.makedirs(path_to_seq_data + "realigned/")
-    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "wb")
-    with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz") as gz:
-        f.writelines(gz.readlines())
-    f.close()
-    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "a")
+    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
+    with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
+        ids = []
+        for record in SeqIO.parse(gz, "fasta"):
+            if record.id not in ids:
+                f.write(">"+record.description+'\n'+str(record.seq)+'\n')
     for c in chains:
         f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
     f.close()
