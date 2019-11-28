@@ -17,8 +17,8 @@ from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
 
-path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
-path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
+path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
+path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
 hydrogen = re.compile("[123 ]*H.*")
 m = Manager()
 running_stats = m.list()
@@ -174,7 +174,7 @@ class Chain:
 
     def download_3D(self):
         status = f"\t> Download {self.pdb_id}.cif\t\t\t"
-        url = 'https://files.rcsb.org/download/%s.cif' % (self.pdb_id)
+        url = 'http://files.rcsb.org/download/%s.cif' % (self.pdb_id)
         if not os.access(path_to_3D_data+"RNAcifs", os.F_OK):
             os.makedirs(path_to_3D_data+"RNAcifs")
         final_filepath = path_to_3D_data+"RNAcifs/"+self.pdb_id+".cif"
@@ -190,7 +190,7 @@ class Chain:
                 self.full_mmCIFpath = final_filepath
                 print(status + "\t\U00002705")
             except IOError:
-                print(status + "\t\U0000274E\t\033[31mError downloading {url} !\033[0m")
+                print(status + f"\t\U0000274E\t\033[31mError downloading {url} !\033[0m")
                 self.delete_me = True
 
     def extract_portion(self, filename, pdb_start, pdb_end):
@@ -593,6 +593,8 @@ def build_chain(c, filename, rfam, pdb_start, pdb_end):
     if not c.delete_me:
         c.load_sequence()
         c.set_rfam(rfam)
+    if len(c.seq)<5:
+        c.delete_me = True
 
     if c.delete_me and filename not in known_issues:
         f = open(path_to_3D_data + "known_issues.txt", 'a')
