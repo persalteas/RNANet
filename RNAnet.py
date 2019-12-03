@@ -495,7 +495,7 @@ def download_Rfam_PDB_mappings():
     print("> Fetching latest PDB mappings from Rfam...", end='', flush=True)
     db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
     mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
-    mappings.to_csv(path_to_3D_data + r'Rfam-PDB-mappings.csv')
+    mappings.to_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
     print("\t\U00002705")
     return mappings
 
@@ -525,7 +525,7 @@ def download_Rfam_seeds():
     return Rfam_seeds
 
 def download_Rfam_cm():
-    print(f"\t\t> Download Rfam.cm.gz from Rfam...", end='', flush=True)
+    print(f"\t> Download Rfam.cm.gz from Rfam...\t", end='', flush=True)
     if not path.isfile(path_to_seq_data + "Rfam.cm"):
         try:
             _urlcleanup()
@@ -538,6 +538,23 @@ def download_Rfam_cm():
             print(f"\t\U0000274C\tError downloading and/or extracting Rfam.cm")
     else:
         print("\t\U00002705\t(no need)")
+
+def download_Rfam_family_stats(list_of_families):
+    db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
+    q = """SELECT fr.rfam_acc, COUNT(DISTINCT fr.rfamseq_acc) AS 'n_seq',
+                MAX(
+                    (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_start
+                            ELSE                              fr.seq_end
+                    END) 
+                    -
+                    (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_end
+                            ELSE                              fr.seq_start
+                    END)
+                ) AS 'maxlength'
+            FROM full_region fr
+            GROUP BY fr.rfam_acc"""
+    d = pd.read_sql(q, con=db_connection)
+    return d[ d["rfam_acc"].isin(list_of_families) ]
 
 def download_Rfam_sequences(rfam_acc):
     print(f"\t\t> Download {rfam_acc}.fa.gz from Rfam...", end='', flush=True)
@@ -627,7 +644,7 @@ def cm_realign(rfam_acc, chains, label):
 
     # Running alignment
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
-    subprocess.check_call(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
+    subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
 
     # Converting to aligned Fasta
@@ -697,12 +714,14 @@ if __name__ == "__main__":
     
     # Download the sequences from these families
     download_Rfam_cm()
-    familylist = open(path_to_seq_data + "rfam_sequences/fasta/rfamacc_todownload.txt", 'w')
+    fam_stats = download_Rfam_family_stats(rfam_acc_to_download.keys())
+    n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
+    fam_stats["n_pdb_seqs"] = n_pdb
+    fam_stats.to_csv(path_to_seq_data + "realigned/statistics.csv")
     for f in sorted(rfam_acc_to_download.keys()):
-        print("\t>", len(rfam_acc_to_download[f]), "chains from", f)
-        familylist.write(f+'\n')
+        line = fam_stats[fam_stats["rfam_acc"]==f]
+        print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
         download_Rfam_sequences(f)
-    familylist.close()
 
     # Build job list
     fulljoblist = []
