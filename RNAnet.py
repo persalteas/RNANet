@@ -17,8 +17,12 @@ from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
 
-path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
-path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
+if path.isdir("/home/persalteas"):
+    path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
+    path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
+else:
+    path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
+    path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
 hydrogen = re.compile("[123 ]*H.*")
 m = Manager()
 running_stats = m.list()
@@ -634,6 +638,7 @@ def cm_realign(rfam_acc, chains, label):
         for record in SeqIO.parse(gz, "fasta"):
             if record.id not in ids:
                 f.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                ids.append(record.id)
     for c in chains:
         f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
     f.close()
