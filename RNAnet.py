@@ -649,7 +649,7 @@ def cm_realign(rfam_acc, chains, label):
 
     # Running alignment
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
-    subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
+    subprocess.check_call(["cmalign", "--mxsize", "4096", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
 
     # Converting to aligned Fasta
@@ -722,6 +722,7 @@ if __name__ == "__main__":
     fam_stats = download_Rfam_family_stats(rfam_acc_to_download.keys())
     n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
     fam_stats["n_pdb_seqs"] = n_pdb
+    fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
     fam_stats.to_csv(path_to_seq_data + "realigned/statistics.csv")
     for f in sorted(rfam_acc_to_download.keys()):
         line = fam_stats[fam_stats["rfam_acc"]==f]
@@ -734,6 +735,7 @@ if __name__ == "__main__":
     running_stats[1] = 0
     running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
+        if f=="RF02541": continue
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains" 
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
 
