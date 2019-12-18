@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import pandas as pd
-import Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import PDBParser, MMCIFParser, MMCIF2Dict, PDBIO, Selection
 from Bio.PDB.Residue import Residue
@@ -16,13 +16,21 @@ from ftplib import FTP
 from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
+from threading import Thread
+from time import sleep
 
 if path.isdir("/home/persalteas"):
     path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
     path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
-else:
+elif path.isdir("/home/lbecquey"):
     path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
     path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
+elif path.isdir("/nhome/siniac/lbecquey"):
+    path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
+    path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
+else:
+    print("I don't know that machine... I'm shy, maybe you should introduce yourself ?")
+    exit(1)
 hydrogen = re.compile("[123 ]*H.*")
 m = Manager()
 running_stats = m.list()
@@ -288,6 +296,7 @@ class Job:
         self.priority_ = priority
         self.timeout_ = timeout
         self.comp_time = -1 # -1 is not executed yet
+        self.max_mem = -1 # not executed yet
         self.label = label
         if not how_many_in_parallel:
             self.nthreads = cpu_count()
@@ -469,6 +478,21 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
         else:
             raise StopIteration
 
+def check_mem_usage(pid):
+    statusfile = f"/proc/pid/status"
+    max_mem = -1
+    while path.isfile(status): # job exists
+
+        # read /proc/pid/status
+        with open('/proc/self/status', 'r') as file:
+            lines = file.read().split('\n')
+            values = {}
+            for line in lines:
+                if ':' in line:
+                    name, val = line.split(':')
+                    if name == "VmPeak":
+                        max_mem = int(val.strip().split(' ')[0]) * 1000  # convert to B
+    return max_mem
 
 def execute_job(j):
     running_stats[0] += 1
@@ -481,18 +505,38 @@ def execute_job(j):
         logfile.close()
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
         start_time = time.time()
-        r = subprocess.call(j.cmd_, timeout=j.timeout_)
+        # r = subprocess.call(j.cmd_, timeout=j.timeout_)
+        with Popen(j.cmd_) as p:
+            try:
+                # assistant_thread = Thread(target= check_mem_usage, args = (p.pid, ))
+                # assistant_thread.start() # Start watching memory usage
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    assistant_future = executor.submit(check_mem_usage, p.pid)
+                    r = p.wait(timeout=j.timeout_) # Wait for process to complete
+                    m = assistant_future.result()
+                # assistant_thread.join() # Wait for the assistant to end (which should be immediate)
+            except:  # Including KeyboardInterrupt, wait handled that.
+                p.kill()
+                # We don't call p.wait() again as p.__exit__ does that for us.
+                raise
         end_time = time.time()
     elif j.func_ is not None:
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])})")
         start_time = time.time()
-        r = j.func_(*j.args_)
+        # assistant_thread = Thread(target= check_mem_usage, args = (os.getpid(), ))
+        # assistant_thread.start() # Start watching memory usage
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            assistant_future = executor.submit(check_mem_usage, p.pid)
+            r = j.func_(*j.args_)
+            m = assistant_future.result()
+        # assistant_thread.join()
         end_time = time.time()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    return (t,r)
+    print(t,m,r)
+    return (t,m,r)
 
 def download_Rfam_PDB_mappings():
     # download PDB mappings to Rfam family
@@ -701,7 +745,7 @@ if __name__ == "__main__":
     if not path.isdir(path_to_3D_data + "RNAcifs"):
         os.makedirs(path_to_3D_data + "RNAcifs")
     jobcount = len(joblist)
-    p = MyPool(processes=15, maxtasksperchild=10)
+    p = MyPool(processes=cpu_count(), maxtasksperchild=10)
     results = p.map(execute_job, joblist)
     p.close()
     p.join()
@@ -769,9 +813,29 @@ if __name__ == "__main__":
 
             # extract computation times
             times = [ r[0] for r in raw_results ]
-            for j, t in zip(bunch, times):
+            mems = [ r[1] for r in raw_results ]
+            for j, t, m in zip(bunch, times, mems):
                 j.comp_time = t
-                print(j.label, "ran in", t, "seconds")
+                j.max_mem = m
+                print(j.label, "ran in", t, "seconds with", m, "bytes of memory")
+
+    # Write this in a file
+    f = open("jobstats.csv", "w")
+    f.write("label,comp_time,max_mem\n")
+    f.close()
+    for i in range(1,nprio+1):
+        if i not in jobs.keys(): continue
+        different_thread_numbers = [n for n in jobs[i].keys()]
+        different_thread_numbers.sort()
+        for n in different_thread_numbers:
+            bunch = jobs[i][n]
+            if not len(bunch): 
+                continue 
+            f = open("jobstats.csv", "a")
+            for j in bunch:
+                f.write(f"{j.label},{j.comp_time},{j.max_mem}\n")
+            f.close()
+    print("Completed.")
     
 
 
