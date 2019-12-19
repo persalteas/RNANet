@@ -479,12 +479,12 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
             raise StopIteration
 
 def check_mem_usage(pid):
-    statusfile = f"/proc/pid/status"
+    statusfile = f"/proc/{pid}/status"
     max_mem = -1
-    while path.isfile(status): # job exists
+    while path.isfile(statusfile): # job exists
 
         # read /proc/pid/status
-        with open('/proc/self/status', 'r') as file:
+        with open(statusfile, 'r') as file:
             lines = file.read().split('\n')
             values = {}
             for line in lines:
@@ -492,6 +492,7 @@ def check_mem_usage(pid):
                     name, val = line.split(':')
                     if name == "VmPeak":
                         max_mem = int(val.strip().split(' ')[0]) * 1000  # convert to B
+        sleep(1)
     return max_mem
 
 def execute_job(j):
@@ -510,10 +511,10 @@ def execute_job(j):
             try:
                 # assistant_thread = Thread(target= check_mem_usage, args = (p.pid, ))
                 # assistant_thread.start() # Start watching memory usage
-                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    assistant_future = executor.submit(check_mem_usage, p.pid)
-                    r = p.wait(timeout=j.timeout_) # Wait for process to complete
-                    m = assistant_future.result()
+                #with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    #assistant_future = executor.submit(check_mem_usage, p.pid)
+                r = p.wait(timeout=j.timeout_) # Wait for process to complete
+                    #m = assistant_future.result()
                 # assistant_thread.join() # Wait for the assistant to end (which should be immediate)
             except:  # Including KeyboardInterrupt, wait handled that.
                 p.kill()
@@ -525,16 +526,17 @@ def execute_job(j):
         start_time = time.time()
         # assistant_thread = Thread(target= check_mem_usage, args = (os.getpid(), ))
         # assistant_thread.start() # Start watching memory usage
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            assistant_future = executor.submit(check_mem_usage, p.pid)
-            r = j.func_(*j.args_)
-            m = assistant_future.result()
+        #with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            #assistant_future = executor.submit(check_mem_usage, os.getpid())
+        r = j.func_(*j.args_)
+            #m = assistant_future.result()
         # assistant_thread.join()
         end_time = time.time()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
+    m = -1
     print(t,m,r)
     return (t,m,r)
 
