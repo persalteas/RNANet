@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import pandas as pd
-import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, resource, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import PDBParser, MMCIFParser, MMCIF2Dict, PDBIO, Selection
 from Bio.PDB.Residue import Residue
@@ -16,7 +16,6 @@ from ftplib import FTP
 from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
-from threading import Thread
 from time import sleep
 
 if path.isdir("/home/persalteas"):
@@ -478,8 +477,26 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
         else:
             raise StopIteration
 
+
+class MemoryMonitor:
+    def __init__(self):
+        self.keep_measuring = True
+
+    def measure_usage(self):
+        max_usage = 0
+        print("\t>Watching memory from", os.getpid())
+        while self.keep_measuring:
+            # maxrss = Max Resident Set Size
+            # RUSAGE BOTH gets the memory of current and child processes.
+            process = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            children = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+            max_usage = max(max_usage, process+children) * 1000 # convert to B
+            sleep(0.1)
+
+        return max_usage
+
+
 def check_mem_usage(pid, continuous):
-    print("\t> Watching memory of process", pid, "from", os.getpid())
     max_mem = -1
     statusfile = f"/proc/{pid}/status"
     while path.isfile(statusfile):
@@ -498,45 +515,46 @@ def execute_job(j):
     running_stats[0] += 1
 
     if len(j.cmd_):
-        # log the command
-        logfile = open(runDir + "/log_of_the_run.sh", 'a')
-        logfile.write(" ".join(j.cmd_))
-        logfile.write("\n")
-        logfile.close()
+
+        with open(runDir + "/log_of_the_run.sh", 'a') as logfile:
+            logfile.write(" ".join(j.cmd_))
+            logfile.write("\n")
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label} (PID {os.getpid()})")
 
-        start_time = time.time()
-        with subprocess.Popen(j.cmd_) as p:
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            monitor = MemoryMonitor()
+            assistant_future = executor.submit(monitor.measure_usage)
             try:
-                print("\t>Executing command in process", p.pid)
-                with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-                    assistant_future = executor.submit(check_mem_usage, p.pid, True)
-                    r = p.wait(timeout=j.timeout_) # Wait for process to complete
-                    end_time = time.time()
-                    m = assistant_future.result()
-            except:  # Including KeyboardInterrupt, wait handled that.
-                p.kill()# We don't call p.wait() again as p.__exit__ does that for us.
-                raise
+                start_time = time.time()
+                r = subprocess.call(j.cmd_, timeout=j.timeout_)
+                end_time = time.time()
+            finally:
+                monitor.keep_measuring = False
+                m = assistant_future.result()
 
     elif j.func_ is not None:
 
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])}) (PID {os.getpid()})")
 
         m = -1
-        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-            f = executor.submit(os.getpid)
-            pid = f.result()
-            start_time = time.time()
-            f = executor.submit(j.func_, * j.args_)
-            r = f.result()
-            end_time = time.time()
-            f = executor.submit(check_mem_usage, pid, False)
-            m = f.result()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            monitor = MemoryMonitor()
+            try:
+                assistant_future = executor.submit(monitor.measure_usage) # measure mem usage of this thread and its children
+                start_time = time.time()
+                f = executor.submit(j.func_, *j.args_) # execute the function in another thread
+                r = f.result() # get the result
+                end_time = time.time()
+
+            finally:
+                monitor.keep_measuring = False
+                m = assistant_future.result()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(f"\t> finished in {t:.2f}sec, {m/1000000} MB")
+    print(f"\t> finished in {t:.2f} sec, {int(m/1000000):d} MB")
     return (t,m,r)
 
 def download_Rfam_PDB_mappings():
@@ -670,7 +688,7 @@ def build_chain(c, filename, rfam, pdb_start, pdb_end):
     return c
 
 def cm_realign(rfam_acc, chains, label):
-    status = f"\t> Realign {label}..."
+    status = f"\t> {label} on process {os.getpid()}"
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
         print(status + "\t\U00002705\t(already done)")
         return
