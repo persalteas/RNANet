@@ -8,7 +8,7 @@ from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionExcepti
 from Bio._py3k import urlretrieve as _urlretrieve
 from Bio._py3k import urlcleanup as _urlcleanup
 from Bio.Alphabet import generic_rna
-from Bio.Seq import Seq 
+from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from collections import OrderedDict
@@ -478,65 +478,62 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
         else:
             raise StopIteration
 
-def check_mem_usage(pid):
-    statusfile = f"/proc/{pid}/status"
+def check_mem_usage(pid, continuous):
     max_mem = -1
-    while path.isfile(statusfile): # job exists
-
+    statusfile = f"/proc/{pid}/status"
+    while path.isfile(statusfile):
         # read /proc/pid/status
         with open(statusfile, 'r') as file:
             lines = file.read().split('\n')
-            values = {}
             for line in lines:
                 if ':' in line:
                     name, val = line.split(':')
                     if name == "VmPeak":
                         max_mem = int(val.strip().split(' ')[0]) * 1000  # convert to B
-        sleep(1)
+        if not continuous: break
     return max_mem
 
 def execute_job(j):
     running_stats[0] += 1
 
-    # Add the job to log file and run
     if len(j.cmd_):
+        # log the command
         logfile = open(runDir + "/log_of_the_run.sh", 'a')
         logfile.write(" ".join(j.cmd_))
         logfile.write("\n")
         logfile.close()
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
+
         start_time = time.time()
-        # r = subprocess.call(j.cmd_, timeout=j.timeout_)
-        with Popen(j.cmd_) as p:
+        with subprocess.Popen(j.cmd_) as p:
             try:
-                # assistant_thread = Thread(target= check_mem_usage, args = (p.pid, ))
-                # assistant_thread.start() # Start watching memory usage
-                #with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                    #assistant_future = executor.submit(check_mem_usage, p.pid)
-                r = p.wait(timeout=j.timeout_) # Wait for process to complete
-                    #m = assistant_future.result()
-                # assistant_thread.join() # Wait for the assistant to end (which should be immediate)
+                with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+                    assistant_future = executor.submit(check_mem_usage, p.pid, True)
+                    r = p.wait(timeout=j.timeout_) # Wait for process to complete
+                    end_time = time.time()
+                    m = assistant_future.result()
             except:  # Including KeyboardInterrupt, wait handled that.
-                p.kill()
-                # We don't call p.wait() again as p.__exit__ does that for us.
+                p.kill()# We don't call p.wait() again as p.__exit__ does that for us.
                 raise
-        end_time = time.time()
+
     elif j.func_ is not None:
+
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])})")
-        start_time = time.time()
-        # assistant_thread = Thread(target= check_mem_usage, args = (os.getpid(), ))
-        # assistant_thread.start() # Start watching memory usage
-        #with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            #assistant_future = executor.submit(check_mem_usage, os.getpid())
-        r = j.func_(*j.args_)
-            #m = assistant_future.result()
-        # assistant_thread.join()
-        end_time = time.time()
+
+        m = -1
+        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+            f = executor.submit(os.getpid)
+            pid = f.result()
+            start_time = time.time()
+            f = executor.submit(j.func_, * j.args_)
+            r = f.result()
+            end_time = time.time()
+            f = executor.submit(check_mem_usage, pid, False)
+            m = f.result()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    m = -1
     print(t,m,r)
     return (t,m,r)
 
@@ -595,7 +592,7 @@ def download_Rfam_family_stats(list_of_families):
                 MAX(
                     (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_start
                             ELSE                              fr.seq_end
-                    END) 
+                    END)
                     -
                     (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_end
                             ELSE                              fr.seq_start
@@ -611,7 +608,7 @@ def download_Rfam_sequences(rfam_acc):
     if not path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):
         try:
             _urlcleanup()
-            _urlretrieve(   f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz', 
+            _urlretrieve(   f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz',
                             path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz")
             print("\t\U00002705")
         except:
@@ -751,9 +748,9 @@ if __name__ == "__main__":
     results = p.map(execute_job, joblist)
     p.close()
     p.join()
-    loaded_chains = [ c[1] for c in results if not c[1].delete_me ]
+    loaded_chains = [ c[2] for c in results if not c[2].delete_me ]
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
-        
+
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in loaded_chains:
@@ -762,7 +759,7 @@ if __name__ == "__main__":
         else:
             rfam_acc_to_download[c.rfam_fam].append(c)
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to download and re-align with the crystals' sequences:")
-    
+
     # Download the sequences from these families
     download_Rfam_cm()
     fam_stats = download_Rfam_family_stats(rfam_acc_to_download.keys())
@@ -782,7 +779,7 @@ if __name__ == "__main__":
     running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
         if f=="RF02541": continue
-        label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains" 
+        label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
 
     # sort jobs in a tree structure
@@ -831,14 +828,14 @@ if __name__ == "__main__":
         different_thread_numbers.sort()
         for n in different_thread_numbers:
             bunch = jobs[i][n]
-            if not len(bunch): 
-                continue 
+            if not len(bunch):
+                continue
             f = open("jobstats.csv", "a")
             for j in bunch:
                 f.write(f"{j.label},{j.comp_time},{j.max_mem}\n")
             f.close()
     print("Completed.")
-    
+
 
 
 
