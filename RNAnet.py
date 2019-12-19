@@ -479,6 +479,7 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
             raise StopIteration
 
 def check_mem_usage(pid, continuous):
+    print("\t> Watching memory of process", pid, "from", os.getpid())
     max_mem = -1
     statusfile = f"/proc/{pid}/status"
     while path.isfile(statusfile):
@@ -502,11 +503,12 @@ def execute_job(j):
         logfile.write(" ".join(j.cmd_))
         logfile.write("\n")
         logfile.close()
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
+        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label} (PID {os.getpid()})")
 
         start_time = time.time()
         with subprocess.Popen(j.cmd_) as p:
             try:
+                print("\t>Executing command in process", p.pid)
                 with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
                     assistant_future = executor.submit(check_mem_usage, p.pid, True)
                     r = p.wait(timeout=j.timeout_) # Wait for process to complete
@@ -518,7 +520,7 @@ def execute_job(j):
 
     elif j.func_ is not None:
 
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])})")
+        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])}) (PID {os.getpid()})")
 
         m = -1
         with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
@@ -534,7 +536,7 @@ def execute_job(j):
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(t,m,r)
+    print(f"\t> finished in {t:.2f}sec, {m/1000000} MB")
     return (t,m,r)
 
 def download_Rfam_PDB_mappings():
@@ -651,6 +653,7 @@ def download_BGSU_NR_list():
     return all_chains, nr_chains
 
 def build_chain(c, filename, rfam, pdb_start, pdb_end):
+    print("\t> Building chain on process", os.getpid())
     c.download_3D()
     if not c.delete_me:
         c.extract_portion(filename, pdb_start, pdb_end)
@@ -704,6 +707,7 @@ def cm_realign(rfam_acc, chains, label):
 
 
 if __name__ == "__main__":
+    print("Main process running. (PID", os.getpid(), ")")
     all_chains, nr_chains = download_BGSU_NR_list()
     mappings = download_Rfam_PDB_mappings()
 
@@ -779,6 +783,7 @@ if __name__ == "__main__":
     running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
         if f=="RF02541": continue
+        if f=="RF02543": continue
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
 
