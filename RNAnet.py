@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import pandas as pd
-import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, re, requests, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, psutil, re, requests, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import PDBParser, MMCIFParser, MMCIF2Dict, PDBIO, Selection
 from Bio.PDB.Residue import Residue
@@ -16,7 +16,6 @@ from ftplib import FTP
 from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
-from threading import Thread
 from time import sleep
 
 if path.isdir("/home/persalteas"):
@@ -479,19 +478,19 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
             raise StopIteration
 
 def check_mem_usage(pid, continuous):
-    print("\t> Watching memory of process", pid, "from", os.getpid())
+    #print("\t> Watching memory of process", pid, "from", os.getpid())
+    target_process = psutil.Process(pid)
     max_mem = -1
-    statusfile = f"/proc/{pid}/status"
-    while path.isfile(statusfile):
-        # read /proc/pid/status
-        with open(statusfile, 'r') as file:
-            lines = file.read().split('\n')
-            for line in lines:
-                if ':' in line:
-                    name, val = line.split(':')
-                    if name == "VmPeak":
-                        max_mem = int(val.strip().split(' ')[0]) * 1000  # convert to B
+    while psutil.pid_exists(pid):
+        info = target_process.memory_full_info()
+        mem = info.rss + info.swap
+        for p in target_process.children(recursive=True):
+            info = p.memory_full_info()
+            mem += info.rss + info.swap
+        if mem > max_mem:
+            max_mem = mem
         if not continuous: break
+        sleep(0.1)       
     return max_mem
 
 def execute_job(j):
@@ -503,7 +502,7 @@ def execute_job(j):
         logfile.write(" ".join(j.cmd_))
         logfile.write("\n")
         logfile.close()
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label} (PID {os.getpid()})")
+        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
 
         start_time = time.time()
         with subprocess.Popen(j.cmd_) as p:
@@ -520,7 +519,7 @@ def execute_job(j):
 
     elif j.func_ is not None:
 
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])}) (PID {os.getpid()})")
+        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])})")
 
         m = -1
         with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
@@ -536,7 +535,7 @@ def execute_job(j):
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(f"\t> finished in {t:.2f}sec, {m/1000000} MB")
+    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory.")
     return (t,m,r)
 
 def download_Rfam_PDB_mappings():
@@ -653,7 +652,6 @@ def download_BGSU_NR_list():
     return all_chains, nr_chains
 
 def build_chain(c, filename, rfam, pdb_start, pdb_end):
-    print("\t> Building chain on process", os.getpid())
     c.download_3D()
     if not c.delete_me:
         c.extract_portion(filename, pdb_start, pdb_end)
@@ -670,7 +668,7 @@ def build_chain(c, filename, rfam, pdb_start, pdb_end):
     return c
 
 def cm_realign(rfam_acc, chains, label):
-    status = f"\t> Realign {label}..."
+    status = f"\t> Realign {label} completed "
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
         print(status + "\t\U00002705\t(already done)")
         return
@@ -678,6 +676,9 @@ def cm_realign(rfam_acc, chains, label):
     # Preparing job folder
     if not os.access(path_to_seq_data + "realigned/", os.F_OK):
         os.makedirs(path_to_seq_data + "realigned/")
+
+    # Reading Gzipped FASTA file and writing DNA FASTA file
+    print("\t> Extracting sequences...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
     with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
         ids = []
@@ -688,17 +689,22 @@ def cm_realign(rfam_acc, chains, label):
     for c in chains:
         f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
     f.close()
+
+    # Extracting covariance model for this family
+    print("\t> Extracting covariance model (cmfetch)...")
     if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
         f = open(path_to_seq_data + f"realigned/{rfam_acc}.cm", "w")
         subprocess.check_call(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
         f.close()
 
     # Running alignment
+    print(f"\t> Realign {label} (cmalign)...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
-    subprocess.check_call(["cmalign", "--mxsize", "4096", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
+    subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
 
     # Converting to aligned Fasta
+    print("\t> Converting to aligned FASTA (esl-reformat)...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "w")
     subprocess.check_call(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
     f.close()
