@@ -477,21 +477,24 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
         else:
             raise StopIteration
 
-def check_mem_usage(pid, continuous):
-    #print("\t> Watching memory of process", pid, "from", os.getpid())
-    target_process = psutil.Process(pid)
-    max_mem = -1
-    while psutil.pid_exists(pid):
-        info = target_process.memory_full_info()
-        mem = info.rss + info.swap
-        for p in target_process.children(recursive=True):
-            info = p.memory_full_info()
-            mem += info.rss + info.swap
-        if mem > max_mem:
-            max_mem = mem
-        if not continuous: break
-        sleep(0.1)       
-    return max_mem
+class Monitor:
+    def __init__(self, pid):
+        self.keep_watching = True
+        self.target_pid = pid
+
+    def check_mem_usage(self):
+        target_process = psutil.Process(self.target_pid)
+        max_mem = -1
+        while self.keep_watching:
+            info = target_process.memory_full_info()
+            mem = info.rss + info.swap
+            for p in target_process.children(recursive=True):
+                info = p.memory_full_info()
+                mem += info.rss + info.swap
+            if mem > max_mem:
+                max_mem = mem
+            # sleep(0.1)       
+        return max_mem
 
 def execute_job(j):
     running_stats[0] += 1
@@ -504,38 +507,38 @@ def execute_job(j):
         logfile.close()
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
 
-        start_time = time.time()
-        with subprocess.Popen(j.cmd_) as p:
-            try:
-                print("\t>Executing command in process", p.pid)
-                with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-                    assistant_future = executor.submit(check_mem_usage, p.pid, True)
-                    r = p.wait(timeout=j.timeout_) # Wait for process to complete
-                    end_time = time.time()
-                    m = assistant_future.result()
-            except:  # Including KeyboardInterrupt, wait handled that.
-                p.kill()# We don't call p.wait() again as p.__exit__ does that for us.
-                raise
+        monitor = Monitor(os.getpid())
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            assistant_future = executor.submit(monitor.check_mem_usage)
+
+            start_time = time.time()
+            r = subprocess.call(j.cmd_, timeout=j.timeout_)
+            end_time = time.time()
+
+            monitor.keep_watching = False
+            m = assistant_future.result()
+            
 
     elif j.func_ is not None:
 
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if not ((type(a) == list) and len(a)>3)])})")
 
         m = -1
-        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-            f = executor.submit(os.getpid)
-            pid = f.result()
+        monitor = Monitor(os.getpid())
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            assistant_future = executor.submit(monitor.check_mem_usage)
+
             start_time = time.time()
-            f = executor.submit(j.func_, * j.args_)
-            r = f.result()
+            r = j.func_(* j.args_)
             end_time = time.time()
-            f = executor.submit(check_mem_usage, pid, False)
-            m = f.result()
+
+            monitor.keep_watching = False
+            m = assistant_future.result()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory.")
+    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705")
     return (t,m,r)
 
 def download_Rfam_PDB_mappings():
@@ -668,9 +671,8 @@ def build_chain(c, filename, rfam, pdb_start, pdb_end):
     return c
 
 def cm_realign(rfam_acc, chains, label):
-    status = f"\t> Realign {label} completed "
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
-        print(status + "\t\U00002705\t(already done)")
+        print(f"\t> {label} completed \t\U00002705\t(already done)")
         return
 
     # Preparing job folder
@@ -678,7 +680,7 @@ def cm_realign(rfam_acc, chains, label):
         os.makedirs(path_to_seq_data + "realigned/")
 
     # Reading Gzipped FASTA file and writing DNA FASTA file
-    print("\t> Extracting sequences...")
+    print("\t> Extracting sequences...", flush=True)
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
     with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
         ids = []
@@ -698,18 +700,17 @@ def cm_realign(rfam_acc, chains, label):
         f.close()
 
     # Running alignment
-    print(f"\t> Realign {label} (cmalign)...")
+    print(f"\t> {label} (cmalign)...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
     subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
 
     # Converting to aligned Fasta
-    print("\t> Converting to aligned FASTA (esl-reformat)...")
+    # print("\t> Converting to aligned FASTA (esl-reformat)...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "w")
     subprocess.check_call(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
     f.close()
     # subprocess.check_call(["rm", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
-    print(status + "\t\U00002705")
 
 
 if __name__ == "__main__":
