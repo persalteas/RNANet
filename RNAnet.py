@@ -477,6 +477,7 @@ class AnnotatedStockholmIterator(AlignIO.StockholmIO.StockholmIterator):
         else:
             raise StopIteration
 
+
 class Monitor:
     def __init__(self, pid):
         self.keep_watching = True
@@ -501,6 +502,7 @@ class Monitor:
                     max_mem = mem
             sleep(0.1)
         return max_mem
+
 
 def execute_job(j):
     running_stats[0] += 1
@@ -724,14 +726,13 @@ def cm_realign(rfam_acc, chains, label):
 
 if __name__ == "__main__":
     print("Main process running. (PID", os.getpid(), ")")
+
+    # ===========================================================================
+    # List 3D chains with available Rfam mapping
+    # ===========================================================================
+    print("> Searching for mappings between RNA 3D structures and Rfam families...", end="", flush=True)
     all_chains, nr_chains = download_BGSU_NR_list()
     mappings = download_Rfam_PDB_mappings()
-
-    mmcif_parser = MMCIFParser(structure_builder=SloppyStructureBuilder())
-    pdb_parser = PDBParser()
-
-    # List chains with Rfam mapping
-    print("> Searching for mappings in the PDB list...", end="", flush=True)
     chains_with_mapping = []
     for c in all_chains:
         mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
@@ -740,7 +741,9 @@ if __name__ == "__main__":
     n_chains = len(chains_with_mapping)
     print("\t\U00002705")
 
-
+    # ===========================================================================
+    # Download 3D structures and extract the desired chain portions
+    # ===========================================================================
     print("> Building download list...", flush=True)
     # Check for a list of known problems:
     known_issues = []
@@ -750,6 +753,8 @@ if __name__ == "__main__":
         f.close()
 
     # Download the corresponding CIF files and extract the mapped portions
+    mmcif_parser = MMCIFParser(structure_builder=SloppyStructureBuilder())
+    pdb_parser = PDBParser()
     joblist = []
     for c in chains_with_mapping:
         mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
@@ -771,6 +776,10 @@ if __name__ == "__main__":
     loaded_chains = [ c[2] for c in results if not c[2].delete_me ]
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
 
+    # ===========================================================================
+    # Download RNA sequences of the corresponding Rfam families
+    # ===========================================================================
+    
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in loaded_chains:
@@ -791,6 +800,10 @@ if __name__ == "__main__":
         line = fam_stats[fam_stats["rfam_acc"]==f]
         print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
         download_Rfam_sequences(f)
+
+    # ==========================================================================================
+    # Realign sequences from 3D chains to Rfam's identified hits (--> extended full alignement)
+    # ==========================================================================================
 
     # Build job list
     fulljoblist = []
