@@ -483,17 +483,23 @@ class Monitor:
         self.target_pid = pid
 
     def check_mem_usage(self):
+        #print("\t> Monitoring process", self.target_pid, "from process", os.getpid())
         target_process = psutil.Process(self.target_pid)
         max_mem = -1
         while self.keep_watching:
-            info = target_process.memory_full_info()
-            mem = info.rss + info.swap
-            for p in target_process.children(recursive=True):
-                info = p.memory_full_info()
-                mem += info.rss + info.swap
-            if mem > max_mem:
-                max_mem = mem
-            # sleep(0.1)       
+            try:
+                info = target_process.memory_full_info()
+                mem = info.rss + info.swap
+                for p in target_process.children(recursive=True):
+                    info = p.memory_full_info()
+                    mem += info.rss + info.swap
+            except psutil.NoSuchProcess:
+                print("\t> Warning: monitored process does not exist anymore ?")
+                self.keep_watching = False
+            finally:
+                if mem > max_mem:
+                    max_mem = mem
+            sleep(0.1)
         return max_mem
 
 def execute_job(j):
@@ -528,6 +534,7 @@ def execute_job(j):
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             assistant_future = executor.submit(monitor.check_mem_usage)
 
+            #print("\t> Running func in worker", os.getpid())
             start_time = time.time()
             r = j.func_(* j.args_)
             end_time = time.time()
@@ -538,7 +545,7 @@ def execute_job(j):
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705")
+    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705", flush=True)
     return (t,m,r)
 
 def download_Rfam_PDB_mappings():
@@ -672,7 +679,7 @@ def build_chain(c, filename, rfam, pdb_start, pdb_end):
 
 def cm_realign(rfam_acc, chains, label):
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
-        print(f"\t> {label} completed \t\U00002705\t(already done)")
+        print(f"\t> {label} completed \t\U00002705\t(already done)", flush=True)
         return
 
     # Preparing job folder
@@ -680,27 +687,29 @@ def cm_realign(rfam_acc, chains, label):
         os.makedirs(path_to_seq_data + "realigned/")
 
     # Reading Gzipped FASTA file and writing DNA FASTA file
-    print("\t> Extracting sequences...", flush=True)
-    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
-    with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
-        ids = []
-        for record in SeqIO.parse(gz, "fasta"):
-            if record.id not in ids:
-                f.write(">"+record.description+'\n'+str(record.seq)+'\n')
-                ids.append(record.id)
-    for c in chains:
-        f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
-    f.close()
-
-    # Extracting covariance model for this family
-    print("\t> Extracting covariance model (cmfetch)...")
-    if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
-        f = open(path_to_seq_data + f"realigned/{rfam_acc}.cm", "w")
-        subprocess.check_call(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
+    if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.fa"):
+        print("\t> Extracting sequences...", flush=True)
+        f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
+        with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
+            ids = []
+            for record in SeqIO.parse(gz, "fasta"):
+                if record.id not in ids:
+                    f.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                    ids.append(record.id)
+        for c in chains:
+            f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
         f.close()
 
+    # Extracting covariance model for this family
+    if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
+        print("\t> Extracting covariance model (cmfetch)...", flush=True)
+        if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
+            f = open(path_to_seq_data + f"realigned/{rfam_acc}.cm", "w")
+            subprocess.check_call(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
+            f.close()
+
     # Running alignment
-    print(f"\t> {label} (cmalign)...")
+    print(f"\t> {label} (cmalign)...", flush=True)
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
     subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
@@ -789,7 +798,7 @@ if __name__ == "__main__":
     running_stats[1] = 0
     running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
-        if f=="RF02541": continue
+        #if f=="RF02541": continue
         if f=="RF02543": continue
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
