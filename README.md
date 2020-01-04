@@ -23,15 +23,20 @@ The script follows these steps:
 * Asks Rfam for mappings of these structures onto Rfam families (~ a half of structures have a mapping)
 * Downloads the corresponding 3D structures (mmCIFs)
 * Extracts the right chain portions that map onto an Rfam family
+
 Now, compute the features:
+
 * Downloads Rfamseq ncRNA sequence hits for the concerned Rfam families
 * Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using cmalign)
 * Computes nucleotide frequencies at every position for each alignment
 * For each aligned 3D chain, get the nucleotide frequencies in the corresponding RNA family for each residue
+
 Then, compute the labels:
-* Run DSSR `analyze -t` on every chain to get eta' and theta'
+
+* Run DSSR `analyze -t` on every chain to get eta' and theta' pseudotorsions
 * This also permits to identify missing residues and compute a mask for every chain.
+
 Finally, store this data into tensorflow-2.0-ready files.
 
 # Contact
-louis.becquey<at>univ-evry.fr
+louis.becquey@univ-evry.fr
