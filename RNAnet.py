@@ -1,4 +1,5 @@
-#!/usr/bin/python3
+#!/usr/bin/python3.8
+import numpy as np
 import pandas as pd
 import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, psutil, re, requests, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
@@ -179,6 +180,10 @@ class Chain:
         self.seq = ""
         self.length = -1
         self.delete_me = False
+        self.frequencies = np.zeros((5,0))
+        self.etas = []
+        self.thetas = []
+        self.mask = ""
 
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
@@ -267,21 +272,6 @@ class Chain:
 
     def set_rfam(self, rfam):
         self.rfam_fam = rfam
-
-
-class NoDaemonProcess(multiprocessing.Process):
-    # make 'daemon' attribute always return False
-    def _get_daemon(self):
-        return False
-    def _set_daemon(self, value):
-        pass
-    daemon = property(_get_daemon, _set_daemon)
-
-
-class MyPool(multiprocessing.pool.Pool):
-    # We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
-    # because the latter is only a wrapper function, not a proper class.
-    Process = NoDaemonProcess
 
 
 class Job:
@@ -723,6 +713,8 @@ def cm_realign(rfam_acc, chains, label):
     f.close()
     # subprocess.check_call(["rm", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
 
+def dssr_analyze(filename):
+    pass
 
 if __name__ == "__main__":
     print("Main process running. (PID", os.getpid(), ")")
@@ -769,7 +761,7 @@ if __name__ == "__main__":
     if not path.isdir(path_to_3D_data + "RNAcifs"):
         os.makedirs(path_to_3D_data + "RNAcifs")
     jobcount = len(joblist)
-    p = MyPool(processes=cpu_count(), maxtasksperchild=10)
+    p = Pool(processes=cpu_count(), maxtasksperchild=10)
     results = p.map(execute_job, joblist)
     p.close()
     p.join()
@@ -811,8 +803,8 @@ if __name__ == "__main__":
     running_stats[1] = 0
     running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
-        #if f=="RF02541": continue
-        if f=="RF02543": continue
+        if f=="RF02541": continue #
+        if f=="RF02543": continue # those two require solid hardware to predict
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
 
@@ -839,7 +831,7 @@ if __name__ == "__main__":
             print("using", n, "processes:")
 
             # execute jobs of priority i that should be processed n by n:
-            p = MyPool(processes=n, maxtasksperchild=10)
+            p = Pool(processes=n, maxtasksperchild=10)
             raw_results = p.map(execute_job, bunch)
             p.close()
             p.join()
@@ -868,8 +860,55 @@ if __name__ == "__main__":
             for j in bunch:
                 f.write(f"{j.label},{j.comp_time},{j.max_mem}\n")
             f.close()
-    print("Completed.")
+
+    # ==========================================================================================
+    # Now compute statistics on base variants at each position of every 3D chain
+    # ==========================================================================================
+
+    chains_ids = [ str(c) for c in loaded_chains ]
+    print("Computing nucleotide frequencies in alignments...")
+
+    # iterate over Rfam families:
+    for f in sorted(rfam_acc_to_download.keys()):
+        print("\t>", f, end="")
+        # Open the alignment
+        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+
+        # Compute statistics per column
+        frequencies = np.zeros(5, align.get_alignment_length()) # A, C, G, U, other
+        for i in range(align.get_alignment_length()):
+            A = C = G = U = O = 0
+            for s in align:
+                c = s[i]
+                if c == '.': continue
+                elif c == 'A': A += 1
+                elif c == 'C': C += 1
+                elif c == 'G': G += 1
+                elif c == 'U': U += 1
+                else: O += 1
+            N = A+C+G+U+O
+            frequencies[0, i] = A/N
+            frequencies[1, i] = C/N
+            frequencies[2, i] = G/N
+            frequencies[3, i] = U/N
+            frequencies[4, i] = O/N
 
 
+        # Save some columns in the appropriate chains
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
 
+            # get the right 3D chain:
+            idx = chains_ids.index(s.id)
 
+            # save interesting positions
+            for i in range(align.get_alignment_length()):
+                if s[i] == '.': continue
+                loaded_chains[idx].frequencies = np.concatenate((loaded_chains[idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
+        
+        print("\t\U00002705")
+
+    # ==========================================================================================
+    # Analyse the chains with DSSR to get eta', theta', and the masks
+    # ==========================================================================================
