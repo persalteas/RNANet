@@ -19,13 +19,14 @@ Before use, please set the two variables `path_to_3D_data` and `path_to_seq_data
 
 # What it does
 The script follows these steps:
-* Gets a list of 3D structures containing RNA from BGSU's non-redundant list (but keeps the redundant structures /!\),
+* Gets a list of 3D structures containing RNA from BGSU's non-redundant list (but keeps the redundant structures /!\\),
 * Asks Rfam for mappings of these structures onto Rfam families (~ a half of structures have a mapping)
 * Downloads the corresponding 3D structures (mmCIFs)
 * Extracts the right chain portions that map onto an Rfam family
 
 Now, compute the features:
 
+* Extract the sequence for every 3D chain
 * Downloads Rfamseq ncRNA sequence hits for the concerned Rfam families
 * Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using cmalign)
 * Computes nucleotide frequencies at every position for each alignment
