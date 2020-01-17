@@ -1,10 +1,10 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB, Bio.PDB.StructureBuilder, gzip, io, multiprocessing, os, psutil, re, requests, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, gzip, io, itertools, json, multiprocessing, os, psutil, re, requests, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
-from Bio.PDB import PDBParser, MMCIFParser, MMCIF2Dict, PDBIO, Selection
-from Bio.PDB.Residue import Residue
+from Bio.PDB import MMCIFParser, PDBIO
+from Bio.PDB.mmcifio import MMCIFIO
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, PDBConstructionException
 from Bio._py3k import urlretrieve as _urlretrieve
 from Bio._py3k import urlcleanup as _urlcleanup
@@ -14,6 +14,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from collections import OrderedDict
 from ftplib import FTP
+from functools import partial
 from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
@@ -59,8 +60,8 @@ class NtPortionSelector(object):
 
     def accept_residue(self, residue):
         hetatm_flag, resseq, icode = residue.get_id()
-        if hetatm_flag != " ":
-            return 0 # skip HETATMs
+        if hetatm_flag in ["W", "H_MG"]:
+            return 0 # skip waters and magnesium
         if icode != " ":
             print("\t> \U000026A0 \033[33micode %s at position %s\033[0m" % (icode, resseq), flush=True)
         if self.start <= resseq <= self.end:
@@ -74,116 +75,25 @@ class NtPortionSelector(object):
         return 1
 
 
-class SloppyStructureBuilder(Bio.PDB.StructureBuilder.StructureBuilder):
-    """Cope with resSeq < 10,000 limitation by just incrementing internally.
-
-    # Q: What's wrong here??
-    #   Some atoms or residues will be missing in the data structure.
-    #   WARNING: Residue (' ', 8954, ' ') redefined at line 74803.
-    #   PDBConstructionException: Blank altlocs in duplicate residue SOL
-    #   (' ', 8954, ' ') at line 74803.
-    #
-    # A: resSeq only goes to 9999 --> goes back to 0 (PDB format is not really good here)
-    """
-
-    # NOTE/TODO:
-    # - H and W records are probably not handled yet (don't have examples
-    #   to test)
-
-    def __init__(self, verbose=False):
-        Bio.PDB.StructureBuilder.StructureBuilder.__init__(self)
-        self.max_resseq = -1
-        self.verbose = verbose
-
-    def init_residue(self, resname, field, resseq, icode):
-        """Initiate a new Residue object.
-
-        Arguments:
-        o resname - string, e.g. "ASN"
-        o field - hetero flag, "W" for waters, "H" for hetero residues, otherwise blanc.
-        o resseq - int, sequence identifier
-        o icode - string, insertion code
-        """
-
-        if field != " ":
-            if field == "H":
-                # The hetero field consists of H_ + the residue name (e.g. H_FUC)
-                field = "H_" + resname
-        res_id = (field, resseq, icode)
-
-        if resseq > self.max_resseq:
-            self.max_resseq = resseq
-
-        if field == " ":
-            fudged_resseq = False
-            while (self.chain.has_id(res_id) or resseq == 0):
-                # There already is a residue with the id (field, resseq, icode)
-                # resseq == 0 catches already wrapped residue numbers which do not trigger the has_id() test.
-                #
-                # Be sloppy and just increment... (This code will not leave gaps in resids... I think)
-                #
-                # XXX: shouldn't we also do this for hetero atoms and water??
-                self.max_resseq += 1
-                resseq = self.max_resseq
-                res_id = (field, resseq, icode)    # use max_resseq!
-                fudged_resseq = True
-
-            if fudged_resseq and self.verbose:
-                sys.stderr.write("Residues are wrapping (Residue ('%s', %i, '%s') at line %i)." % (field, resseq, icode, self.line_counter)
-                                +".... assigning new resid %d.\n" % self.max_resseq)
-        residue = Residue(res_id, resname, self.segid)
-        self.chain.add(residue)
-        self.residue = residue
-
-
-class SloppyPDBIO(Bio.PDB.PDBIO):
-    """PDBIO class that can deal with large pdb files as used in MD simulations
-
-    - resSeq simply wrap and are printed modulo 10,000.
-    - atom numbers wrap at 99,999 and are printed modulo 100,000
-
-    """
-    # The format string is derived from the PDB format as used in PDBIO.py (has to be copied to the class because of the package layout it is not externally accessible)
-    _ATOM_FORMAT_STRING = "%s%5i %-4s%c%3s %c%4i%c   %8.3f%8.3f%8.3f%6.2f%6.2f      %4s%2s%2s\n"
-
-    def _get_atom_line(self, atom, hetfield, segid, atom_number, resname, resseq, icode, chain_id, element="  ", charge="  "):
-        """ Returns an ATOM string that is guaranteed to fit the ATOM format.
-
-        - Resid (resseq) is wrapped (modulo 10,000) to fit into %4i (4I) format
-        - Atom number (atom_number) is wrapped (modulo 100,000) to fit into
-          %5i (5I) format
-
-        """
-        if hetfield != " ":
-            record_type = "HETATM"
-        else:
-            record_type = "ATOM  "
-        name = atom.get_fullname()
-        altloc = atom.get_altloc()
-        x, y, z = atom.get_coord()
-        bfactor = atom.get_bfactor()
-        occupancy = atom.get_occupancy()
-        args = (record_type, atom_number % 100000, name, altloc, resname, chain_id, resseq % 10000, icode, x, y, z, occupancy, bfactor, segid, element, charge)
-        return self._ATOM_FORMAT_STRING % args
-
-
 class Chain:
     def __init__(self, nrlist_code):
         nr = nrlist_code.split('|')
-        self.pdb_id = nr[0].lower()
-        self.pdb_model = int(nr[1])
-        self.pdb_chain_id = nr[2].upper()
-        self.infile_chain_id = self.pdb_chain_id
-        self.full_mmCIFpath = ""
-        self.file = ""
-        self.rfam_fam = ""
-        self.seq = ""
-        self.length = -1
-        self.delete_me = False
-        self.frequencies = np.zeros((5,0))
-        self.etas = []
-        self.thetas = []
-        self.mask = ""
+        self.pdb_id = nr[0].lower()             # PDB ID
+        self.pdb_model = int(nr[1])             # model ID, starting at 1
+        self.pdb_chain_id = nr[2].upper()       # chain ID (mmCIF), multiple letters
+        # self.infile_chain_id = self.pdb_chain_id# chain ID (PDB), one letter only
+        self.chain_label = ""                   # chain pretty name 
+        self.full_mmCIFpath = ""                # path to the source mmCIF structure
+        self.file = ""                          # path to the 3D PDB file
+        self.rfam_fam = ""                      # mapping to an RNA family
+        self.seq = ""                           # sequence
+        self.length = -1                        # length of the sequence (missing residues are not counted)
+        self.full_length = -1                   # length of the chain extracted from source structure ([start; stop] interval)
+        self.delete_me = False                  # an error occured during production/parsing
+        self.frequencies = np.zeros((5,0))      # frequencies of nt at every position: A,C,G,U,Other
+        self.etas = []                          # eta' pseudotorsion at every position, if available
+        self.thetas = []                        # theta' pseudotorsion at every position, if available
+        self.mask = []                          # nucleotide is available in 3D (1 or 0), for every position
 
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
@@ -211,7 +121,7 @@ class Chain:
 
     def extract_portion(self, filename, pdb_start, pdb_end):
         status = f"\t> Extract {pdb_start}-{pdb_end} atoms from {self.pdb_id}-{self.pdb_chain_id}\t"
-        self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+filename+".pdb"
+        self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+filename+".cif"
 
         if os.path.exists(self.file):
             print(status + "\t\U00002705\t(already done)", flush=True)
@@ -238,20 +148,20 @@ class Chain:
 
             chain = self.pdb_chain_id
             # Modify the chain ID: cif files can have 2-char chain names, not PDB files.
-            if len(c.id) > 1:
-                parent_chains = c.get_parent().child_dict.keys()
-                s[model_idx].detach_child(c.id) # detach old chain_id from the model
-                if c.id[-1] in parent_chains:
-                    s[model_idx].detach_child(c.id[-1]) # detach new chain_id from the model
-                    c.detach_parent() # isolate the chain from its model
-                chain = c.id[-1]
-                c.id = c.id[-1]
-                s[model_idx].add(c) # attach updated chain to the model
-            self.infile_chain_id = chain
+            # if len(c.id) > 1:
+            #     parent_chains = c.get_parent().child_dict.keys()
+            #     s[model_idx].detach_child(c.id) # detach old chain_id from the model
+            #     if c.id[-1] in parent_chains:
+            #         s[model_idx].detach_child(c.id[-1]) # detach new chain_id from the model
+            #         c.detach_parent() # isolate the chain from its model
+            #     chain = c.id[-1]
+            #     c.id = c.id[-1]
+            #     s[model_idx].add(c) # attach updated chain to the model
+            # self.infile_chain_id = chain
 
             # Do the extraction of the 3D data
             sel = NtPortionSelector(model_idx, chain, start, end)
-            ioobj = SloppyPDBIO()
+            ioobj = MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
 
@@ -260,7 +170,7 @@ class Chain:
     def load_sequence(self):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', PDBConstructionWarning)
-            s = pdb_parser.get_structure(self.pdb_id, self.file)
+            s = mmcif_parser.get_structure(self.pdb_id, self.file)
         cs = s.get_chains() # the only chain of the file
         seq = ""
         for c in cs: # there should be only one chain, actually, but "yield" forbids the subscript
@@ -272,6 +182,68 @@ class Chain:
 
     def set_rfam(self, rfam):
         self.rfam_fam = rfam
+        print("\t> Associating it to", rfam, "...\t\t\t\U00002705")
+
+    def extract_3D_data(self):
+        if not os.access(path_to_3D_data+"pseudotorsions/", os.F_OK):
+            os.makedirs(path_to_3D_data+"pseudotorsions/")
+
+        if not os.path.exists(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv"):
+            print("\t> Computing", self.chain_label, "pseudotorsions...", flush=True)
+
+            # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
+            output = subprocess.run(
+                ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            stdout = output.stdout.decode('utf-8')
+            try:
+                nts = json.loads(stdout)["nts"]
+            except KeyError as e:
+                print("\t>Error while parsing", self.chain_label, "\t\U0000274C")
+                return
+            print("\t> Computing", self.chain_label, "pseudotorsions...\t\t\U00002705", flush=True)
+            
+            # extract angles
+            l = int(nts[-1]["nt_resnum"]) - int(nts[0]["nt_resnum"]) + 1
+            eta = [np.NaN] * l
+            theta = [np.NaN] * l
+            mask = [ 0 ] * l
+            seq = [ "-" ] * l
+
+            resnum_start = int(nts[0]["nt_resnum"])
+
+            for nt in nts:
+                if nt["eta_prime"] is None:
+                    e = np.NaN
+                else:
+                    e = float(nt["eta_prime"])
+                if nt["theta_prime"] is None:
+                    t = np.NaN
+                else:
+                    t = float(nt["theta_prime"])
+                p = int(nt["nt_resnum"]) - resnum_start
+                mask[p]  = int(nt["nt_code"] in "ACGU")
+                seq[p]   = nt["nt_code"].upper()
+                eta[p]   = e
+                theta[p] = t
+            pd.DataFrame({"seq": list(seq), "m": list(mask), "eta": list(eta), "theta": list(theta)}
+                        ).to_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
+            print("\t> Saved", self.chain_label, "pseudotorsions to CSV.\t\t\U00002705", flush=True)
+        else:
+            print("\t> Computing", self.chain_label, "pseudotorsions...\t\U00002705\t(already done)", flush=True)
+
+        # Now load data from the CSV file
+        d = pd.read_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
+        self.seq = "".join(d.seq.values)
+        self.length = len([ x for x in d.seq if x != "-" ])
+        self.mask = "".join([ str(int(x)) for x in d.m.values])
+        self.etas = d.eta.values
+        self.thetas = d.theta.values
+        print("\t> Loaded data from CSV\t\t\U00002705", flush=True)
+
+        if self.length < 5:
+            print("\t> Sequence is too short, let's ignore it.")
+            c.delete_me = True
+        return
 
 
 class Job:
@@ -493,8 +465,7 @@ class Monitor:
             sleep(0.1)
         return max_mem
 
-
-def execute_job(j):
+def execute_job(j, jobcount):
     running_stats[0] += 1
 
     if len(j.cmd_):
@@ -510,7 +481,7 @@ def execute_job(j):
             assistant_future = executor.submit(monitor.check_mem_usage)
 
             start_time = time.time()
-            r = subprocess.call(j.cmd_, timeout=j.timeout_)
+            r = subprocess.run(j.cmd_, timeout=j.timeout_, stdout=subprocess.DEVNULL)
             end_time = time.time()
 
             monitor.keep_watching = False
@@ -525,20 +496,74 @@ def execute_job(j):
         monitor = Monitor(os.getpid())
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             assistant_future = executor.submit(monitor.check_mem_usage)
-
-            #print("\t> Running func in worker", os.getpid())
             start_time = time.time()
             r = j.func_(* j.args_)
             end_time = time.time()
-
             monitor.keep_watching = False
             m = assistant_future.result()
 
     # Job is finished
     running_stats[1] += 1
     t = end_time - start_time
-    print(f"\t> finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705", flush=True)
     return (t,m,r)
+
+def execute_joblist(fulljoblist, printstats=False):
+    # reset counters
+    running_stats[0] = 0
+    running_stats[1] = 0
+    running_stats[2] = 0
+
+    # sort jobs in a tree structure
+    jobs = {}
+    jobcount = len(fulljoblist)
+    for job in fulljoblist:
+        if job.priority_ not in jobs.keys():
+            jobs[job.priority_] = {}
+        if job.nthreads not in jobs[job.priority_].keys():
+            jobs[job.priority_][job.nthreads] = []
+        jobs[job.priority_][job.nthreads].append(job)
+    nprio = max(jobs.keys())
+
+    if printstats:
+        # Write stats in a file
+        f = open("jobstats.csv", "w")
+        f.write("label,comp_time,max_mem\n")
+        f.close()
+
+    # for each priority level
+    results = {}
+    for i in range(1,nprio+1):
+        if i not in jobs.keys(): continue # ignore this priority level if no job available
+        different_thread_numbers = [n for n in jobs[i].keys()]
+        different_thread_numbers.sort()
+        print("processing jobs of priority", i)
+        res = []
+        # jobs should be processed 1 by 1, 2 by 2, or n by n depending on their definition
+        for n in different_thread_numbers:
+            bunch = jobs[i][n]
+            if not len(bunch): continue # ignore if no jobs should be processed n by n
+            print("using", n, "processes:")
+
+            # execute jobs of priority i that should be processed n by n:
+            p = Pool(processes=int(cpu_count()/2), maxtasksperchild=10)
+            raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch)
+            p.close()
+            p.join()
+
+            if printstats:
+                # extract computation times
+                times = [ r[0] for r in raw_results ]
+                mems = [ r[1] for r in raw_results ]
+                f = open("jobstats.csv", "a")
+                for j, t, m in zip(bunch, times, mems):
+                    j.comp_time = t
+                    j.max_mem = m
+                    print(f"\t> {j.label} finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705", flush=True)
+                    f.write(f"{j.label},{t},{m}\n")
+                f.close()
+            res += [ r[2] for r in raw_results ]
+        results[i] = res
+    return results
 
 def download_Rfam_PDB_mappings():
     # download PDB mappings to Rfam family
@@ -582,7 +607,7 @@ def download_Rfam_cm():
             _urlretrieve(f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz', path_to_seq_data + "Rfam.cm.gz")
             print("\t\U00002705")
             print(f"\t\t> Uncompressing Rfam.cm...", end='', flush=True)
-            subprocess.check_call(["gunzip", path_to_seq_data + "Rfam.cm.gz"])
+            subprocess.run(["gunzip", path_to_seq_data + "Rfam.cm.gz"], stdout=subprocess.DEVNULL)
             print("\t\U00002705")
         except:
             print(f"\t\U0000274C\tError downloading and/or extracting Rfam.cm")
@@ -638,34 +663,29 @@ def download_BGSU_NR_list():
             return [], []
 
     nrlist = pd.read_csv(path_to_3D_data + "latest_nr_list.csv")
-    nr_structures_list = nrlist['representative'].tolist()
     full_structures_list = nrlist['class_members'].tolist()
     print("\t\U00002705")
 
     # Split the codes
-    nr_chains = []
     all_chains = []
-    for code in nr_structures_list:
-        nr_chains.append(Chain(code))
     for code in full_structures_list:
         codes = code.replace('+',',').split(',')
         for c in codes:
             all_chains.append(Chain(c))
-    return all_chains, nr_chains
+    return all_chains
 
-def build_chain(c, filename, rfam, pdb_start, pdb_end):
+def build_chain(c, rfam, pdb_start, pdb_end):
     c.download_3D()
     if not c.delete_me:
-        c.extract_portion(filename, pdb_start, pdb_end)
+        c.extract_portion(c.chain_label, pdb_start, pdb_end)
     if not c.delete_me:
-        c.load_sequence()
         c.set_rfam(rfam)
-    if len(c.seq)<5:
-        c.delete_me = True
+        c.extract_3D_data()
 
-    if c.delete_me and filename not in known_issues:
+    if c.delete_me and c.chain_label not in known_issues:
+        print(f"\t> \U000026A0 \033[33mAdding {c.chain_label} to known issues.\033[0m")
         f = open(path_to_3D_data + "known_issues.txt", 'a')
-        f.write(filename + '\n')
+        f.write(c.chain_label + '\n')
         f.close()
     return c
 
@@ -697,24 +717,68 @@ def cm_realign(rfam_acc, chains, label):
         print("\t> Extracting covariance model (cmfetch)...", flush=True)
         if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
             f = open(path_to_seq_data + f"realigned/{rfam_acc}.cm", "w")
-            subprocess.check_call(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
+            subprocess.run(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
             f.close()
 
     # Running alignment
     print(f"\t> {label} (cmalign)...", flush=True)
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
-    subprocess.check_call(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
+    subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
     f.close()
 
     # Converting to aligned Fasta
     # print("\t> Converting to aligned FASTA (esl-reformat)...")
     f = open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "w")
-    subprocess.check_call(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
+    subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
     f.close()
-    # subprocess.check_call(["rm", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
+    # subprocess.run(["rm", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
 
-def dssr_analyze(filename):
-    pass
+def alignment_nt_stats(f):
+    print("\t>",f,"... ", flush=True)
+    def summarize_position(col):
+        # this function counts the number of nucleotides at a given position, given a "column" from a MSA.
+        chars = ''.join(set(col))
+        counts = { 'A': col.count('A'), 'C':col.count('C'), 'G':col.count('G'), 'U':col.count('U'), '-':col.count('-')}
+        known_chars_count = 0
+        for char in chars:
+            if char in "ACGU":
+                known_chars_count += counts[char]
+            elif char != '-':
+                counts[char] = col.count(char)
+        N = len(col) - counts['-'] # number of ungapped residues
+        return ( counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N) # other residues, or consensus (N, K, Y...)
+
+    chains_ids = [ str(c) for c in rfam_acc_to_download[f] ]
+
+    # Open the alignment
+    align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+    print("\t>",f,"... loaded", flush=True)
+
+    # Compute statistics per column
+    results = []
+    for i in range(align.get_alignment_length()):
+        cols = align[:,i]
+        results.append(summarize_position(cols))
+    frequencies = np.array(results).T
+    print("\t>",f,"... loaded, computed", flush=True)
+
+    # Save some columns in the appropriate chains
+    for s in align:
+        if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+            continue
+
+        # get the right 3D chain:
+        idx = chains_ids.index(s.id)
+
+        # save interesting positions
+        for i in range(align.get_alignment_length()):
+            if s[i] == '-': continue
+            rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
+        
+    print("\t>", f, "... loaded, computed, saved\t\U00002705", flush=True)
+    return rfam_acc_to_download[f]
+
+
 
 if __name__ == "__main__":
     print("Main process running. (PID", os.getpid(), ")")
@@ -722,8 +786,7 @@ if __name__ == "__main__":
     # ===========================================================================
     # List 3D chains with available Rfam mapping
     # ===========================================================================
-    print("> Searching for mappings between RNA 3D structures and Rfam families...", end="", flush=True)
-    all_chains, nr_chains = download_BGSU_NR_list()
+    all_chains = download_BGSU_NR_list()
     mappings = download_Rfam_PDB_mappings()
     chains_with_mapping = []
     for c in all_chains:
@@ -731,42 +794,45 @@ if __name__ == "__main__":
         if len(mapping.rfam_acc.values):
             chains_with_mapping.append(c)
     n_chains = len(chains_with_mapping)
-    print("\t\U00002705")
 
     # ===========================================================================
-    # Download 3D structures and extract the desired chain portions
+    # Download 3D structures, extract the desired chain portions, 
+    # and extract their informations
     # ===========================================================================
     print("> Building download list...", flush=True)
     # Check for a list of known problems:
     known_issues = []
     if path.isfile(path_to_3D_data + "known_issues.txt"):
         f = open(path_to_3D_data + "known_issues.txt", 'r')
-        known_issues = f.readlines()
+        known_issues = [ x[:-1] for x in f.readlines() ]
         f.close()
+        print("\t> Ignoring known issues:")
+        for x in known_issues:
+            print("\t  ", x)
 
     # Download the corresponding CIF files and extract the mapped portions
-    mmcif_parser = MMCIFParser(structure_builder=SloppyStructureBuilder())
-    pdb_parser = PDBParser()
+    mmcif_parser = MMCIFParser()
+
     joblist = []
     for c in chains_with_mapping:
+        # read mappings information
         mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
         pdb_start = str(mapping.pdb_start.values[0])
         pdb_end = str(mapping.pdb_end.values[0])
-        filename = f"{c.pdb_id}_{str(c.pdb_model)}_{c.pdb_chain_id}_{pdb_start}-{pdb_end}"
-        filepath = path_to_3D_data+"rna_mapped_to_Rfam/"+filename+".pdb"
-        if filename not in known_issues:
-            joblist.append(Job(function=build_chain, args=[c, filename, mapping.rfam_acc.values[0], pdb_start, pdb_end]))
+        # build the chain
+        c.chain_label = f"{c.pdb_id}_{str(c.pdb_model)}_{c.pdb_chain_id}_{pdb_start}-{pdb_end}"
+        if c.chain_label not in known_issues:
+            joblist.append(Job(function=build_chain, args=[c, mapping.rfam_acc.values[0], pdb_start, pdb_end]))
+
     if not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
         os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam")
     if not path.isdir(path_to_3D_data + "RNAcifs"):
         os.makedirs(path_to_3D_data + "RNAcifs")
-    jobcount = len(joblist)
-    p = Pool(processes=cpu_count(), maxtasksperchild=10)
-    results = p.map(execute_job, joblist)
-    p.close()
-    p.join()
-    loaded_chains = [ c[2] for c in results if not c[2].delete_me ]
+    
+    results = execute_joblist(joblist)[1]    
+    loaded_chains = [ c for c in results if not c.delete_me ]
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
+    exit()
 
     # ===========================================================================
     # Download RNA sequences of the corresponding Rfam families
@@ -799,116 +865,60 @@ if __name__ == "__main__":
 
     # Build job list
     fulljoblist = []
-    running_stats[0] = 0
-    running_stats[1] = 0
-    running_stats[2] = 0
     for f in sorted(rfam_acc_to_download.keys()):
         if f=="RF02541": continue #
         if f=="RF02543": continue # those two require solid hardware to predict
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
-
-    # sort jobs in a tree structure
-    jobs = {}
-    jobcount = len(fulljoblist)
-    for job in fulljoblist:
-        if job.priority_ not in jobs.keys():
-            jobs[job.priority_] = {}
-        if job.nthreads not in jobs[job.priority_].keys():
-            jobs[job.priority_][job.nthreads] = []
-        jobs[job.priority_][job.nthreads].append(job)
-    nprio = max(jobs.keys())
-    # for each priority level
-    for i in range(1,nprio+1):
-        if i not in jobs.keys(): continue # ignore this priority level if no job available
-        different_thread_numbers = [n for n in jobs[i].keys()]
-        different_thread_numbers.sort()
-        print("processing jobs of priority", i)
-        # jobs should be processed 1 by 1, 2 by 2, or n by n depending on their definition
-        for n in different_thread_numbers:
-            bunch = jobs[i][n]
-            if not len(bunch): continue # ignore if no jobs should be processed n by n
-            print("using", n, "processes:")
-
-            # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=n, maxtasksperchild=10)
-            raw_results = p.map(execute_job, bunch)
-            p.close()
-            p.join()
-
-            # extract computation times
-            times = [ r[0] for r in raw_results ]
-            mems = [ r[1] for r in raw_results ]
-            for j, t, m in zip(bunch, times, mems):
-                j.comp_time = t
-                j.max_mem = m
-                print(j.label, "ran in", t, "seconds with", m, "bytes of memory")
-
-    # Write this in a file
-    f = open("jobstats.csv", "w")
-    f.write("label,comp_time,max_mem\n")
-    f.close()
-    for i in range(1,nprio+1):
-        if i not in jobs.keys(): continue
-        different_thread_numbers = [n for n in jobs[i].keys()]
-        different_thread_numbers.sort()
-        for n in different_thread_numbers:
-            bunch = jobs[i][n]
-            if not len(bunch):
-                continue
-            f = open("jobstats.csv", "a")
-            for j in bunch:
-                f.write(f"{j.label},{j.comp_time},{j.max_mem}\n")
-            f.close()
+    execute_joblist(fulljoblist, printstats=True)
 
     # ==========================================================================================
     # Now compute statistics on base variants at each position of every 3D chain
     # ==========================================================================================
 
-    chains_ids = [ str(c) for c in loaded_chains ]
     print("Computing nucleotide frequencies in alignments...")
+    # families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543", "RF02541"]])
+    families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543"]])
+    pool = Pool(processes=10, maxtasksperchild=10)
+    results = pool.map(alignment_nt_stats, families)
+    pool.close()
+    pool.join()
+    loaded_chains = list(itertools.chain.from_iterable(results))
 
-    # iterate over Rfam families:
-    for f in sorted(rfam_acc_to_download.keys()):
-        print("\t>", f, end="")
-        # Open the alignment
-        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
-
-        # Compute statistics per column
-        frequencies = np.zeros(5, align.get_alignment_length()) # A, C, G, U, other
-        for i in range(align.get_alignment_length()):
-            A = C = G = U = O = 0
-            for s in align:
-                c = s[i]
-                if c == '.': continue
-                elif c == 'A': A += 1
-                elif c == 'C': C += 1
-                elif c == 'G': G += 1
-                elif c == 'U': U += 1
-                else: O += 1
-            N = A+C+G+U+O
-            frequencies[0, i] = A/N
-            frequencies[1, i] = C/N
-            frequencies[2, i] = G/N
-            frequencies[3, i] = U/N
-            frequencies[4, i] = O/N
-
-
-        # Save some columns in the appropriate chains
-        for s in align:
-            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
-                continue
-
-            # get the right 3D chain:
-            idx = chains_ids.index(s.id)
-
-            # save interesting positions
-            for i in range(align.get_alignment_length()):
-                if s[i] == '.': continue
-                loaded_chains[idx].frequencies = np.concatenate((loaded_chains[idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
-        
-        print("\t\U00002705")
-
+    
     # ==========================================================================================
-    # Analyse the chains with DSSR to get eta', theta', and the masks
+    # Save the data point
     # ==========================================================================================
+    for c in loaded_chains:
+        print("Writing", c.chain_label, "to file...", end="", flush=True)
+        point = np.zeros((13, c.full_length))
+        gaps = 0
+        for i in range(c.full_length):
+            point[0,i] = i+1 # position
+            if c.mask[i]: # the ith nucleotide exists
+
+                # one-hot encoding of the actual sequence
+                point[1,i] = int(c.seq[i-gaps] == 'A')
+                point[2,i] = int(c.seq[i-gaps] == 'C')
+                point[3,i] = int(c.seq[i-gaps] == 'G')
+                point[4,i] = int(c.seq[i-gaps] == 'U')
+                point[5,i] = int(c.seq[i-gaps] not in ['A', 'C', 'G', 'U'])
+
+                # save the PSSMs
+                point[6,i] = c.frequencies[0, i-gaps]
+                point[7,i] = c.frequencies[1, i-gaps]
+                point[8,i] = c.frequencies[2, i-gaps]
+                point[9,i] = c.frequencies[3, i-gaps]
+                point[10,i] = c.frequencies[4, i-gaps]
+            else:
+                gaps += 1
+                point[5,i] = 1.0
+            point[11,i] = c.eta[i]
+            point[12,i] = c.theta[i]
+        f = open(path_to_3D_data + "datapoints/" + c.chain_label, "w")
+        for i in range(13):
+            line = [str(x) for x in list(point[i,:]) ]
+            f.write(','.join(line)+'\n')
+        f.close()
+        print("\t\U00002705", flush=True)
+    print("Completed.")
