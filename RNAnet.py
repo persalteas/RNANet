@@ -40,6 +40,10 @@ running_stats.append(0) # n_finished
 running_stats.append(0) # n_skipped
 runDir = path.dirname(path.realpath(__file__))
 
+validsymb = '\U00002705'
+warnsymb = '\U000026A0'
+errsymb = '\U0000274C'
+
 class NtPortionSelector(object):
 
     def __init__(self, model_id, chain_id, start, end):
@@ -63,7 +67,7 @@ class NtPortionSelector(object):
         if hetatm_flag in ["W", "H_MG"]:
             return 0 # skip waters and magnesium
         if icode != " ":
-            print("\t> \U000026A0 \033[33micode %s at position %s\033[0m" % (icode, resseq), flush=True)
+            warn(f"icode {icode} at position {resseq}\t\t")
         if self.start <= resseq <= self.end:
             return 1
         return 0
@@ -81,7 +85,7 @@ class Chain:
         self.pdb_id = nr[0].lower()             # PDB ID
         self.pdb_model = int(nr[1])             # model ID, starting at 1
         self.pdb_chain_id = nr[2].upper()       # chain ID (mmCIF), multiple letters
-        # self.infile_chain_id = self.pdb_chain_id# chain ID (PDB), one letter only
+        self.reversed = False                   # wether pdb_end > pdb_start in the Rfam mapping
         self.chain_label = ""                   # chain pretty name 
         self.full_mmCIFpath = ""                # path to the source mmCIF structure
         self.file = ""                          # path to the 3D PDB file
@@ -106,7 +110,7 @@ class Chain:
         final_filepath = path_to_3D_data+"RNAcifs/"+self.pdb_id+".cif"
 
         if os.path.exists(final_filepath):
-            print(status + "\t\U00002705\t(structure exists)")
+            print(status + f"\t{validsymb}\t(structure exists)")
             self.full_mmCIFpath = final_filepath
             return
         else:
@@ -114,9 +118,9 @@ class Chain:
                 _urlcleanup()
                 _urlretrieve(url, final_filepath)
                 self.full_mmCIFpath = final_filepath
-                print(status + "\t\U00002705")
+                print(status + f"\t{validsymb}")
             except IOError:
-                print(status + f"\t\U0000274E\t\033[31mError downloading {url} !\033[0m")
+                print(status + f"\tERR \U0000274E\t\033[31mError downloading {url} !\033[0m")
                 self.delete_me = True
 
     def extract_portion(self, filename, pdb_start, pdb_end):
@@ -124,7 +128,7 @@ class Chain:
         self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+filename+".cif"
 
         if os.path.exists(self.file):
-            print(status + "\t\U00002705\t(already done)", flush=True)
+            print(status + f"\t{validsymb}\t(already done)", flush=True)
             return
 
         model_idx = self.pdb_model - (self.pdb_model > 0) # arrays start at 0, models start at 1
@@ -140,67 +144,55 @@ class Chain:
                 return
             s = mmcif_parser.get_structure(self.pdb_id, self.full_mmCIFpath)
 
-            # Modify the start/end numbers (given positions are relative to the chain, not the whole PDB)
             c = s[model_idx][self.pdb_chain_id]             # the desired chain
             first_number = c.child_list[0].get_id()[1]      # its first residue is numbered 'first_number'
-            start = pdb_start + first_number - 1            # then our start position should be shifted by 'first_number'
-            end = pdb_end + first_number - 1                # same for the end position
-
-            chain = self.pdb_chain_id
-            # Modify the chain ID: cif files can have 2-char chain names, not PDB files.
-            # if len(c.id) > 1:
-            #     parent_chains = c.get_parent().child_dict.keys()
-            #     s[model_idx].detach_child(c.id) # detach old chain_id from the model
-            #     if c.id[-1] in parent_chains:
-            #         s[model_idx].detach_child(c.id[-1]) # detach new chain_id from the model
-            #         c.detach_parent() # isolate the chain from its model
-            #     chain = c.id[-1]
-            #     c.id = c.id[-1]
-            #     s[model_idx].add(c) # attach updated chain to the model
-            # self.infile_chain_id = chain
+            if pdb_start < pdb_end:
+                start = pdb_start + first_number - 1            # then our start position should be shifted by 'first_number'
+                end = pdb_end + first_number - 1                # same for the end position
+            else:
+                self.reversed = True
+                end = pdb_start + first_number - 1
+                start = pdb_end + first_number - 1
 
             # Do the extraction of the 3D data
-            sel = NtPortionSelector(model_idx, chain, start, end)
+            sel = NtPortionSelector(model_idx, self.pdb_chain_id, start, end)
             ioobj = MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
 
-        print(status + "\t\U00002705")
-
-    def load_sequence(self):
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', PDBConstructionWarning)
-            s = mmcif_parser.get_structure(self.pdb_id, self.file)
-        cs = s.get_chains() # the only chain of the file
-        seq = ""
-        for c in cs: # there should be only one chain, actually, but "yield" forbids the subscript
-            for r in c:
-                seq += r.get_resname().strip()
-        self.seq =  seq
-        self.length = len(self.seq)
-        print(f"\t> Extract subsequence from {self.pdb_id}-{self.pdb_chain_id}\t\t\U00002705\t(length {self.length})")
+        print(status + f"\t{validsymb}")
 
     def set_rfam(self, rfam):
         self.rfam_fam = rfam
-        print("\t> Associating it to", rfam, "...\t\t\t\U00002705")
+        print("\t> Associating it to", rfam, f"...\t\t\t{validsymb}")
 
     def extract_3D_data(self):
         if not os.access(path_to_3D_data+"pseudotorsions/", os.F_OK):
             os.makedirs(path_to_3D_data+"pseudotorsions/")
 
         if not os.path.exists(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv"):
-            print("\t> Computing", self.chain_label, "pseudotorsions...", flush=True)
 
             # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
             output = subprocess.run(
-                ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout = output.stdout.decode('utf-8')
+            stderr = output.stderr.decode('utf-8')
             try:
-                nts = json.loads(stdout)["nts"]
+                if "exception" in stderr:
+                    warn(f"Exception while running DSSR: {stderr}\n\tIgnoring {self.chain_label}.\t\t\t", error=True)
+                    self.delete_me = True
+                    return
+                json_object = json.loads(stdout)
+                if "warning" in json_object.keys():
+                    warn(f"Ignoring {self.chain_label} ({json_object['warning']})\t", error=True)
+                    self.delete_me = True
+                    return
+                nts = json_object["nts"]
             except KeyError as e:
-                print("\t>Error while parsing", self.chain_label, "\t\U0000274C")
+                warn(f"Error while parsing DSSR's json output:\n{json_object.keys()}\n{json_object}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
+                self.delete_me = True
                 return
-            print("\t> Computing", self.chain_label, "pseudotorsions...\t\t\U00002705", flush=True)
+            print("\t> Computing", self.chain_label, f"pseudotorsions...\t\t{validsymb}", flush=True)
             
             # extract angles
             l = int(nts[-1]["nt_resnum"]) - int(nts[0]["nt_resnum"]) + 1
@@ -225,11 +217,23 @@ class Chain:
                 seq[p]   = nt["nt_code"].upper()
                 eta[p]   = e
                 theta[p] = t
+
+            if self.reversed:
+                warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting angles.")
+                # the 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
+                # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
+                # anyways, you need to invert the angles.
+                seq = seq[::-1]
+                mask = mask[::-1]
+                temp_eta = [ e for e in eta ]
+                eta = [ theta[n] for n in range(l) ]        # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                theta = [ temp_eta[n] for n in range(l) ]   # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+
             pd.DataFrame({"seq": list(seq), "m": list(mask), "eta": list(eta), "theta": list(theta)}
                         ).to_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
-            print("\t> Saved", self.chain_label, "pseudotorsions to CSV.\t\t\U00002705", flush=True)
+            print("\t> Saved", self.chain_label, f"pseudotorsions to CSV.\t\t{validsymb}", flush=True)
         else:
-            print("\t> Computing", self.chain_label, "pseudotorsions...\t\U00002705\t(already done)", flush=True)
+            print("\t> Computing", self.chain_label, f"pseudotorsions...\t{validsymb}\t(already done)", flush=True)
 
         # Now load data from the CSV file
         d = pd.read_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
@@ -238,11 +242,11 @@ class Chain:
         self.mask = "".join([ str(int(x)) for x in d.m.values])
         self.etas = d.eta.values
         self.thetas = d.theta.values
-        print("\t> Loaded data from CSV\t\t\U00002705", flush=True)
+        print(f"\t> Loaded data from CSV\t\t\t\t{validsymb}", flush=True)
 
         if self.length < 5:
-            print("\t> Sequence is too short, let's ignore it.")
-            c.delete_me = True
+            warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
+            self.delete_me = True
         return
 
 
@@ -457,13 +461,19 @@ class Monitor:
                     info = p.memory_full_info()
                     mem += info.rss + info.swap
             except psutil.NoSuchProcess:
-                print("\t> Warning: monitored process does not exist anymore ?")
+                print("\t> ERR: monitored process does not exist anymore ! Did something go wrong ?")
                 self.keep_watching = False
             finally:
                 if mem > max_mem:
                     max_mem = mem
             sleep(0.1)
         return max_mem
+
+def warn(message, error=False):
+    if error:
+        print(f"\t> \033[31mERR: {message}\033[0m{errsymb}", flush=True)
+    else:
+        print(f"\t> \033[33mWARN: {message}\033[0m{warnsymb}", flush=True)
 
 def execute_job(j, jobcount):
     running_stats[0] += 1
@@ -558,7 +568,7 @@ def execute_joblist(fulljoblist, printstats=False):
                 for j, t, m in zip(bunch, times, mems):
                     j.comp_time = t
                     j.max_mem = m
-                    print(f"\t> {j.label} finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t\U00002705", flush=True)
+                    print(f"\t> {j.label} finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t{validsymb}", flush=True)
                     f.write(f"{j.label},{t},{m}\n")
                 f.close()
             res += [ r[2] for r in raw_results ]
@@ -571,7 +581,7 @@ def download_Rfam_PDB_mappings():
     db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
     mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
     mappings.to_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
-    print("\t\U00002705")
+    print(f"\t{validsymb}")
     return mappings
 
 def download_Rfam_seeds():
@@ -605,14 +615,14 @@ def download_Rfam_cm():
         try:
             _urlcleanup()
             _urlretrieve(f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz', path_to_seq_data + "Rfam.cm.gz")
-            print("\t\U00002705")
+            print(f"\t{validsymb}", flush=True)
             print(f"\t\t> Uncompressing Rfam.cm...", end='', flush=True)
             subprocess.run(["gunzip", path_to_seq_data + "Rfam.cm.gz"], stdout=subprocess.DEVNULL)
-            print("\t\U00002705")
+            print(f"\t{validsymb}", flush=True)
         except:
-            print(f"\t\U0000274C\tError downloading and/or extracting Rfam.cm")
+            warn(f"Error downloading and/or extracting Rfam.cm !\t", error=True)
     else:
-        print("\t\U00002705\t(no need)")
+        print(f"\t{validsymb}\t(no need)", flush=True)
 
 def download_Rfam_family_stats(list_of_families):
     db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
@@ -638,11 +648,11 @@ def download_Rfam_sequences(rfam_acc):
             _urlcleanup()
             _urlretrieve(   f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz',
                             path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz")
-            print("\t\U00002705")
+            print(f"\t{validsymb}")
         except:
-            print(f"\t\U0000274C\tError downloading {rfam_acc}.fa.gz. Does it exist ?")
+            warn(f"Error downloading {rfam_acc}.fa.gz. Does it exist ?\t", error=True)
     else:
-        print("\t\U00002705\t(already there)")
+        print(f"\t{validsymb}\t(already there)", flush=True)
 
 def download_BGSU_NR_list():
     # download latest BGSU non-redundant list
@@ -654,7 +664,7 @@ def download_BGSU_NR_list():
         nr.write(io.StringIO(s.decode('utf-8')).getvalue())
         nr.close()
     except:
-        print("\t\U0000274C\tError downloading NR list !")
+        warn("Error downloading NR list !\t", error=True)
 
         # try to read previous file
         if path.isfile(path_to_3D_data + "latest_nr_list.csv"):
@@ -664,7 +674,7 @@ def download_BGSU_NR_list():
 
     nrlist = pd.read_csv(path_to_3D_data + "latest_nr_list.csv")
     full_structures_list = nrlist['class_members'].tolist()
-    print("\t\U00002705")
+    print(f"\t{validsymb}", flush=True)
 
     # Split the codes
     all_chains = []
@@ -683,7 +693,7 @@ def build_chain(c, rfam, pdb_start, pdb_end):
         c.extract_3D_data()
 
     if c.delete_me and c.chain_label not in known_issues:
-        print(f"\t> \U000026A0 \033[33mAdding {c.chain_label} to known issues.\033[0m")
+        warn(f"Adding {c.chain_label} to known issues.\t\t")
         f = open(path_to_3D_data + "known_issues.txt", 'a')
         f.write(c.chain_label + '\n')
         f.close()
@@ -691,7 +701,7 @@ def build_chain(c, rfam, pdb_start, pdb_end):
 
 def cm_realign(rfam_acc, chains, label):
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
-        print(f"\t> {label} completed \t\U00002705\t(already done)", flush=True)
+        print(f"\t> {label} completed \t{validsymb}\t(already done)", flush=True)
         return
 
     # Preparing job folder
@@ -775,13 +785,17 @@ def alignment_nt_stats(f):
             if s[i] == '-': continue
             rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
         
-    print("\t>", f, "... loaded, computed, saved\t\U00002705", flush=True)
+    print("\t>", f, f"... loaded, computed, saved\t{validsymb}", flush=True)
     return rfam_acc_to_download[f]
 
 
 
 if __name__ == "__main__":
     print("Main process running. (PID", os.getpid(), ")")
+
+    # temporary, for debugging:
+    if os.path.exists(path_to_3D_data + "known_issues.txt"):
+        subprocess.run(["rm", path_to_3D_data + "known_issues.txt"])
 
     # ===========================================================================
     # List 3D chains with available Rfam mapping
@@ -866,7 +880,7 @@ if __name__ == "__main__":
     # Build job list
     fulljoblist = []
     for f in sorted(rfam_acc_to_download.keys()):
-        if f=="RF02541": continue #
+        #if f=="RF02541": continue #
         if f=="RF02543": continue # those two require solid hardware to predict
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
@@ -920,5 +934,5 @@ if __name__ == "__main__":
             line = [str(x) for x in list(point[i,:]) ]
             f.write(','.join(line)+'\n')
         f.close()
-        print("\t\U00002705", flush=True)
+        print(f"\t{validsymb}", flush=True)
     print("Completed.")
