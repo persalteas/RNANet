@@ -20,13 +20,16 @@ from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
 from time import sleep
 
-if path.isdir("/home/persalteas"):
+if path.isdir("/home/ubuntu/"): # this is the IFB-core cloud
+    path_to_3D_data = "/mnt/Data/RNA/3D"
+    path_to_seq_data = "/mnt/Data/RNA/sequences"
+elif path.isdir("/home/persalteas"): # this is my personal workstation
     path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
     path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
-elif path.isdir("/home/lbecquey"):
+elif path.isdir("/home/lbecquey"): # this is the IBISC server
     path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
     path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
-elif path.isdir("/nhome/siniac/lbecquey"):
+elif path.isdir("/nhome/siniac/lbecquey"): # this is the office PC
     path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
     path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
 else:
@@ -555,7 +558,7 @@ def execute_joblist(fulljoblist, printstats=False):
             print("using", n, "processes:")
 
             # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=int(cpu_count()/2), maxtasksperchild=10)
+            p = Pool(processes=n, maxtasksperchild=10)
             raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch)
             p.close()
             p.join()
@@ -690,7 +693,7 @@ def build_chain(c, rfam, pdb_start, pdb_end):
         c.extract_portion(c.chain_label, pdb_start, pdb_end)
     if not c.delete_me:
         c.set_rfam(rfam)
-        c.extract_3D_data()
+        #c.extract_3D_data()
 
     if c.delete_me and c.chain_label not in known_issues:
         warn(f"Adding {c.chain_label} to known issues.\t\t")
