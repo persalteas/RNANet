@@ -21,8 +21,8 @@ from multiprocessing import Pool, cpu_count, Manager
 from time import sleep
 
 if path.isdir("/home/ubuntu/"): # this is the IFB-core cloud
-    path_to_3D_data = "/mnt/Data/RNA/3D"
-    path_to_seq_data = "/mnt/Data/RNA/sequences"
+    path_to_3D_data = "/mnt/Data/RNA/3D/"
+    path_to_seq_data = "/mnt/Data/RNA/sequences/"
 elif path.isdir("/home/persalteas"): # this is my personal workstation
     path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
     path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
@@ -693,7 +693,7 @@ def build_chain(c, rfam, pdb_start, pdb_end):
         c.extract_portion(c.chain_label, pdb_start, pdb_end)
     if not c.delete_me:
         c.set_rfam(rfam)
-        #c.extract_3D_data()
+        c.extract_3D_data()
 
     if c.delete_me and c.chain_label not in known_issues:
         warn(f"Adding {c.chain_label} to known issues.\t\t")
@@ -787,7 +787,7 @@ def alignment_nt_stats(f):
         for i in range(align.get_alignment_length()):
             if s[i] == '-': continue
             rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
-        
+
     print("\t>", f, f"... loaded, computed, saved\t{validsymb}", flush=True)
     return rfam_acc_to_download[f]
 
@@ -849,7 +849,6 @@ if __name__ == "__main__":
     results = execute_joblist(joblist)[1]    
     loaded_chains = [ c for c in results if not c.delete_me ]
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
-    exit()
 
     # ===========================================================================
     # Download RNA sequences of the corresponding Rfam families
