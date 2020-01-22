@@ -722,7 +722,7 @@ def cm_realign(rfam_acc, chains, label):
                     f.write(">"+record.description+'\n'+str(record.seq)+'\n')
                     ids.append(record.id)
         for c in chains:
-            f.write(f"> {str(c)}\n"+c.seq.replace('U','T')+'\n') # We align as DNA
+            f.write(f"> {str(c)}\n"+c.seq.replace('U','T').replace('-','')+'\n') # We align as DNA
         f.close()
 
     # Extracting covariance model for this family
@@ -883,7 +883,7 @@ if __name__ == "__main__":
     fulljoblist = []
     for f in sorted(rfam_acc_to_download.keys()):
         #if f=="RF02541": continue #
-        if f=="RF02543": continue # those two require solid hardware to predict
+        #if f=="RF02543": continue # those two require solid hardware to predict
         label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
         fulljoblist.append(Job(function=cm_realign, args=[f, rfam_acc_to_download[f], label], how_many_in_parallel=1, priority=1, label=label))
     execute_joblist(fulljoblist, printstats=True)
@@ -894,14 +894,13 @@ if __name__ == "__main__":
 
     print("Computing nucleotide frequencies in alignments...")
     # families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543", "RF02541"]])
-    families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543"]])
+    families =  sorted([f for f in rfam_acc_to_download.keys() ]) # if f not in ["RF02543"]])
     pool = Pool(processes=10, maxtasksperchild=10)
     results = pool.map(alignment_nt_stats, families)
     pool.close()
     pool.join()
     loaded_chains = list(itertools.chain.from_iterable(results))
 
-    
     # ==========================================================================================
     # Save the data point
     # ==========================================================================================
