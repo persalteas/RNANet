@@ -558,7 +558,7 @@ def execute_joblist(fulljoblist, printstats=False):
             print("using", n, "processes:")
 
             # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=n, maxtasksperchild=10)
+            p = Pool(processes=int(cpu_count()/2), maxtasksperchild=10)
             raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch)
             p.close()
             p.join()
@@ -714,16 +714,47 @@ def cm_realign(rfam_acc, chains, label):
     # Reading Gzipped FASTA file and writing DNA FASTA file
     if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.fa"):
         print("\t> Extracting sequences...", flush=True)
-        f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
-        with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
-            ids = []
-            for record in SeqIO.parse(gz, "fasta"):
-                if record.id not in ids:
-                    f.write(">"+record.description+'\n'+str(record.seq)+'\n')
-                    ids.append(record.id)
-        for c in chains:
-            f.write(f"> {str(c)}\n"+c.seq.replace('U','T').replace('-','')+'\n') # We align as DNA
-        f.close()
+        if rfam_acc == "RF02543": # cut this large one into pieces
+            f1 = open(path_to_seq_data + "realigned/RF02543-1++.fa", "w")
+            f2 = open(path_to_seq_data + "realigned/RF02543-2++.fa", "w")
+            f3 = open(path_to_seq_data + "realigned/RF02543-3++.fa", "w")
+            f4 = open(path_to_seq_data + "realigned/RF02543-4++.fa", "w")
+            with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
+                ids = []
+                count = 0
+                for record in SeqIO.parse(gz, "fasta"):
+                    if record.id not in ids:
+                        if count < 10000:
+                            f1.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                        elif count < 20000:
+                            f2.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                        elif count < 30000:
+                            f3.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                        else:
+                            f4.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                        ids.append(record.id)
+            for c in chains:
+                s = f"> {str(c)}\n"+c.seq.replace('U','T').replace('-','')+'\n'
+                f1.write(s) 
+                f2.write(s) 
+                f3.write(s)
+                f4.write(s)
+            f1.close()
+            f2.close()
+            f3.close()
+            f4.close()
+            
+        else:
+            f = open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w")
+            with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rt') as gz:
+                ids = []
+                for record in SeqIO.parse(gz, "fasta"):
+                    if record.id not in ids:
+                        f.write(">"+record.description+'\n'+str(record.seq)+'\n')
+                        ids.append(record.id)
+            for c in chains:
+                f.write(f"> {str(c)}\n"+c.seq.replace('U','T').replace('-','')+'\n') # We align as DNA
+            f.close()
 
     # Extracting covariance model for this family
     if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
@@ -735,15 +766,43 @@ def cm_realign(rfam_acc, chains, label):
 
     # Running alignment
     print(f"\t> {label} (cmalign)...", flush=True)
-    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
-    subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
-    f.close()
+    if rfam_acc == "RF02543":
+        f = open(path_to_seq_data + f"realigned/RF02543-1++.stk", "w")
+        subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}-1++.fa"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-2++.stk", "w")
+        subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}-2++.fa"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-3++.stk", "w")
+        subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}-3++.fa"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-4++.stk", "w")
+        subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}-4++.fa"], stdout=f)
+        f.close()
+    else:
+        f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
+        subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
+        f.close()
 
     # Converting to aligned Fasta
-    # print("\t> Converting to aligned FASTA (esl-reformat)...")
-    f = open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "w")
-    subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
-    f.close()
+    print("\t> Converting to aligned FASTA (esl-reformat)...")
+    if rfam_acc == "RF02543":
+        f = open(path_to_seq_data + f"realigned/RF02543-1++.afa", "w")
+        subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/RF02543-1++.stk"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-2++.afa", "w")
+        subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/RF02543-2++.stk"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-3++.afa", "w")
+        subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/RF02543-3++.stk"], stdout=f)
+        f.close()
+        f = open(path_to_seq_data + f"realigned/RF02543-4++.afa", "w")
+        subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/RF02543-4++.stk"], stdout=f)
+        f.close()
+    else:
+        f = open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "w")
+        subprocess.run(["esl-reformat", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"], stdout=f)
+        f.close()
     # subprocess.run(["rm", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
 
 def alignment_nt_stats(f):
@@ -763,30 +822,103 @@ def alignment_nt_stats(f):
 
     chains_ids = [ str(c) for c in rfam_acc_to_download[f] ]
 
-    # Open the alignment
-    align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
-    print("\t>",f,"... loaded", flush=True)
-
-    # Compute statistics per column
-    results = []
-    for i in range(align.get_alignment_length()):
-        cols = align[:,i]
-        results.append(summarize_position(cols))
-    frequencies = np.array(results).T
-    print("\t>",f,"... loaded, computed", flush=True)
-
-    # Save some columns in the appropriate chains
-    for s in align:
-        if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
-            continue
-
-        # get the right 3D chain:
-        idx = chains_ids.index(s.id)
-
-        # save interesting positions
+    if f == "RF02543": # We need to sum the 4 files for that big one
+        align = AlignIO.read(path_to_seq_data + f"realigned/RF02543-1++.afa", "fasta")
+        print("\t>RF02543-1 ... loaded", flush=True)
+        results = []
         for i in range(align.get_alignment_length()):
-            if s[i] == '-': continue
-            rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
+            cols = align[:,i]
+            results.append(summarize_position(cols))
+        frequencies1 = np.array(results).T
+        print("\t>RF02543-1 ... loaded, computed", flush=True)
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
+            idx = chains_ids.index(s.id)
+            for i in range(align.get_alignment_length()):
+                if s[i] == '-': continue
+                rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies1[:,i].reshape(-1,1)), axis=1)
+        
+        align = AlignIO.read(path_to_seq_data + f"realigned/RF02543-2++.afa", "fasta")
+        print("\t>RF02543-2 ... loaded", flush=True)
+        results = []
+        for i in range(align.get_alignment_length()):
+            cols = align[:,i]
+            results.append(summarize_position(cols))
+        frequencies2 = np.array(results).T
+        print("\t>RF02543-2 ... loaded, computed", flush=True)
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
+            idx = chains_ids.index(s.id)
+            temp_array = np.zeros((5,0))
+            for i in range(align.get_alignment_length()):
+                if s[i] == '-': continue
+                temp_array = np.concatenate((temp_array, frequencies2[:,i].reshape(-1,1)), axis=1)
+            rfam_acc_to_download[f][idx].frequencies += temp_array
+
+        align = AlignIO.read(path_to_seq_data + f"realigned/RF02543-3++.afa", "fasta")
+        print("\t>RF02543-3 ... loaded", flush=True)
+        results = []
+        for i in range(align.get_alignment_length()):
+            cols = align[:,i]
+            results.append(summarize_position(cols))
+        frequencies3 = np.array(results).T
+        print("\t>RF02543-3 ... loaded, computed", flush=True)
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
+            idx = chains_ids.index(s.id)
+            temp_array = np.zeros((5,0))
+            for i in range(align.get_alignment_length()):
+                if s[i] == '-': continue
+                temp_array = np.concatenate((temp_array, frequencies3[:,i].reshape(-1,1)), axis=1)
+            rfam_acc_to_download[f][idx].frequencies += temp_array
+
+        align = AlignIO.read(path_to_seq_data + f"realigned/RF02543-4++.afa", "fasta")
+        print("\t>RF02543-4 ... loaded", flush=True)
+        results = []
+        for i in range(align.get_alignment_length()):
+            cols = align[:,i]
+            results.append(summarize_position(cols))
+        frequencies4 = np.array(results).T
+        print("\t>RF02543-4 ... loaded, computed", flush=True)
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
+            idx = chains_ids.index(s.id)
+            temp_array = np.zeros((5,0))
+            for i in range(align.get_alignment_length()):
+                if s[i] == '-': continue
+                temp_array = np.concatenate((temp_array, frequencies2[:,i].reshape(-1,1)), axis=1)
+            rfam_acc_to_download[f][idx].frequencies += temp_array
+            rfam_acc_to_download[f][idx].frequencies *= 0.25
+
+    else:
+        # Open the alignment
+        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+        print("\t>",f,"... loaded", flush=True)
+
+        # Compute statistics per column
+        results = []
+        for i in range(align.get_alignment_length()):
+            cols = align[:,i]
+            results.append(summarize_position(cols))
+        frequencies = np.array(results).T
+        print("\t>",f,"... loaded, computed", flush=True)
+
+        # Save some columns in the appropriate chains
+        for s in align:
+            if len(s.id.split('[')[0]) != 4: # this is not a PDB id, it is a Rfamseq entry
+                continue
+
+            # get the right 3D chain:
+            idx = chains_ids.index(s.id)
+
+            # save interesting positions
+            for i in range(align.get_alignment_length()):
+                if s[i] == '-': continue
+                rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,i].reshape(-1,1)), axis=1)
 
     print("\t>", f, f"... loaded, computed, saved\t{validsymb}", flush=True)
     return rfam_acc_to_download[f]
