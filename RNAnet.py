@@ -723,12 +723,13 @@ def cm_realign(rfam_acc, chains, label):
                 ids = []
                 count = 0
                 for record in SeqIO.parse(gz, "fasta"):
+                    count += 1
                     if record.id not in ids:
-                        if count < 10000:
+                        if count < 8000:
                             f1.write(">"+record.description+'\n'+str(record.seq)+'\n')
-                        elif count < 20000:
+                        elif count < 16000:
                             f2.write(">"+record.description+'\n'+str(record.seq)+'\n')
-                        elif count < 30000:
+                        elif count < 24000:
                             f3.write(">"+record.description+'\n'+str(record.seq)+'\n')
                         else:
                             f4.write(">"+record.description+'\n'+str(record.seq)+'\n')
