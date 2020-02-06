@@ -723,7 +723,11 @@ def cm_realign(rfam_acc, chains, label):
                     f.write(">"+record.description+'\n'+str(record.seq)+'\n')
                     ids.append(record.id)
         for c in chains:
-            f.write(f"> {str(c)}\n"+c.seq.replace('U','T').replace('-','')+'\n') # We align as DNA
+            seq_str = c.seq.replace('U','T').replace('-','') # We align as DNA
+            if rfam_acc in ["RF02541", "RF02543"]:
+                seq_str = seq_str.replace('P','U') # Replace pseudo-uridines by uridines. We lose information here but SINA does not accept them.
+            f.write(f"> {str(c)}\n"+seq_str+'\n') 
+
         f.close()
 
     if rfam_acc not in ["RF02541", "RF02543"]: 
@@ -817,52 +821,83 @@ def alignment_nt_stats(f):
         # Save colums in the appropriate positions
         i = 0
         j = 0
-        while i<len(c.seq) and j<alilen:
+        warn_gaps = False
+        while i<c.full_length and j<alilen:
+            # here we try to map c.seq (the sequence of the 3D chain, including gaps when residues are missing), 
+            # with s.seq, the sequence aligned in the MSA, containing any of ACGUacguP and two types of gaps, - and .
+
             if c.seq[i] == s[j].upper(): # alignment and sequence correspond (incl. gaps)
                 rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
                 i += 1
                 j += 1
-            elif s[j] in ['.', '-']: # gap in the alignment, but not in the real chain
-                j += 1 # ignore the column
-            elif c.seq[i] == '-': # gap in the chain, but the sequence aligns well...
-                warn(f"gap in {c.chain_label} not re-found in the aligned sequence... Ignoring it.")       
+            elif c.seq[i] == '-': # gap in the chain, but not in the aligned sequence
+                
+                # search for a gap to the consensus nearby
+                k = 0
+                while j+k<alilen and s.seq[j+k] not in ['A','C','G','U','a','c','g','u','P']:
+                    if s.seq[j+k] == '-':
+                        break
+                    k += 1
+                
+                # if found, set j to that position
+                if j+k<alilen and s.seq[j+k] == '-': 
+                    j = j + k
+                    continue
+
+                # if not, search for a insertion gap nearby
+                k = 0
+                while j+k<alilen and s.seq[j+k] not in ['A','C','G','U','a','c','g','u','P']: 
+                    if s.seq[j+k] == '.':
+                        break
+                    k += 1
+
+                # if found, set j to that position
+                if j+k<alilen and s.seq[j+k] == '.':
+                    j = j + k
+                    rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
+                    i += 1
+                    j += 1
+                    continue
+
+                # else, just ignore the gap.
+                warn_gaps = True
                 rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
                 i += 1
+            elif s.seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
+                j += 1 # ignore the column
             else:
-                print("You are never supposed to reach this:", c.seq, '\n', s, flush=True)
-        
+                print("You are never supposed to reach this.", c.seq, '\n', s.seq, sep='', flush=True)
+        if warn_gaps:
+            warn(f"Some gap(s) in {c.chain_label} were not re-found in the aligned sequence... Ignoring them.")
+
         # Replace masked positions by the consensus sequence:
-        s = c.seq.split()
+        c_seq = c.seq.split()
         letters = ['A', 'C', 'G', 'U', 'N']
-        for i in range(len(s)):
+        for i in range(c.full_length):
             if not c.mask[i]:
                 freq = rfam_acc_to_download[f][idx].frequencies[:,i]
-                s[i] = letters[freq.tolist().index(max(freq))]
-        rfam_acc_to_download[f][idx].seq = ''.join(s)
+                c_seq[i] = letters[freq.tolist().index(max(freq))]
+        rfam_acc_to_download[f][idx].seq = ''.join(c_seq)
 
         # Saving 'final' datapoint
+        c = rfam_acc_to_download[f][idx] # update the local object
         point = np.zeros((13, c.full_length))
-        gaps = 0
         for i in range(c.full_length):
             point[0,i] = i+1 # position
-            if c.mask[i]: # the ith nucleotide exists
 
-                # one-hot encoding of the actual sequence
-                point[1,i] = int(c.seq[i-gaps] == 'A')
-                point[2,i] = int(c.seq[i-gaps] == 'C')
-                point[3,i] = int(c.seq[i-gaps] == 'G')
-                point[4,i] = int(c.seq[i-gaps] == 'U')
-                point[5,i] = int(c.seq[i-gaps] not in ['A', 'C', 'G', 'U'])
+            # one-hot encoding of the actual sequence
+            point[1,i] = int(c.seq[i] == 'A')
+            point[2,i] = int(c.seq[i] == 'C')
+            point[3,i] = int(c.seq[i] == 'G')
+            point[4,i] = int(c.seq[i] == 'U')
+            point[5,i] = int(c.seq[i] not in ['A', 'C', 'G', 'U'])
 
-                # save the PSSMs
-                point[6,i] = c.frequencies[0, i-gaps]
-                point[7,i] = c.frequencies[1, i-gaps]
-                point[8,i] = c.frequencies[2, i-gaps]
-                point[9,i] = c.frequencies[3, i-gaps]
-                point[10,i] = c.frequencies[4, i-gaps]
-            else:
-                gaps += 1
-                point[5,i] = 1.0
+            # save the PSSMs
+            point[6,i] = c.frequencies[0, i]
+            point[7,i] = c.frequencies[1, i]
+            point[8,i] = c.frequencies[2, i]
+            point[9,i] = c.frequencies[3, i]
+            point[10,i] = c.frequencies[4, i]
             point[11,i] = c.etas[i]
             point[12,i] = c.thetas[i]
         file = open(path_to_3D_data + "datapoints/" + c.chain_label, "w")
