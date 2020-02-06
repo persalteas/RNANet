@@ -774,10 +774,10 @@ def cm_realign(rfam_acc, chains, label):
 
         # Run alignment
         print(f"\t> {label} (SINA)...", flush=True)
-        subprocess.run("sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
+        subprocess.run(["sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
                                "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa",
                                "-r", path_to_seq_data + "realigned/LSU.arb",
-                               "--meta-fmt=csv")
+                               "--meta-fmt=csv"])
 
 def summarize_position(col):
     # this function counts the number of nucleotides at a given position, given a "column" from a MSA.
