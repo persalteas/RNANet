@@ -216,7 +216,7 @@ class Chain:
                 else:
                     t = float(nt["theta_prime"])
                 p = int(nt["nt_resnum"]) - resnum_start
-                mask[p]  = int(nt["nt_code"] in "ACGU")     # U is a U, u is a modified U
+                mask[p]  = int(nt["nt_code"] in "ACGU")     # U is a U, u is a modified U and should be replaced by consensus ?
                 seq[p]   = nt["nt_code"].upper()            # to align the chain with its family. The final nt should be taken from the PSSM.
                 eta[p]   = e
                 theta[p] = t
@@ -826,7 +826,7 @@ def alignment_nt_stats(f):
             # here we try to map c.seq (the sequence of the 3D chain, including gaps when residues are missing), 
             # with s.seq, the sequence aligned in the MSA, containing any of ACGUacguP and two types of gaps, - and .
 
-            if c.seq[i] == s[j].upper(): # alignment and sequence correspond (incl. gaps)
+            if c.seq[i] == s.seq[j].upper(): # alignment and sequence correspond (incl. gaps)
                 rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
                 i += 1
                 j += 1
@@ -834,7 +834,7 @@ def alignment_nt_stats(f):
                 
                 # search for a gap to the consensus nearby
                 k = 0
-                while j+k<alilen and s.seq[j+k] not in ['A','C','G','U','a','c','g','u','P']:
+                while j+k<alilen and s.seq[j+k] in ['.','-']:
                     if s.seq[j+k] == '-':
                         break
                     k += 1
@@ -845,15 +845,7 @@ def alignment_nt_stats(f):
                     continue
 
                 # if not, search for a insertion gap nearby
-                k = 0
-                while j+k<alilen and s.seq[j+k] not in ['A','C','G','U','a','c','g','u','P']: 
-                    if s.seq[j+k] == '.':
-                        break
-                    k += 1
-
-                # if found, set j to that position
-                if j+k<alilen and s.seq[j+k] == '.':
-                    j = j + k
+                if j<alilen and s.seq[j] == '.':
                     rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
                     i += 1
                     j += 1
@@ -866,7 +858,8 @@ def alignment_nt_stats(f):
             elif s.seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
                 j += 1 # ignore the column
             else:
-                print("You are never supposed to reach this.", c.seq, '\n', s.seq, sep='', flush=True)
+                print(f"You are never supposed to reach this. Comparing {c.chain_label} in {i} ({c.seq[i-1:i+2]}) with seq[{j}] ({s.seq[j-3:j+4]}).\n", c.seq, '\n', s.seq, sep='', flush=True)
+                exit(1)
         if warn_gaps:
             warn(f"Some gap(s) in {c.chain_label} were not re-found in the aligned sequence... Ignoring them.")
 
@@ -886,11 +879,10 @@ def alignment_nt_stats(f):
             point[0,i] = i+1 # position
 
             # one-hot encoding of the actual sequence
-            point[1,i] = int(c.seq[i] == 'A')
-            point[2,i] = int(c.seq[i] == 'C')
-            point[3,i] = int(c.seq[i] == 'G')
-            point[4,i] = int(c.seq[i] == 'U')
-            point[5,i] = int(c.seq[i] not in ['A', 'C', 'G', 'U'])
+            if c.seq[i] in letters[:4]:
+                point[ letters[:4].index(c.seq[i]), i ] = 1
+            else:
+                point[5,i] = 1
 
             # save the PSSMs
             point[6,i] = c.frequencies[0, i]
@@ -900,7 +892,7 @@ def alignment_nt_stats(f):
             point[10,i] = c.frequencies[4, i]
             point[11,i] = c.etas[i]
             point[12,i] = c.thetas[i]
-        file = open(path_to_3D_data + "datapoints/" + c.chain_label, "w")
+        file = open(path_to_3D_data + "datapoints/" + c.chain_label, "w") # no check, always overwrite, this is desired
         for i in range(13):
             line = [str(x) for x in list(point[i,:]) ]
             file.write(','.join(line)+'\n')
@@ -1010,11 +1002,11 @@ if __name__ == "__main__":
         os.makedirs(path_to_3D_data + "datapoints/")
     print("Computing nucleotide frequencies in alignments...")
     families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543"]])
-    # pool = Pool(processes=1, maxtasksperchild=10)
-    # results = pool.map(alignment_nt_stats, families)
-    # pool.close()
-    # pool.join()
-    # loaded_chains = list(itertools.chain.from_iterable(results))
-    for f in families:
-        alignment_nt_stats(f)
+    pool = Pool(processes=1, maxtasksperchild=10)
+    results = pool.map(alignment_nt_stats, families)
+    pool.close()
+    pool.join()
+    loaded_chains = list(itertools.chain.from_iterable(results))
+    # for f in families:
+    #     alignment_nt_stats(f)
     print("Completed.")
