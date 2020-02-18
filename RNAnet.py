@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, gzip, io, itertools, json, multiprocessing, os, psutil, re, requests, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, gzip, io, itertools, json, multiprocessing, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser, PDBIO
 from Bio.PDB.mmcifio import MMCIFIO
@@ -15,7 +15,6 @@ from Bio.Align import MultipleSeqAlignment
 from collections import OrderedDict
 from ftplib import FTP
 from functools import partial
-from sqlalchemy import create_engine
 from os import path, makedirs
 from multiprocessing import Pool, cpu_count, Manager
 from time import sleep
@@ -216,8 +215,8 @@ class Chain:
                 else:
                     t = float(nt["theta_prime"])
                 p = int(nt["nt_resnum"]) - resnum_start
-                mask[p]  = int(nt["nt_code"] in "ACGU")     # U is a U, u is a modified U and should be replaced by consensus ?
-                seq[p]   = nt["nt_code"].upper()            # to align the chain with its family. The final nt should be taken from the PSSM.
+                mask[p]  = int(nt["nt_code"] in "ACGU")            # U is a U, u is a modified U and should be replaced by consensus ?
+                seq[p]   = nt["nt_code"].upper().replace('?','-').replace('P','U').replace('T','U')  # to align the chain with its family. The final nt should be taken from the PSSM.
                 eta[p]   = e
                 theta[p] = t
 
@@ -582,10 +581,19 @@ def execute_joblist(fulljoblist, printstats=False):
 def download_Rfam_PDB_mappings():
     # download PDB mappings to Rfam family
     print("> Fetching latest PDB mappings from Rfam...", end='', flush=True)
-    db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
-    mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
-    mappings.to_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
-    print(f"\t{validsymb}")
+    try:
+        db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
+        mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
+        mappings.to_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
+        print(f"\t{validsymb}")
+    except sqlalchemy.exc.OperationalError:
+        print(f"\t{errsymb}")
+        if path.isfile(path_to_3D_data + 'Rfam-PDB-mappings.csv'):
+            print("\t> Using previous version.")
+            mappings = pd.read_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
+        else:
+            print("Can't do anything without data. Check mysql-rfam-public.ebi.ac.uk status and try again later. Exiting.")
+            exit(1)
     return mappings
 
 def download_Rfam_seeds():
@@ -629,21 +637,25 @@ def download_Rfam_cm():
         print(f"\t{validsymb}\t(no need)", flush=True)
 
 def download_Rfam_family_stats(list_of_families):
-    db_connection = create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
-    q = """SELECT fr.rfam_acc, COUNT(DISTINCT fr.rfamseq_acc) AS 'n_seq',
-                MAX(
-                    (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_start
-                            ELSE                              fr.seq_end
-                    END)
-                    -
-                    (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_end
-                            ELSE                              fr.seq_start
-                    END)
-                ) AS 'maxlength'
-            FROM full_region fr
-            GROUP BY fr.rfam_acc"""
-    d = pd.read_sql(q, con=db_connection)
-    return d[ d["rfam_acc"].isin(list_of_families) ]
+    try: 
+        db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
+        q = """SELECT fr.rfam_acc, COUNT(DISTINCT fr.rfamseq_acc) AS 'n_seq',
+                    MAX(
+                        (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_start
+                                ELSE                              fr.seq_end
+                        END)
+                        -
+                        (CASE WHEN fr.seq_start > fr.seq_end THEN fr.seq_end
+                                ELSE                              fr.seq_start
+                        END)
+                    ) AS 'maxlength'
+                FROM full_region fr
+                GROUP BY fr.rfam_acc"""
+        d = pd.read_sql(q, con=db_connection)
+        return d[ d["rfam_acc"].isin(list_of_families) ]
+    except sqlalchemy.exc.OperationalError:
+        warn("Something's wrong with the SQL database. Check mysql-rfam-public.ebi.ac.uk status and try again later. Not printing statistics.")
+        return {}
 
 def download_Rfam_sequences(rfam_acc):
     print(f"\t\t> Download {rfam_acc}.fa.gz from Rfam...", end='', flush=True)
@@ -724,13 +736,12 @@ def cm_realign(rfam_acc, chains, label):
                     ids.append(record.id)
         for c in chains:
             seq_str = c.seq.replace('U','T').replace('-','') # We align as DNA
-            if rfam_acc in ["RF02541", "RF02543"]:
-                seq_str = seq_str.replace('P','U') # Replace pseudo-uridines by uridines. We lose information here but SINA does not accept them.
+            seq_str = seq_str.replace('P','U') # Replace pseudo-uridines by uridines. We lose information here :'( 
             f.write(f"> {str(c)}\n"+seq_str+'\n') 
 
         f.close()
 
-    if rfam_acc not in ["RF02541", "RF02543"]: 
+    if rfam_acc not in ["RF00177", "RF01960", "RF02540", "RF02541", "RF02543"]: # Ribosomal Subunits
         # Align using Infernal for most RNA families
 
         # Extracting covariance model for this family
@@ -756,16 +767,16 @@ def cm_realign(rfam_acc, chains, label):
     
     
     else:
-        # RF02541 and RF02543 deserve a special treatment.
-        # Large ribosomal subunits require too much RAM to be aligned with Infernal.
+        # Ribosomal subunits deserve a special treatment.
+        # They require too much RAM to be aligned with Infernal.
         # Then we will use SINA instead.
 
         # Get the seed alignment from Rfam
         print(f"\t> Download latest LSU-Ref alignment from SILVA...", end="", flush=True)
-        if not path.isfile(path_to_seq_data + "realigned/LSU.arb"):
+        if rfam_acc in ["RF02540", "RF02541", "RF02543"] and not path.isfile(path_to_seq_data + "realigned/LSU.arb"):
             try:
                 _urlcleanup()
-                _urlretrieve(f'https://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz', path_to_seq_data + "realigned/LSU.arb.gz")
+                _urlretrieve('http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz', path_to_seq_data + "realigned/LSU.arb.gz")
                 print(f"\t{validsymb}", flush=True)
             except:
                 print('\n')
@@ -776,29 +787,55 @@ def cm_realign(rfam_acc, chains, label):
         else:
             print(f"\t{validsymb}\t(no need)", flush=True)
 
+        if rfam_acc in ["RF00177", "RF01960"] and not path.isfile(path_to_seq_data + "realigned/SSU.arb"):
+            try:
+                _urlcleanup()
+                _urlretrieve('http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz', path_to_seq_data + "realigned/SSU.arb.gz")
+                print(f"\t{validsymb}", flush=True)
+            except:
+                print('\n')
+                warn(f"Error downloading and/or extracting {rfam_acc}'s seed alignment !\t", error=True)
+            print(f"\t\t> Uncompressing SSU.arb...", end='', flush=True)
+            subprocess.run(["gunzip", path_to_seq_data + "realigned/SSU.arb.gz"], stdout=subprocess.DEVNULL)
+            print(f"\t{validsymb}", flush=True)
+        else:
+            print(f"\t{validsymb}\t(no need)", flush=True)
+
+        if rfam_acc in ["RF00177", "RF01960"]:
+            arbfile = "realigned/SSU.arb"
+        else:
+            arbfile = "realigned/LSU.arb"
+
         # Run alignment
         print(f"\t> {label} (SINA)...", flush=True)
         subprocess.run(["sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
                                "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa",
-                               "-r", path_to_seq_data + "realigned/LSU.arb",
+                               "-r", path_to_seq_data + arbfile,
                                "--meta-fmt=csv"])
 
 def summarize_position(col):
     # this function counts the number of nucleotides at a given position, given a "column" from a MSA.
     chars = ''.join(set(col))
-    counts = { 'A': col.count('A'), 'C':col.count('C'), 'G':col.count('G'), 'U':col.count('U'), '-':col.count('-')}
+    counts = { 'A': col.count('A') + col.count('a'),  # caps are nt in conformity with the consensus (?)
+               'C':col.count('C') + col.count('c'), 
+               'G':col.count('G') + col.count('g'), 
+               'U':col.count('U') + col.count('u'), 
+               '-':col.count('-'), '.':col.count('.')}
     known_chars_count = 0
     for char in chars:
         if char in "ACGU":
             known_chars_count += counts[char]
-        elif char != '-':
+        elif char not in "-.acgu":
             counts[char] = col.count(char)
-    N = len(col) - counts['-'] # number of ungapped residues
-    return ( counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N) # other residues, or consensus (N, K, Y...)
+    N = len(col) - counts['-'] - counts['.'] # number of ungapped residues
+    if N:
+        return ( counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N) # other residues, or consensus (N, K, Y...)
+    else:
+        return (0, 0, 0, 0, 0)
 
-def alignment_nt_stats(f):
+def alignment_nt_stats(f, list_of_chains):
     print("\t>",f,"... ", flush=True)
-    chains_ids = [ str(c) for c in rfam_acc_to_download[f] ]
+    chains_ids = [ str(c) for c in list_of_chains ]
     
     # Open the alignment
     align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
@@ -816,7 +853,7 @@ def alignment_nt_stats(f):
 
         # get the right 3D chain:
         idx = chains_ids.index(s.id)
-        c = rfam_acc_to_download[f][idx]
+        c = list_of_chains[idx]
 
         # Save colums in the appropriate positions
         i = 0
@@ -827,7 +864,7 @@ def alignment_nt_stats(f):
             # with s.seq, the sequence aligned in the MSA, containing any of ACGUacguP and two types of gaps, - and .
 
             if c.seq[i] == s.seq[j].upper(): # alignment and sequence correspond (incl. gaps)
-                rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
+                list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
                 i += 1
                 j += 1
             elif c.seq[i] == '-': # gap in the chain, but not in the aligned sequence
@@ -846,14 +883,14 @@ def alignment_nt_stats(f):
 
                 # if not, search for a insertion gap nearby
                 if j<alilen and s.seq[j] == '.':
-                    rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
+                    list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
                     i += 1
                     j += 1
                     continue
 
                 # else, just ignore the gap.
                 warn_gaps = True
-                rfam_acc_to_download[f][idx].frequencies = np.concatenate((rfam_acc_to_download[f][idx].frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
+                list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
                 i += 1
             elif s.seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
                 j += 1 # ignore the column
@@ -868,12 +905,12 @@ def alignment_nt_stats(f):
         letters = ['A', 'C', 'G', 'U', 'N']
         for i in range(c.full_length):
             if not c.mask[i]:
-                freq = rfam_acc_to_download[f][idx].frequencies[:,i]
+                freq = list_of_chains[idx].frequencies[:,i]
                 c_seq[i] = letters[freq.tolist().index(max(freq))]
-        rfam_acc_to_download[f][idx].seq = ''.join(c_seq)
+        list_of_chains[idx].seq = ''.join(c_seq)
 
         # Saving 'final' datapoint
-        c = rfam_acc_to_download[f][idx] # update the local object
+        c = list_of_chains[idx] # update the local object
         point = np.zeros((13, c.full_length))
         for i in range(c.full_length):
             point[0,i] = i+1 # position
@@ -900,6 +937,7 @@ def alignment_nt_stats(f):
         print("\t\tWritten", c.chain_label, f"to file\t{validsymb}", flush=True)
 
     print("\t>", f, f"... loaded, computed, saved\t{validsymb}", flush=True)
+    return None
     
 if __name__ == "__main__":
     print("Main process running. (PID", os.getpid(), ")")
@@ -974,13 +1012,15 @@ if __name__ == "__main__":
     # Download the sequences from these families
     download_Rfam_cm()
     fam_stats = download_Rfam_family_stats(rfam_acc_to_download.keys())
-    n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
-    fam_stats["n_pdb_seqs"] = n_pdb
-    fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
-    fam_stats.to_csv(path_to_seq_data + "realigned/statistics.csv")
+    if len(fam_stats.keys()):
+        n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
+        fam_stats["n_pdb_seqs"] = n_pdb
+        fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
+        fam_stats.to_csv(path_to_seq_data + "realigned/statistics.csv")
     for f in sorted(rfam_acc_to_download.keys()):
-        line = fam_stats[fam_stats["rfam_acc"]==f]
-        print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
+        if len(fam_stats.keys()):
+            line = fam_stats[fam_stats["rfam_acc"]==f]
+            print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
         download_Rfam_sequences(f)
 
     # ==========================================================================================
@@ -1001,12 +1041,18 @@ if __name__ == "__main__":
     if not path.isdir(path_to_3D_data + "datapoints/"):
         os.makedirs(path_to_3D_data + "datapoints/")
     print("Computing nucleotide frequencies in alignments...")
-    families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF02543"]])
-    pool = Pool(processes=1, maxtasksperchild=10)
-    results = pool.map(alignment_nt_stats, families)
-    pool.close()
-    pool.join()
-    loaded_chains = list(itertools.chain.from_iterable(results))
-    # for f in families:
-    #     alignment_nt_stats(f)
+    families =  sorted([f for f in rfam_acc_to_download.keys() if f not in ["RF01960", "RF02540"]])
+    # pool = Pool(processes=cpu_count(), maxtasksperchild=10)
+    # results = pool.map(alignment_nt_stats, families)
+    # pool.close()
+    # pool.join()
+    # loaded_chains = list(itertools.chain.from_iterable(results))
+
+    # Build job list
+    fulljoblist = []
+    for f in families:
+        label = f"Save {f} PSSMs"
+        list_of_chains = rfam_acc_to_download[f]
+        fulljoblist.append(Job(function=alignment_nt_stats, args=[f, list_of_chains, label], how_many_in_parallel=10, priority=1, label=label))
+    execute_joblist(fulljoblist, printstats=False)
     print("Completed.")
