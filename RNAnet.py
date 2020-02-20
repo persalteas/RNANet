@@ -845,7 +845,6 @@ def alignment_nt_stats(f, list_of_chains) :
     #print("\t>",f,"... ", flush=True)
     chains_ids = [ str(c) for c in list_of_chains ]
     thr_idx = idxQueue.get()
-    print(thr_idx, flush=True)
 
     # Open the alignment
     align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
@@ -853,7 +852,8 @@ def alignment_nt_stats(f, list_of_chains) :
     #print("\t>",f,"... loaded", flush=True)
 
     # Compute statistics per column
-    results = [ summarize_position(align[:,i]) for i in tqdm(range(alilen), position=thr_idx) ]
+    pbar = tqdm(total=alilen, position=thr_idx, desc=f"Worker { thr_idx}: {f}", leave=False, )
+    results = [ summarize_position(align[:,i]) for i in pbar ]
     frequencies = np.array(results).T
     #print("\t>",f,"... loaded, computed", flush=True)
 
