@@ -477,8 +477,8 @@ def read_cpu_number():
     # do not use os.cpu_count() on LXC containers
     # it reads info from /sys wich is not the VM resources but the host resources.
     # Read from /proc/cpuinfo instead.
-    p = subprocess.run(['grep', '-c', 'Intel(', '/proc/cpuinfo'], stdout=subprocess.PIPE)
-    return int(p.stdout.decode('utf-8')[:-1])
+    p = subprocess.run(['grep', '-Ec', '(Intel|AMD)', '/proc/cpuinfo'], stdout=subprocess.PIPE)
+    return int(p.stdout.decode('utf-8')[:-1])/2
 
 def warn(message, error=False):
     if error:
