@@ -1,3 +1,8 @@
+# execution outputs:
+nohup.out
+jobstats.csv
+log_of_the_run.sh
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
