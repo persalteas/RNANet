@@ -57,6 +57,9 @@ if __name__ == "__main__":
     values = np.vstack([x, y])
     kernel = st.gaussian_kde(values)
     f = np.reshape(kernel(positions).T, xx.shape)
+    sign_threshold = np.mean(f) + np.std(f)
+    z = np.where(f < sign_threshold, 0.0, f)
+    z_inc = np.where(f < sign_threshold, sign_threshold, f)
 
     # histogram : 
     fig, axs = plt.subplots(1,3, figsize=(18, 6))
@@ -65,13 +68,13 @@ if __name__ == "__main__":
     plt.axhline(y=0, alpha=0.5, color='black')
     plt.axvline(x=0, alpha=0.5, color='black')
     plt.scatter(x, y, s=1, alpha=0.1)
-    plt.contourf(xx, yy, f, cmap=cm.BuPu, alpha=0.5)
+    plt.contourf(xx, yy, z, cmap=cm.BuPu, alpha=0.5)
     ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
     ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
     ax.add_patch(ptch.Rectangle((-20,0),50,70, linewidth=1, edgecolor='r', facecolor='#ff000080'))
 
     ax = fig.add_subplot(132, projection='3d')
-    ax.plot_surface(xx, yy, f, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+    ax.plot_surface(xx, yy, z_inc, cmap=cm.coolwarm, linewidth=0, antialiased=True)
     ax.set_title("\"Wadley plot\"\n$\\eta'$, $\\theta'$ pseudotorsions in 3D RNA structures\n(Massive peak removed in the red zone, = double helices)")
     ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
     ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
