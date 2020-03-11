@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, copy, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -105,17 +105,23 @@ class Chain:
         self.full_mmCIFpath = ""                # path to the source mmCIF structure
         self.file = ""                          # path to the 3D PDB file
         self.rfam_fam = ""                      # mapping to an RNA family
-        self.seq = ""                           # sequence
+        self.seq = ""                           # sequence with modified nts
+        self.aligned_seq = ""                   # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
         self.full_length = -1                   # length of the chain extracted from source structure ([start; stop] interval)
         self.delete_me = False                  # an error occured during production/parsing
+        self.error_messages = ""                # Error message(s) if any
         self.frequencies = np.zeros((5,0))      # frequencies of nt at every position: A,C,G,U,Other
-        self.etas = []                          # eta' pseudotorsion at every position, if available
-        self.thetas = []                        # theta' pseudotorsion at every position, if available
-        self.mask = []                          # nucleotide is available in 3D (1 or 0), for every position
+        self.data3D = None                      # Pandas DataFrame with all the 3D data extracted by DSSR.
 
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
+    
+    def __eq__(self, other):
+        return self.chain_label == other.chain_label and str(self) == str(other)
+
+    def __hash__(self):
+        return hash((self.pdb_id, self.pdb_model, self.pdb_chain_id, self.chain_label))
 
     def download_3D(self):
         """ Look for the main CIF file (with all chains) from RCSB
@@ -140,6 +146,7 @@ class Chain:
         except IOError:
             print(status + f"\tERR \U0000274E\t\033[31mError downloading {url} !\033[0m")
             self.delete_me = True
+            self.error_messages = f"Error downloading {url}"
 
     def extract_portion(self, filename, pdb_start, pdb_end):
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
@@ -166,6 +173,7 @@ class Chain:
             if self.full_mmCIFpath == "":
                 print(status + f"\t\U0000274E\t\033[31mError with CIF file of {self.pdb_id} !\033[0m", flush=True)
                 self.delete_me = True
+                self.error_messages = f"Error with CIF file of {self.pdb_id}"
                 return
 
             # Load the whole mmCIF into a Biopython structure object:
@@ -199,12 +207,10 @@ class Chain:
         """
 
         self.rfam_fam = rfam
-        print("\t> Associating it to", rfam, f"...\t\t\t{validsymb}")
 
     def extract_3D_data(self):
-        """ Runs DSSR to annotate the 3D chain and get various information about it.
-        """
-        
+        """ Runs DSSR to annotate the 3D chain and get various information about it. """
+
         # Check if the file exists. If no, compute it.
         if not os.path.exists(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv"):
 
@@ -220,6 +226,7 @@ class Chain:
                     # DSSR is unable to parse the chain.
                     warn(f"Exception while running DSSR: {stderr}\n\tIgnoring {self.chain_label}.\t\t\t", error=True)
                     self.delete_me = True
+                    self.error_messages = f"Exception while running DSSR for {self.chain_label}:\n {stderr}"
                     return
 
                 # Get the JSON from DSSR output 
@@ -229,85 +236,254 @@ class Chain:
                 if "warning" in json_object.keys():
                     warn(f"Ignoring {self.chain_label} ({json_object['warning']})\t", error=True)
                     self.delete_me = True
+                    self.error_messages = f"DSSR warning for {self.chain_label}: {json_object['warning']}"
                     return
 
-                # Extract the part about nucleotides from the DSSR annotation
+                # Extract the interesting parts
                 nts = json_object["nts"]
 
+                # Prepare a data structure (Pandas DataFrame)
+                resnum_start = int(nts[0]["nt_resnum"])
+                df = pd.DataFrame(nts)
+                # remove low pertinence or undocumented descriptors
+                df = df.drop(['summary', 'chain_name', 'index',
+                               'v0', 'v1', 'v2', 'v3', 'v4', 'splay_angle',
+                               'splay_distance', 'splay_ratio', 'sugar_class',
+                               'amplitude', 'phase_angle'], axis=1)
+                df['P_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['P_xyz'] ]                #
+                df['P_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['P_xyz'] ]                #
+                df['P_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['P_xyz'] ]                # Flatten the 
+                df['C5prime_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['C5prime_xyz'] ]    # Python dictionary
+                df['C5prime_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+                df['C5prime_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+
+                # Add a sequence column just for the alignments
+                df['nt_align_code'] = [ str(x).upper()
+                                              .replace('NAN', '-')      # Unresolved nucleotides are gaps
+                                              .replace('?', '-')         # Unidentified residues, let's delete them
+                                              .replace('T', 'U')        # 5MU are modified to t, which gives T
+                                              .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
+                                        for x in df['nt_code'] ]
+
+                # Shift numbering when duplicate residue numbers are found.
+                # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
+                while True in df.duplicated(['nt_resnum']).values:
+                    i = df.duplicated(['nt_resnum']).values.tolist().index(True)
+                    df.iloc[i:, 1] += 1
+                l = df.iloc[-1,1] - df.iloc[0,1] + 1
+
+                # Add eventual missing rows because of unsolved residues in the chain:
+                if l != len(df['index_chain']):
+                    # We have some rows to add. First, identify them:
+                    diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)
+
+                    for i in sorted(diff):
+                        df = pd.concat([df.iloc[:i-1], pd.DataFrame({"index_chain": i, "nt_resnum": i+resnum_start-1, 
+                                                                     "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i-1]), df.iloc[i-1:]])
+                        df.iloc[i:, 0] += 1
+                    df = df.reset_index(drop=True)
+
+
+                # Iterate over pairs to identify base-base interactions
+                res_ids = list(df['nt_id'])
+                paired = [ 0 ] * l
+                pair_type_LW = [ '' ] * l
+                pair_type_DSSR = [ '' ] * l
+                interacts = [ 0 ] * l
+                if "pairs" in json_object.keys():
+                    pairs = json_object["pairs"]
+                    for p in pairs:
+                        nt1 = p["nt1"]
+                        nt2 = p["nt2"]
+                        if nt1 in res_ids and nt2 in res_ids:
+                            nt1_idx = res_ids.index(nt1)
+                            nt2_idx = res_ids.index(nt2)
+                            paired[nt1_idx] = nt2_idx + 1
+                            paired[nt2_idx] = nt1_idx + 1
+                            interacts[nt1_idx] += 1
+                            interacts[nt2_idx] += 1
+                            pair_type_LW[nt1_idx] = p["LW"]
+                            pair_type_LW[nt2_idx] = p["LW"]
+                            pair_type_DSSR[nt1_idx] = p["DSSR"]
+                            pair_type_DSSR[nt2_idx] = p["DSSR"]
+                        elif nt1 in res_ids:
+                            nt1_idx = res_ids.index(nt1)
+                            interacts[nt1_idx] += 1
+                        elif nt2 in res_ids:
+                            nt2_idx = res_ids.index(nt2)
+                            interacts[nt2_idx] += 1
+                df['paired'] = paired
+                df['pair_type_LW'] = pair_type_LW
+                df['pair_type_DSSR'] = pair_type_DSSR
+
+                # Iterate over multiplets to identify base-base interactions
+                if "multiplets" in json_object.keys():
+                    multiplets = json_object["multiplets"]
+                    for m in multiplets:
+                        nts = m["nts_long"].split(',')
+                        # iterate  over the nts of a multiplet
+                        for j, nt in enumerate(nts):
+
+                            # if the nt is in that chain:
+                            if nt in res_ids:
+                                i = res_ids.index(nt)
+                                # iterate over those other nts
+                                for o in nts[:j]+nts[j+1:]:
+                                    if o in res_ids and str(res_ids.index(o)+1) not in str(df['paired'][i]): # and it's not already in 'paired'
+                                        df.loc[i,'paired'] = str(df['paired'][i]) + ',' + str(res_ids.index(o)+1)
+                                interacts[i] = len(str(df['paired'][i]).split(','))
+                            
+                df['Ninteract'] = interacts
+
+                df = df.drop(['C5prime_xyz', 'P_xyz', 'nt_id'], axis=1) # remove now useless descriptors
+
+                if self.reversed:
+                    # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
+                    # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
+                    # Anyways, you need to invert the angles.
+                    warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting pseudotorsions, other angle measures are not corrected.")
+                    df = df.reindex(index=df.index[::-1]).reset_index(drop=True)
+                    df['index_chain'] = 1 + df.index
+                    temp_eta = df['eta']
+                    df['eta'] = [ df['theta'][n] for n in range(l) ]              # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                    df['theta'] = [ temp_eta[n] for n in range(l) ]               # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                    temp_eta = df['eta_prime']
+                    df['eta_prime'] = [ df['theta_prime'][n] for n in range(l) ]  # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                    df['theta_prime'] = [ temp_eta[n] for n in range(l) ]         # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                    temp_eta = df['eta_base']
+                    df['eta_base'] = [ df['theta_base'][n] for n in range(l) ]    # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                    df['theta_base'] = [ temp_eta[n] for n in range(l) ]          # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                    newpairs = []
+                    for v in df['paired']:
+                        if ',' in v:
+                            temp_v = []
+                            vs = v.split(',')
+                            for _ in vs:
+                                temp_v.append(str(l-int(_)+1))
+                            newpairs.append(','.join(temp_v))
+                        else:
+                            if int(v):
+                                newpairs.append(str(l-int(v)+1))
+                    df['paired'] = newpairs
             except KeyError as e:
                 # Mostly, there are no part about nucleotides in the DSSR output. Abort.
-                warn(f"Error while parsing DSSR's json output:\n{json_object.keys()}\n{json_object}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
+                warn(f"Error while parsing DSSR's json output:\n{e}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
                 self.delete_me = True
+                self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
                 return
-
-            print("\t> Computing", self.chain_label, f"pseudotorsions...\t\t{validsymb}", flush=True)
-            
-            # Prepare data structures to extract the pseudotorisions
-            l = int(nts[-1]["nt_resnum"]) - int(nts[0]["nt_resnum"]) + 1
-            eta = [np.NaN] * l
-            theta = [np.NaN] * l
-            mask = [ 0 ] * l    # nts that are not resolved will have a mask at 0
-            seq = [ "-" ] * l   # ... and will be marked "-" in the sequence.
-
-            # the residue number of the chain start (which has been previously extracted from a whole mmCIF file)
-            resnum_start = int(nts[0]["nt_resnum"])
-
-            for nt in nts:
-                if nt["eta_prime"] is None:
-                    e = np.NaN
-                else:
-                    e = float(nt["eta_prime"])
-                if nt["theta_prime"] is None:
-                    t = np.NaN
-                else:
-                    t = float(nt["theta_prime"])
-                p = int(nt["nt_resnum"]) - resnum_start   # index of the nt in the chain
-                
-                # All non-regular-ACGU nucleotides (incl. modified & missing) are masked to 0.
-                # They will be replaced by the consensus in the alignment.
-                # U is a U, u is a modified U and should be replaced.
-                mask[p]  = int(nt["nt_code"] in "ACGU")
-
-                # seq will be later updated with consensus for all positions with mask=0
-                seq[p]   = nt["nt_code"].upper().replace('?','-').replace('P','U').replace('T','U')
-
-                # pseudotorsions
-                eta[p]   = e
-                theta[p] = t
-
-            if self.reversed:
-                # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
-                # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
-                # Anyways, you need to invert the angles.
-                warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting angles.")
-                seq = seq[::-1]
-                mask = mask[::-1]
-                temp_eta = [ e for e in eta ]
-                eta = [ theta[n] for n in range(l) ]        # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-                theta = [ temp_eta[n] for n in range(l) ]   # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
             
             # Creating a df for easy saving to CSV
-            pd.DataFrame({"seq": list(seq), "m": list(mask), "eta": list(eta), "theta": list(theta)}
-                        ).to_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
+            df.to_csv(path_to_3D_data + f"pseudotorsions/{self.chain_label}.csv")
+            del df
             print("\t> Saved", self.chain_label, f"pseudotorsions to CSV.\t\t{validsymb}", flush=True)
         else:
             print("\t> Computing", self.chain_label, f"pseudotorsions...\t{validsymb}\t(already done)", flush=True)
 
         # Now load data from the CSV file
-        d = pd.read_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv")
-        self.seq = "".join(d.seq.values)
-        self.length = len([ x for x in d.seq if x != "-" ])
-        self.full_length = len(d.seq)
-        self.mask = "".join([ str(int(x)) for x in d.m.values])
-        self.etas = d.eta.values
-        self.thetas = d.theta.values
+        d = pd.read_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv", index_col=0)
+        self.seq = "".join(d.nt_code.values)
+        self.aligned_seq = "".join(d.nt_align_code.values)
+        self.length = len([ x for x in self.aligned_seq if x != "-" ])
+        self.full_length = len(d.nt_code)
+        self.data3D = d
         print(f"\t> Loaded data from CSV\t\t\t\t{validsymb}", flush=True)
 
         # Remove too short chains
         if self.length < 5:
             warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
             self.delete_me = True
+            self.error_messages = "Sequence is too short. (< 5 resolved nts)"
         return
+
+    def set_freqs_from_aln(self, s_seq, freqs):
+        """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
+        
+        s_seq: the aligned version of self.aligned_seq
+        freqs: the nucleotide frequencies at every position of s_seq
+        This also replaces gaps by the most common nucleotide.
+        """
+        alilen = len(s_seq)
+
+        # Save colums in the appropriate positions
+        i = 0
+        j = 0
+        while i<self.full_length and j<alilen:
+            # Here we try to map self.aligned_seq (the sequence of the 3D chain, including gaps when residues are missing), 
+            # with s_seq, the sequence aligned in the MSA, containing any of ACGU and two types of gaps, - and .
+
+            if self.aligned_seq[i] == s_seq[j].upper(): # alignment and sequence correspond (incl. gaps)
+                self.frequencies = np.concatenate((self.frequencies, freqs[:,j].reshape(-1,1)), axis=1)
+                i += 1
+                j += 1
+            elif self.aligned_seq[i] == '-': # gap in the chain, but not in the aligned sequence
+
+                # search for a gap to the consensus nearby
+                k = 0
+                while j+k<alilen and s_seq[j+k] in ['.','-']:
+                    if s_seq[j+k] == '-':
+                        break
+                    k += 1
+
+                # if found, set j to that position
+                if j+k<alilen and s_seq[j+k] == '-':
+                    j = j + k
+                    continue
+
+                # if not, search for a insertion gap nearby
+                if j<alilen and s_seq[j] == '.':
+                    self.frequencies = np.concatenate((self.frequencies, freqs[:,j].reshape(-1,1)), axis=1)
+                    i += 1
+                    j += 1
+                    continue
+
+                # else, just ignore the gap.
+                self.frequencies = np.concatenate((self.frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
+                i += 1
+            elif s_seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
+                j += 1 # ignore the column
+            else: # sequence mismatch which is not a gap...
+                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.aligned_seq[i-1:i+2]}) with seq[{j}] ({s_seq[j-3:j+4]}).\n", 
+                        self.aligned_seq, 
+                        sep='', flush=True)
+                exit(1)
+
+        # Replace gapped positions by the consensus sequence:
+        c_aligned_seq = list(self.aligned_seq)
+        c_seq = list(self.seq)
+        letters = ['A', 'C', 'G', 'U', 'N']
+        for i in range(self.full_length):
+            if c_aligned_seq[i] == '-':      # (then c_seq[i] also is)
+                freq = self.frequencies[:,i]
+                l = letters[freq.tolist().index(max(freq))]
+                c_aligned_seq[i] = l
+                c_seq[i] = l
+                self.data3D.iloc[i,3] = l # self.data3D['nt_code'][i]
+        self.aligned_seq = ''.join(c_aligned_seq)
+        self.seq = ''.join(c_seq)
+
+        # Temporary np array to store the computations
+        point = np.zeros((11, self.full_length))
+        for i in range(self.full_length):
+            # normalized position in the chain
+            point[0,i] = float(i+1)/self.full_length 
+
+            # one-hot encoding of the actual sequence
+            if self.seq[i] in letters[:4]:
+                point[ 1 + letters[:4].index(self.seq[i]), i ] = 1
+            else:
+                point[5,i] = 1
+
+            # PSSMs
+            point[6,i] = self.frequencies[0, i]
+            point[7,i] = self.frequencies[1, i]
+            point[8,i] = self.frequencies[2, i]
+            point[9,i] = self.frequencies[3, i]
+            point[10,i] = self.frequencies[4, i]
+        
+        self.data3D = pd.concat([self.data3D, pd.DataFrame(point.T, columns=["position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
+
+        # save to file
+        self.data3D.to_csv(path_to_3D_data + "datapoints/" + self.chain_label)
 
 
 class Job:
@@ -885,7 +1061,6 @@ def build_chain(c, rfam, pdb_start, pdb_end):
 
     # If no problems, map it to an Rfam family, and annotate it with DSSR
     if not c.delete_me:
-        c.set_rfam(rfam)
         c.extract_3D_data()
 
     # If there were newly discovered problems, add this chain to the known issues
@@ -893,6 +1068,9 @@ def build_chain(c, rfam, pdb_start, pdb_end):
         warn(f"Adding {c.chain_label} to known issues.\t\t")
         f = open(path_to_3D_data + "known_issues.txt", 'a')
         f.write(c.chain_label + '\n')
+        f.close()
+        f = open(path_to_3D_data + "known_issues_reasons.txt", 'a')
+        f.write(c.chain_label + '\n' + c.error_messages + '\n\n')
         f.close()
     
     # The Chain object is ready
@@ -927,8 +1105,7 @@ def cm_realign(rfam_acc, chains, label):
 
         # Add the chains sequences to the file
         for c in chains:
-            seq_str = c.seq.replace('U','T').replace('-','').replace('P','U') # We align as DNA, and we replace pseudo-uridines by uridines.
-            f.write(f"> {str(c)}\n"+seq_str+'\n') 
+            f.write(f"> {str(c)}\n"+c.aligned_seq.replace('-', '').replace('U','T')+'\n') 
 
         f.close()
 
@@ -1008,20 +1185,18 @@ def summarize_position(col):
     """
 
     # Count the different chars in the column
-    counts = { 'A': col.count('A') + col.count('a'),  # caps are nt in conformity with the consensus (?)
-               'C':col.count('C') + col.count('c'), 
-               'G':col.count('G') + col.count('g'), 
-               'U':col.count('U') + col.count('u'), 
-               '-':col.count('-'), '.':col.count('.')}
+    counts = { 'A':col.count('A'), 'C':col.count('C'), 
+               'G':col.count('G'), 'U':col.count('U'), 
+               '-':col.count('-'), '.':col.count('.') }
 
-    # Compute how many are regular ACGU and how many are not
+    # Count modified nucleotides
     known_chars_count = 0
-    chars = ''.join(set(col))
+    chars = set(col)
     for char in chars:
         if char in "ACGU":
             known_chars_count += counts[char]
-        elif char not in "-.acgu":
-            counts[char] = col.count(char)
+        # elif char not in "-.":
+            # counts[char] = col.count(char)
     N = len(col) - counts['-'] - counts['.'] # number of ungapped residues
 
     if N: # prevent division by zero if the column is only gaps
@@ -1033,6 +1208,7 @@ def alignment_nt_stats(f):
     """ Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
     
     Also saves every chain of the family to file.
+    Uses only 1 core, so this function can be called in parallel.
     """
 
     # Get a worker number to position the progress bar
@@ -1048,7 +1224,7 @@ def alignment_nt_stats(f):
         align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
         alilen = align.get_alignment_length()
     except:
-        warn(f,"alignment is wrong. Recompute it and retry.", error=True)
+        warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         exit(1)
 
     # Compute statistics per column
@@ -1058,93 +1234,18 @@ def alignment_nt_stats(f):
     frequencies = np.array(results).T
 
     # For each sequence, find the right chain and save the PSSMs inside.
+    pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} chains", leave=False)
+    pbar.update(0)
     for s in align:
         if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
             continue
 
         # get the right 3D chain:
         idx = chains_ids.index(s.id)
-        c = list_of_chains[idx]
+        list_of_chains[idx].set_freqs_from_aln(s.seq, frequencies)
+        pbar.update(1)
+    pbar.close()
 
-        # Save colums in the appropriate positions
-        i = 0
-        j = 0
-        #warn_gaps = False
-        while i<c.full_length and j<alilen:
-            # Here we try to map c.seq (the sequence of the 3D chain, including gaps when residues are missing), 
-            # with s.seq, the sequence aligned in the MSA, containing any of ACGUacgu and two types of gaps, - and .
-
-            if c.seq[i] == s.seq[j].upper(): # alignment and sequence correspond (incl. gaps)
-                list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
-                i += 1
-                j += 1
-            elif c.seq[i] == '-': # gap in the chain, but not in the aligned sequence
-
-                # search for a gap to the consensus nearby
-                k = 0
-                while j+k<alilen and s.seq[j+k] in ['.','-']:
-                    if s.seq[j+k] == '-':
-                        break
-                    k += 1
-
-                # if found, set j to that position
-                if j+k<alilen and s.seq[j+k] == '-':
-                    j = j + k
-                    continue
-
-                # if not, search for a insertion gap nearby
-                if j<alilen and s.seq[j] == '.':
-                    list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, frequencies[:,j].reshape(-1,1)), axis=1)
-                    i += 1
-                    j += 1
-                    continue
-
-                # else, just ignore the gap.
-                #warn_gaps = True
-                list_of_chains[idx].frequencies = np.concatenate((list_of_chains[idx].frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
-                i += 1
-            elif s.seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
-                j += 1 # ignore the column
-            else:
-                print(f"You are never supposed to reach this. Comparing {c.chain_label} in {i} ({c.seq[i-1:i+2]}) with seq[{j}] ({s.seq[j-3:j+4]}).\n", c.seq, '\n', s.seq, sep='', flush=True)
-                exit(1)
-        #if warn_gaps:
-            #warn(f"Some gap(s) in {c.chain_label} were not re-found in the aligned sequence... Ignoring them.")
-
-        # Replace masked positions by the consensus sequence:
-        c_seq = c.seq.split()
-        letters = ['A', 'C', 'G', 'U', 'N']
-        for i in range(c.full_length):
-            if not c.mask[i]:
-                freq = list_of_chains[idx].frequencies[:,i]
-                c_seq[i] = letters[freq.tolist().index(max(freq))]
-        list_of_chains[idx].seq = ''.join(c_seq)
-
-        # Saving 'final' datapoint
-        c = list_of_chains[idx] # update the local object
-        point = np.zeros((13, c.full_length))
-        for i in range(c.full_length):
-            point[0,i] = i+1 # position
-
-            # one-hot encoding of the actual sequence
-            if c.seq[i] in letters[:4]:
-                point[ 1 + letters[:4].index(c.seq[i]), i ] = 1
-            else:
-                point[5,i] = 1
-
-            # save the PSSMs
-            point[6,i] = c.frequencies[0, i]
-            point[7,i] = c.frequencies[1, i]
-            point[8,i] = c.frequencies[2, i]
-            point[9,i] = c.frequencies[3, i]
-            point[10,i] = c.frequencies[4, i]
-            point[11,i] = c.etas[i]
-            point[12,i] = c.thetas[i]
-        file = open(path_to_3D_data + "datapoints/" + c.chain_label, "w") # no check, always overwrite, this is desired
-        for i in range(13):
-            line = [str(x) for x in list(point[i,:]) ]
-            file.write(','.join(line)+'\n')
-        file.close()
 
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
@@ -1161,7 +1262,7 @@ if __name__ == "__main__":
     # ===========================================================================
 
     # List all 3D RNA chains below 4Ang resolution
-    all_chains = download_BGSU_NR_list()
+    all_chains = set(download_BGSU_NR_list())
 
     # Ask Rfam if some are mapped to Rfam families
     mappings = download_Rfam_PDB_mappings()
@@ -1170,8 +1271,13 @@ if __name__ == "__main__":
     chains_with_mapping = []
     for c in all_chains:
         mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
-        if len(mapping.rfam_acc.values):
-            chains_with_mapping.append(c)
+        n = len(mapping.rfam_acc.values)
+        for j in range(n):
+            if j == n-1:
+                chains_with_mapping.append(c)
+            else:
+                chains_with_mapping.append(copy.deepcopy(c))
+            chains_with_mapping[-1].set_rfam(mapping.rfam_acc.values[j])
     n_chains = len(chains_with_mapping)
 
     # ===========================================================================
@@ -1196,14 +1302,16 @@ if __name__ == "__main__":
     for c in chains_with_mapping:
 
         # read mappings information
-        mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
+        mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) & (mappings.rfam_acc == c.rfam_fam) ]
         pdb_start = str(mapping.pdb_start.values[0])
         pdb_end = str(mapping.pdb_end.values[0])
 
         # Add a job to build the chain to the list
         c.chain_label = f"{c.pdb_id}_{str(c.pdb_model)}_{c.pdb_chain_id}_{pdb_start}-{pdb_end}"
+        ncores = read_cpu_number()
         if c.chain_label not in known_issues:
             joblist.append(Job(function=build_chain,  # Apply function build_chain to every c.chain_label
+                               how_many_in_parallel=ncores,
                                args=[c, mapping.rfam_acc.values[0], pdb_start, pdb_end]))
 
     # Prepare the results folders
@@ -1211,7 +1319,7 @@ if __name__ == "__main__":
         os.makedirs(path_to_3D_data + "RNAcifs")    # for the whole structures
     if not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
         os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
-    if not os.isdir(path_to_3D_data+"pseudotorsions/"):
+    if not path.isdir(path_to_3D_data+"pseudotorsions/"):
         os.makedirs(path_to_3D_data+"pseudotorsions/") # for the annotations by DSSR
 
     # Run the builds and extractions
@@ -1229,7 +1337,7 @@ if __name__ == "__main__":
     # Preparing a results folder
     if not os.access(path_to_seq_data + "realigned/", os.F_OK):
         os.makedirs(path_to_seq_data + "realigned/")
-        
+
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in loaded_chains:
@@ -1287,11 +1395,12 @@ if __name__ == "__main__":
     # Prepare the architecture of a shiny multi-progress-bars design
     thr_idx_mgr = Manager()                 # Push the number of workers to a queue. 
     idxQueue = thr_idx_mgr.Queue()          # ... Then each Pool worker will
-    for i in range(read_cpu_number()):      # ... pick a number from the queue when starting the computation for one family, 
+    for i in range(ncores):                 # ... pick a number from the queue when starting the computation for one family, 
         idxQueue.put(i)                     # ... and replace it when the computation has ended so it could be picked up later.
 
-    # Start a process pool to dispatch the RNA families over multiple CPUs
-    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
+    # Start a process pool to dispatch the RNA families,
+    # over multiple CPUs (one family by CPU)
+    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=ncores)
 
     fam_pbar = tqdm(total=len(fam_list), desc="RNA families", position=0, leave=True) 
     for i, _ in enumerate(p.imap_unordered(alignment_nt_stats, fam_list)): # Apply alignment_nt_stats to each RNA family
