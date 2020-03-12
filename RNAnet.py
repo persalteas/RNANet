@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, copy, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, copy, getopt, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -11,7 +11,7 @@ from Bio._py3k import urlcleanup as _urlcleanup
 from Bio.Alphabet import generic_rna
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
+from Bio.Align import MultipleSeqAlignment, AlignInfo
 from collections import OrderedDict
 from functools import partial
 from os import path, makedirs
@@ -20,32 +20,23 @@ from time import sleep
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-if path.isdir("/home/ubuntu/"): # this is the IFB-core cloud
-    path_to_3D_data = "/mnt/Data/RNA/3D/"
-    path_to_seq_data = "/mnt/Data/RNA/sequences/"
-elif path.isdir("/home/persalteas"): # this is my personal workstation
-    path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
-    path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
-elif path.isdir("/home/lbecquey"): # this is the IBISC server
-    path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
-    path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
-elif path.isdir("/nhome/siniac/lbecquey"): # this is the office PC
-    path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
-    path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
-else:
-    print("I don't know that machine... I'm shy, maybe you should introduce yourself ?")
-    exit(1)
-
 m = Manager()
 running_stats = m.list()
 running_stats.append(0) # n_launched
 running_stats.append(0) # n_finished
 running_stats.append(0) # n_skipped
 runDir = path.dirname(path.realpath(__file__))
-
+path_to_3D_data = "tobedefinedbyoptions"
+path_to_seq_data = "tobedefinedbyoptions"
 validsymb = '\U00002705'
 warnsymb = '\U000026A0'
 errsymb = '\U0000274C'
+
+# Default options:
+CRYSTAL_RES = "4.0"
+KEEP_HETATM = False
+FILL_GAPS = True 
+HOMOLOGY = True
 
 class NtPortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -71,9 +62,9 @@ class NtPortionSelector(object):
 
         # Refuse waters and magnesium ions
         if hetatm_flag in ["W", "H_MG"]:
-            return 0         
+            return int(KEEP_HETATM)      
 
-        # I don't really know what this is but the doc said:          
+        # I don't really know what this is but the doc said to warn:          
         if icode != " ":
             warn(f"icode {icode} at position {resseq}\t\t")
 
@@ -88,6 +79,35 @@ class NtPortionSelector(object):
 
         # Accept all atoms otherwise.
         return 1
+
+class BufferingSummaryInfo(AlignInfo.SummaryInfo):
+
+    def get_pssm(self, family, index): 
+        """Create a position specific score matrix object for the alignment. 
+ 
+        This creates a position specific score matrix (pssm) which is an 
+        alternative method to look at a consensus sequence. 
+ 
+        Returns: 
+         - A PSSM (position specific score matrix) object. 
+        """ 
+
+        pssm_info = [] 
+        # now start looping through all of the sequences and getting info 
+        for residue_num in tqdm(range(self.alignment.get_alignment_length()), position=index+1, desc=f"Worker {index+1}: {family}", leave=False): 
+            score_dict = self._get_base_letters("ACGUN") 
+            for record in self.alignment: 
+                this_residue = record.seq[residue_num] 
+                if this_residue not in "-.": 
+                    try:
+                        score_dict[this_residue] += 1.0 
+                    except KeyError:
+                        if this_residue in "acgun":
+                            warn(f"Found {this_residue} in {family} alignment...")
+                        score_dict[this_residue] = 1.0
+            pssm_info.append(('*', score_dict)) 
+   
+        return AlignInfo.PSSM(pssm_info) 
 
 
 class Chain:
@@ -448,18 +468,19 @@ class Chain:
                 exit(1)
 
         # Replace gapped positions by the consensus sequence:
-        c_aligned_seq = list(self.aligned_seq)
-        c_seq = list(self.seq)
-        letters = ['A', 'C', 'G', 'U', 'N']
-        for i in range(self.full_length):
-            if c_aligned_seq[i] == '-':      # (then c_seq[i] also is)
-                freq = self.frequencies[:,i]
-                l = letters[freq.tolist().index(max(freq))]
-                c_aligned_seq[i] = l
-                c_seq[i] = l
-                self.data3D.iloc[i,3] = l # self.data3D['nt_code'][i]
-        self.aligned_seq = ''.join(c_aligned_seq)
-        self.seq = ''.join(c_seq)
+        if FILL_GAPS:
+            c_aligned_seq = list(self.aligned_seq)
+            c_seq = list(self.seq)
+            letters = ['A', 'C', 'G', 'U', 'N']
+            for i in range(self.full_length):
+                if c_aligned_seq[i] == '-':      # (then c_seq[i] also is)
+                    freq = self.frequencies[:,i]
+                    l = letters[freq.tolist().index(max(freq))]
+                    c_aligned_seq[i] = l
+                    c_seq[i] = l
+                    self.data3D.iloc[i,3] = l # self.data3D['nt_code'][i]
+            self.aligned_seq = ''.join(c_aligned_seq)
+            self.seq = ''.join(c_seq)
 
         # Temporary np array to store the computations
         point = np.zeros((11, self.full_length))
@@ -1016,11 +1037,11 @@ def download_BGSU_NR_list():
     Does not remove structural redundancy. Resolution threshold used is 4 Angströms.
     """
 
-    print("> Fetching latest NR list from BGSU website...", end='', flush=True)
+    print(f"> Fetching latest list of RNA files at {CRYSTAL_RES} A resolution from BGSU website...", end='', flush=True)
     # Download latest BGSU non-redundant list
     try:
-        s = requests.get("http://rna.bgsu.edu/rna3dhub/nrlist/download/current/4.0A/csv").content
-        nr = open(path_to_3D_data + "latest_nr_list.csv", 'w')
+        s = requests.get(f"http://rna.bgsu.edu/rna3dhub/nrlist/download/current/{CRYSTAL_RES}A/csv").content
+        nr = open(path_to_3D_data + f"latest_nr_list_{CRYSTAL_RES}A.csv", 'w')
         nr.write("class,representative,class_members\n")
         nr.write(io.StringIO(s.decode('utf-8')).getvalue())
         nr.close()
@@ -1028,12 +1049,12 @@ def download_BGSU_NR_list():
         warn("Error downloading NR list !\t", error=True)
 
         # Try to read previous file
-        if path.isfile(path_to_3D_data + "latest_nr_list.csv"):
+        if path.isfile(path_to_3D_data + f"latest_nr_list_{CRYSTAL_RES}A.csv"):
             print("\t> Use of the previous version.\t", end = "", flush=True)
         else:
             return [], []
 
-    nrlist = pd.read_csv(path_to_3D_data + "latest_nr_list.csv")
+    nrlist = pd.read_csv(path_to_3D_data + f"latest_nr_list_{CRYSTAL_RES}A.csv")
     full_structures_list = nrlist['class_members'].tolist()
     print(f"\t{validsymb}", flush=True)
 
@@ -1100,6 +1121,8 @@ def cm_realign(rfam_acc, chains, label):
             ids = []
             for record in SeqIO.parse(gz, "fasta"):
                 if record.id not in ids:
+                    # Note: here we copy the sequences without modification. 
+                    # But, sequences with non ACGU letters exit (W, R, M, Y for example)
                     f.write(">"+record.description+'\n'+str(record.seq)+'\n')
                     ids.append(record.id)
 
@@ -1180,24 +1203,19 @@ def cm_realign(rfam_acc, chains, label):
                                "--meta-fmt=csv"])
     return 0
 
-def summarize_position(col):
+def summarize_position(counts):
     """ Counts the number of nucleotides at a given position, given a "column" from a MSA.
     """
 
-    # Count the different chars in the column
-    counts = { 'A':col.count('A'), 'C':col.count('C'), 
-               'G':col.count('G'), 'U':col.count('U'), 
-               '-':col.count('-'), '.':col.count('.') }
-
     # Count modified nucleotides
+    chars = counts.keys()
     known_chars_count = 0
-    chars = set(col)
+    N = 0
     for char in chars:
         if char in "ACGU":
             known_chars_count += counts[char]
-        # elif char not in "-.":
-            # counts[char] = col.count(char)
-    N = len(col) - counts['-'] - counts['.'] # number of ungapped residues
+        if char not in ".-":
+            N += counts[char]  # number of ungapped residues
 
     if N: # prevent division by zero if the column is only gaps
         return ( counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N) # other residues, or consensus (N, K, Y...)
@@ -1228,10 +1246,8 @@ def alignment_nt_stats(f):
         exit(1)
 
     # Compute statistics per column
-    pbar = tqdm(iterable=range(alilen), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f}", leave=False)
-    results = [ summarize_position(align[:,i]) for i in pbar ]
-    pbar.close()
-    frequencies = np.array(results).T
+    pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
+    frequencies = np.array([ summarize_position(pssm[i]) for i in pbar ]).T
 
     # For each sequence, find the right chain and save the PSSMs inside.
     pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} chains", leave=False)
@@ -1251,11 +1267,70 @@ def alignment_nt_stats(f):
     return 0
 
 if __name__ == "__main__":
-    print("Main process running. (PID", os.getpid(), ")")
 
     # # temporary, for debugging: start from zero knowledge
     # if os.path.exists(path_to_3D_data + "known_issues.txt"):
     #     subprocess.run(["rm", path_to_3D_data + "known_issues.txt"])
+
+    # Parse options
+    try:
+        opts, args = getopt.getopt( sys.argv[1:], 
+                                    "r:h", 
+                                [   "help", "resolution=", "keep-hetatm=", "fill-gaps=", "3d-folder=", "seq-folder=", "no-homology"])
+    except getopt.GetoptError as err:
+        print(err)
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == "-h" or opt == "--help":
+            print(  "RNANet, a script to build a multiscale RNA dataset from public data\n"
+                    "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
+            print()
+            print("Options:")
+            print("-h [ --help ]\t\t\tPrint this help message")
+            print("--version\t\t\tPrint the program version")
+            print()
+            print("-r 4.0 [ --resolution=4.0 ]\t(1.5 | 2.0 | 2.5 | 3.0 | 3.5 | 4.0 | 20.0)"
+                    "\n\t\t\t\tMinimum 3D structure resolution to consider a RNA chain.")
+            print("--keep-hetatm=False\t\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
+                    "\n\t\t\t\tDoes not affect the descriptors.")
+            print("--fill-gaps=True\t\t(True | False) Replace gaps in sequence due to unresolved residues"
+                    "\n\t\t\t\tby the most common nucleotide at this position in the alignment.")
+            print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
+                    "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
+                    "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
+                    "\n\t\t\t\t\tpseudotorsions/\t\tAnnotations by DSSR"
+                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in specified file format.")
+            print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files."
+                    "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
+                    "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
+            print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
+                    "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
+            sys.exit()
+
+        elif opt == '--version':
+            print("RNANet alpha 3")
+            sys.exit()
+        elif opt == "-r" or opt == "--resolution":
+            assert arg in ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "20.0"]
+            CRYSTAL_RES = arg
+        elif opt=="--keep-hetatm":
+            assert arg in [ "True", "False" ]
+            KEEP_HETATM = (arg == "True")
+        elif opt=="--fill-gaps":
+            assert arg in [ "True", "False" ]
+            FILL_GAPS = (arg == "True")
+        elif opt=="--no-homolgy":
+            HOMOLOGY == False
+        elif opt=='--3d-folder':
+            path_to_3D_data = path.abspath(arg)
+        elif opt=='--seq-folder':
+            path_to_seq_data = path.abspath(arg)
+    
+    if path_to_3D_data == "tobedefinedbyoptions" or path_to_seq_data == "tobedefinedbyoptions":
+        print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
+        print("See RNANet.py --help for more information.")
+        exit(1)
 
     # ===========================================================================
     # List 3D chains with available Rfam mapping
@@ -1268,16 +1343,19 @@ if __name__ == "__main__":
     mappings = download_Rfam_PDB_mappings()
 
     # Filter the chains with mapping
-    chains_with_mapping = []
-    for c in all_chains:
-        mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
-        n = len(mapping.rfam_acc.values)
-        for j in range(n):
-            if j == n-1:
-                chains_with_mapping.append(c)
-            else:
-                chains_with_mapping.append(copy.deepcopy(c))
-            chains_with_mapping[-1].set_rfam(mapping.rfam_acc.values[j])
+    if HOMOLOGY:
+        chains_with_mapping = []
+        for c in all_chains:
+            mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
+            n = len(mapping.rfam_acc.values)
+            for j in range(n):
+                if j == n-1:
+                    chains_with_mapping.append(c)
+                else:
+                    chains_with_mapping.append(copy.deepcopy(c))
+                chains_with_mapping[-1].set_rfam(mapping.rfam_acc.values[j])
+    else:
+        chains_with_mapping = all_chains
     n_chains = len(chains_with_mapping)
 
     # ===========================================================================
@@ -1330,10 +1408,18 @@ if __name__ == "__main__":
 
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
 
+    if not HOMOLOGY:
+        # Save chains to file
+        for c in loaded_chains:
+            c.data3D.to_csv(path_to_3D_data + "datapoints/" + c.chain_label)
+        print("Completed.")
+        exit()
+
+
     # ===========================================================================
     # Download RNA sequences of the corresponding Rfam families
     # ===========================================================================
-
+    
     # Preparing a results folder
     if not os.access(path_to_seq_data + "realigned/", os.F_OK):
         os.makedirs(path_to_seq_data + "realigned/")
