@@ -6,13 +6,13 @@ We use the Rfam mappings between 3D structures and known Rfam families, using th
 Future versions might compute a real MSA-based clusering directly with Rfamseq ncRNA sequences, like ProteinNet does with protein sequences, but this requires a tool similar to jackHMMER in the Infernal software suite, which is not available yet.
 
 This script prepares the dataset from available public data in PDB and Rfam.
-It requires solid hardware to run. (Tested on a server with 24 cores and 48GB of RAM.)
+It requires solid hardware to run. (Tested on a server with 32 cores and 48GB of RAM.)
 
 # Dependencies
 You need to install Infernal, DSSR, and SINA before running this.
 I moved to python3.8.1. Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.*.
 
-Packages numpy, pandas, matplotlib, requests, psutil, biopython, and sqlalchemy are required.
+Packages numpy, pandas, matplotlib, requests, psutil, biopython, sqlalchemy and tqdm are required.
 `python3.8 -m pip install numpy pandas matplotlib pymysql requests psutil biopython sqlalchemy tqdm`
 
 Before use, please set the two variables `path_to_3D_data` and `path_to_seq_data` (around line 30 of RNAnet.py) to two folders where you want to store RNA 3D structures and RNA sequences. A few gigabytes will be produced.
@@ -34,7 +34,7 @@ Now, compute the features:
 
 Then, compute the labels:
 
-* Run DSSR on every chain to get eta' and theta' pseudotorsions
+* Run DSSR on every chain to get a variety of descriptors per position, describing secondary and tertiary structure
 * This also permits to identify missing residues and compute a mask for every chain.
 
 Finally, store this data into files.
