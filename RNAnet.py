@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, copy, getopt, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -20,6 +20,8 @@ from time import sleep
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
+
+pd.set_option('display.max_rows', None)
 m = Manager()
 running_stats = m.list()
 running_stats.append(0) # n_launched
@@ -37,6 +39,7 @@ CRYSTAL_RES = "4.0"
 KEEP_HETATM = False
 FILL_GAPS = True 
 HOMOLOGY = True
+USE_KNOWN_ISSUES = True
 
 class NtPortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -64,9 +67,9 @@ class NtPortionSelector(object):
         if hetatm_flag in ["W", "H_MG"]:
             return int(KEEP_HETATM)      
 
-        # I don't really know what this is but the doc said to warn:          
-        if icode != " ":
-            warn(f"icode {icode} at position {resseq}\t\t")
+        # # I don't really know what this is but the doc said to warn:          
+        # if icode != " ":
+        #     warn(f"icode {icode} at position {resseq}\t\t")
 
         # Accept the residue if it is in the right interval:
         return int(self.start <= resseq <= self.end)
@@ -80,9 +83,10 @@ class NtPortionSelector(object):
         # Accept all atoms otherwise.
         return 1
 
+
 class BufferingSummaryInfo(AlignInfo.SummaryInfo):
 
-    def get_pssm(self, family, index): 
+    def get_pssm(self, family, index):
         """Create a position specific score matrix object for the alignment. 
  
         This creates a position specific score matrix (pssm) which is an 
@@ -97,17 +101,17 @@ class BufferingSummaryInfo(AlignInfo.SummaryInfo):
         for residue_num in tqdm(range(self.alignment.get_alignment_length()), position=index+1, desc=f"Worker {index+1}: {family}", leave=False): 
             score_dict = self._get_base_letters("ACGUN") 
             for record in self.alignment: 
-                this_residue = record.seq[residue_num] 
+                this_residue = record.seq[residue_num].upper() 
                 if this_residue not in "-.": 
                     try:
                         score_dict[this_residue] += 1.0 
                     except KeyError:
-                        if this_residue in "acgun":
-                            warn(f"Found {this_residue} in {family} alignment...")
+                        # if this_residue in "acgun":
+                        #     warn(f"Found {this_residue} in {family} alignment...")
                         score_dict[this_residue] = 1.0
-            pssm_info.append(('*', score_dict)) 
-   
-        return AlignInfo.PSSM(pssm_info) 
+            pssm_info.append(('*', score_dict))
+
+        return AlignInfo.PSSM(pssm_info)
 
 
 class Chain:
@@ -115,24 +119,24 @@ class Chain:
 
     Chains accumulate information through this scipt, and are saved to files at the end of major steps."""
 
-    def __init__(self, nrlist_code):
-        nr = nrlist_code.split('|')
-        self.pdb_id = nr[0].lower()             # PDB ID
-        self.pdb_model = int(nr[1])             # model ID, starting at 1
-        self.pdb_chain_id = nr[2].upper()       # chain ID (mmCIF), multiple letters
+    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, rfam="", pdb_start=None, pdb_end=None):
+        self.pdb_id = pdb_id                    # PDB ID
+        self.pdb_model = int(pdb_model)         # model ID, starting at 1
+        self.pdb_chain_id = pdb_chain_id        # chain ID (mmCIF), multiple letters
+        self.pdb_start = pdb_start              # if portion of chain, the start number (relative to the chain, not residue numbers)
+        self.pdb_end = pdb_end                  # if portion of chain, the start number (relative to the chain, not residue numbers)
         self.reversed = False                   # wether pdb_end > pdb_start in the Rfam mapping
-        self.chain_label = ""                   # chain pretty name 
+        self.chain_label = chain_label          # chain pretty name 
         self.full_mmCIFpath = ""                # path to the source mmCIF structure
         self.file = ""                          # path to the 3D PDB file
-        self.rfam_fam = ""                      # mapping to an RNA family
+        self.rfam_fam = rfam                    # mapping to an RNA family
         self.seq = ""                           # sequence with modified nts
         self.aligned_seq = ""                   # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
         self.full_length = -1                   # length of the chain extracted from source structure ([start; stop] interval)
         self.delete_me = False                  # an error occured during production/parsing
         self.error_messages = ""                # Error message(s) if any
-        self.frequencies = np.zeros((5,0))      # frequencies of nt at every position: A,C,G,U,Other
-        self.data3D = None                      # Pandas DataFrame with all the 3D data extracted by DSSR.
+        self.data = None                        # Pandas DataFrame with all the 3D data extracted by DSSR.
 
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
@@ -168,12 +172,12 @@ class Chain:
             self.delete_me = True
             self.error_messages = f"Error downloading {url}"
 
-    def extract_portion(self, filename, pdb_start, pdb_end):
+    def extract_portion(self):
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         
-        status = f"\t> Extract {pdb_start}-{pdb_end} atoms from {self.pdb_id}-{self.pdb_chain_id}\t"
-        self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+filename+".cif"
+        status = f"\t> Extract {self.pdb_start}-{self.pdb_end} atoms from {self.pdb_id}-{self.pdb_chain_id}\t"
+        self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
 
         # Check if file exists, if yes, abort (do not recompute)
         if os.path.exists(self.file):
@@ -181,13 +185,13 @@ class Chain:
             return
 
         model_idx = self.pdb_model - (self.pdb_model > 0) # because arrays start at 0, models start at 1
-        pdb_start = int(pdb_start)
-        pdb_end = int(pdb_end)
+        pdb_start = int(self.pdb_start)
+        pdb_end = int(self.pdb_end)
 
        
         with warnings.catch_warnings():
-            # TODO: check if this with and warnings catch is still useful since i moved to CIF files
-            warnings.simplefilter('ignore', PDBConstructionWarning) # ignore the PDB problems 
+            # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
+            warnings.simplefilter('ignore', PDBConstructionWarning)  
 
             # Check if the whole mmCIF file exists. If not, abort.
             if self.full_mmCIFpath == "":
@@ -221,6 +225,49 @@ class Chain:
             ioobj.save(self.file, sel)
 
         print(status + f"\t{validsymb}")
+    
+    def extract_all(self):
+        """ Extract the RNA chain from the main CIF file and save it to another file.
+        """
+        
+        status = f"\t> Extract {self.pdb_id}-{self.pdb_chain_id}\t"
+        self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
+
+        # Check if file exists, if yes, abort (do not recompute)
+        if os.path.exists(self.file):
+            print(status + f"\t{validsymb}\t(already done)", flush=True)
+            return
+
+        model_idx = self.pdb_model - (self.pdb_model > 0) # because arrays start at 0, models start at 1
+       
+        with warnings.catch_warnings():
+            # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
+            warnings.simplefilter('ignore', PDBConstructionWarning) # ignore the PDB problems 
+
+            # Check if the whole mmCIF file exists. If not, abort.
+            if self.full_mmCIFpath == "":
+                print(status + f"\t\U0000274E\t\033[31mError with CIF file of {self.pdb_id} !\033[0m", flush=True)
+                self.delete_me = True
+                self.error_messages = f"Error with CIF file of {self.pdb_id}"
+                return
+
+            # Load the whole mmCIF into a Biopython structure object:
+            s = mmcif_parser.get_structure(self.pdb_id, self.full_mmCIFpath)
+
+            # Extract the desired chain
+            c = s[model_idx][self.pdb_chain_id]
+
+            # Define a selection
+            first_number = c.child_list[0].get_id()[1]  # the chain's first residue is numbered 'first_number'
+            last_number = c.child_list[-1].get_id()[1]  # the chain's last residue number
+            sel = NtPortionSelector(model_idx, self.pdb_chain_id, first_number, last_number)
+
+            # Save that selection on the mmCIF object s to file
+            ioobj = MMCIFIO()
+            ioobj.set_structure(s)
+            ioobj.save(self.file, sel)
+
+        print(status + f"\t{validsymb}")
 
     def set_rfam(self, rfam):
         """ Rember the Rfam mapping for this chain.
@@ -232,14 +279,13 @@ class Chain:
         """ Runs DSSR to annotate the 3D chain and get various information about it. """
 
         # Check if the file exists. If no, compute it.
-        if not os.path.exists(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv"):
+        if not os.path.exists(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam_fam}.csv"):
 
             # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
             output = subprocess.run(
                 ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout = output.stdout.decode('utf-8') # this contains the results in JSON format, or is empty if there are errors
             stderr = output.stderr.decode('utf-8') # this contains the evenutal errors
-
 
             try:
                 if "exception" in stderr:
@@ -266,16 +312,22 @@ class Chain:
                 resnum_start = int(nts[0]["nt_resnum"])
                 df = pd.DataFrame(nts)
                 # remove low pertinence or undocumented descriptors
-                df = df.drop(['summary', 'chain_name', 'index',
-                               'v0', 'v1', 'v2', 'v3', 'v4', 'splay_angle',
+                df = df.drop(['summary', 'chain_name', 'index', 'splay_angle',
                                'splay_distance', 'splay_ratio', 'sugar_class',
-                               'amplitude', 'phase_angle'], axis=1)
-                df['P_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['P_xyz'] ]                #
-                df['P_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['P_xyz'] ]                #
-                df['P_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['P_xyz'] ]                # Flatten the 
-                df['C5prime_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['C5prime_xyz'] ]    # Python dictionary
-                df['C5prime_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
-                df['C5prime_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+                               'bin', 'suiteness', 'cluster'], axis=1)
+                # df['P_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['P_xyz'] ]                #
+                # df['P_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['P_xyz'] ]                #
+                # df['P_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['P_xyz'] ]                # Flatten the 
+                # df['C5prime_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['C5prime_xyz'] ]    # Python dictionary
+                # df['C5prime_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+                # df['C5prime_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+
+                # Convert angles to radians
+                df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
+                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] *= np.pi/180.0
+                # mapping [-pi, pi] into [0, 2pi]
+                df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
+                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
 
                 # Add a sequence column just for the alignments
                 df['nt_align_code'] = [ str(x).upper()
@@ -305,8 +357,8 @@ class Chain:
 
 
                 # Iterate over pairs to identify base-base interactions
-                res_ids = list(df['nt_id'])
-                paired = [ 0 ] * l
+                res_ids = list(df['nt_id']) # things like "chainID.C4, chainID.U5"
+                paired = [ "0" ] * l
                 pair_type_LW = [ '' ] * l
                 pair_type_DSSR = [ '' ] * l
                 interacts = [ 0 ] * l
@@ -318,14 +370,24 @@ class Chain:
                         if nt1 in res_ids and nt2 in res_ids:
                             nt1_idx = res_ids.index(nt1)
                             nt2_idx = res_ids.index(nt2)
-                            paired[nt1_idx] = nt2_idx + 1
-                            paired[nt2_idx] = nt1_idx + 1
+                            if paired[nt1_idx] == "0":
+                                paired[nt1_idx] = str(nt2_idx + 1)
+                                pair_type_LW[nt1_idx] = p["LW"]
+                                pair_type_DSSR[nt1_idx] = p["DSSR"]
+                            else:
+                                paired[nt1_idx] += ',' + str(nt2_idx + 1)
+                                pair_type_LW[nt1_idx] += ',' + p["LW"]
+                                pair_type_DSSR[nt1_idx] += ',' + p["DSSR"]
+                            if paired[nt2_idx] == "0":
+                                paired[nt2_idx] = str(nt1_idx + 1)
+                                pair_type_LW[nt2_idx] = p["LW"]
+                                pair_type_DSSR[nt2_idx] = p["DSSR"]
+                            else:
+                                paired[nt2_idx] += ',' + str(nt1_idx + 1)
+                                pair_type_LW[nt2_idx] += ',' + p["LW"]
+                                pair_type_DSSR[nt2_idx] += ',' + p["DSSR"]
                             interacts[nt1_idx] += 1
                             interacts[nt2_idx] += 1
-                            pair_type_LW[nt1_idx] = p["LW"]
-                            pair_type_LW[nt2_idx] = p["LW"]
-                            pair_type_DSSR[nt1_idx] = p["DSSR"]
-                            pair_type_DSSR[nt2_idx] = p["DSSR"]
                         elif nt1 in res_ids:
                             nt1_idx = res_ids.index(nt1)
                             interacts[nt1_idx] += 1
@@ -335,26 +397,7 @@ class Chain:
                 df['paired'] = paired
                 df['pair_type_LW'] = pair_type_LW
                 df['pair_type_DSSR'] = pair_type_DSSR
-
-                # Iterate over multiplets to identify base-base interactions
-                if "multiplets" in json_object.keys():
-                    multiplets = json_object["multiplets"]
-                    for m in multiplets:
-                        nts = m["nts_long"].split(',')
-                        # iterate  over the nts of a multiplet
-                        for j, nt in enumerate(nts):
-
-                            # if the nt is in that chain:
-                            if nt in res_ids:
-                                i = res_ids.index(nt)
-                                # iterate over those other nts
-                                for o in nts[:j]+nts[j+1:]:
-                                    if o in res_ids and str(res_ids.index(o)+1) not in str(df['paired'][i]): # and it's not already in 'paired'
-                                        df.loc[i,'paired'] = str(df['paired'][i]) + ',' + str(res_ids.index(o)+1)
-                                interacts[i] = len(str(df['paired'][i]).split(','))
-                            
                 df['Ninteract'] = interacts
-
                 df = df.drop(['C5prime_xyz', 'P_xyz', 'nt_id'], axis=1) # remove now useless descriptors
 
                 if self.reversed:
@@ -393,19 +436,19 @@ class Chain:
                 return
             
             # Creating a df for easy saving to CSV
-            df.to_csv(path_to_3D_data + f"pseudotorsions/{self.chain_label}.csv")
+            df.to_csv(path_to_3D_data + f"annotations/{self.chain_label}.{self.rfam}.csv")
             del df
-            print("\t> Saved", self.chain_label, f"pseudotorsions to CSV.\t\t{validsymb}", flush=True)
+            print("\t> Saved", self.chain_label, f"annotations to CSV.\t\t{validsymb}", flush=True)
         else:
-            print("\t> Computing", self.chain_label, f"pseudotorsions...\t{validsymb}\t(already done)", flush=True)
+            print("\t> Computing", self.chain_label, f"annotations...\t{validsymb}\t(already done)", flush=True)
 
         # Now load data from the CSV file
-        d = pd.read_csv(path_to_3D_data+f"pseudotorsions/{self.chain_label}.csv", index_col=0)
+        d = pd.read_csv(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam}.csv", index_col=0)
         self.seq = "".join(d.nt_code.values)
         self.aligned_seq = "".join(d.nt_align_code.values)
         self.length = len([ x for x in self.aligned_seq if x != "-" ])
         self.full_length = len(d.nt_code)
-        self.data3D = d
+        self.data = d
         print(f"\t> Loaded data from CSV\t\t\t\t{validsymb}", flush=True)
 
         # Remove too short chains
@@ -415,11 +458,11 @@ class Chain:
             self.error_messages = "Sequence is too short. (< 5 resolved nts)"
         return
 
-    def set_freqs_from_aln(self, s_seq, freqs):
+    def set_freqs_from_aln(self, s_seq, ali_freqs):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
         
         s_seq: the aligned version of self.aligned_seq
-        freqs: the nucleotide frequencies at every position of s_seq
+        ali_freqs: the nucleotide frequencies at every position of s_seq
         This also replaces gaps by the most common nucleotide.
         """
         alilen = len(s_seq)
@@ -427,12 +470,13 @@ class Chain:
         # Save colums in the appropriate positions
         i = 0
         j = 0
+        temp_freqs = np.zeros((5,0))
         while i<self.full_length and j<alilen:
             # Here we try to map self.aligned_seq (the sequence of the 3D chain, including gaps when residues are missing), 
             # with s_seq, the sequence aligned in the MSA, containing any of ACGU and two types of gaps, - and .
 
             if self.aligned_seq[i] == s_seq[j].upper(): # alignment and sequence correspond (incl. gaps)
-                self.frequencies = np.concatenate((self.frequencies, freqs[:,j].reshape(-1,1)), axis=1)
+                temp_freqs = np.concatenate((temp_freqs, ali_freqs[:,j].reshape(-1,1)), axis=1)
                 i += 1
                 j += 1
             elif self.aligned_seq[i] == '-': # gap in the chain, but not in the aligned sequence
@@ -451,13 +495,13 @@ class Chain:
 
                 # if not, search for a insertion gap nearby
                 if j<alilen and s_seq[j] == '.':
-                    self.frequencies = np.concatenate((self.frequencies, freqs[:,j].reshape(-1,1)), axis=1)
+                    temp_freqs = np.concatenate((temp_freqs, ali_freqs[:,j].reshape(-1,1)), axis=1)
                     i += 1
                     j += 1
                     continue
 
                 # else, just ignore the gap.
-                self.frequencies = np.concatenate((self.frequencies, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
+                temp_freqs = np.concatenate((temp_freqs, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
                 i += 1
             elif s_seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
                 j += 1 # ignore the column
@@ -474,11 +518,11 @@ class Chain:
             letters = ['A', 'C', 'G', 'U', 'N']
             for i in range(self.full_length):
                 if c_aligned_seq[i] == '-':      # (then c_seq[i] also is)
-                    freq = self.frequencies[:,i]
+                    freq = temp_freqs[:,i]
                     l = letters[freq.tolist().index(max(freq))]
                     c_aligned_seq[i] = l
                     c_seq[i] = l
-                    self.data3D.iloc[i,3] = l # self.data3D['nt_code'][i]
+                    self.data.iloc[i,3] = l # self.data['nt_code'][i]
             self.aligned_seq = ''.join(c_aligned_seq)
             self.seq = ''.join(c_seq)
 
@@ -495,16 +539,38 @@ class Chain:
                 point[5,i] = 1
 
             # PSSMs
-            point[6,i] = self.frequencies[0, i]
-            point[7,i] = self.frequencies[1, i]
-            point[8,i] = self.frequencies[2, i]
-            point[9,i] = self.frequencies[3, i]
-            point[10,i] = self.frequencies[4, i]
+            point[6,i] = temp_freqs[0, i]
+            point[7,i] = temp_freqs[1, i]
+            point[8,i] = temp_freqs[2, i]
+            point[9,i] = temp_freqs[3, i]
+            point[10,i] = temp_freqs[4, i]
         
-        self.data3D = pd.concat([self.data3D, pd.DataFrame(point.T, columns=["position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
-
+        self.data = pd.concat([self.data, pd.DataFrame(point.T, columns=["position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
+        # reorder columns:
+        cols = [ # 1D structure descriptors
+                'index_chain','nt_resnum','position',
+                'nt_name','nt_code','nt_align_code',
+                'is_A','is_C','is_G','is_U','is_other',
+                'freq_A','freq_C','freq_G','freq_U','freq_other',
+                
+                # 2D structure descriptors
+                'dbn','paired','Ninteract',
+                'pair_type_LW','pair_type_DSSR',
+                
+                # 3D strcuture descriptors
+                'alpha','beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi',
+                'bb_type','glyco_bond','form','ssZp','Dp',
+                'eta','theta','eta_prime','theta_prime','eta_base','theta_base',
+                'v0', 'v1', 'v2', 'v3', 'v4', 'amplitude', 'phase_angle', 'puckering', 
+                'P_x','P_y','P_z','C5prime_x','C5prime_y','C5prime_z'
+               ]
+        self.data = self.data[cols]
+        self.save() # save to file
+        
+    def save(self, fformat = "csv"):
         # save to file
-        self.data3D.to_csv(path_to_3D_data + "datapoints/" + self.chain_label)
+        if fformat == "csv":
+            self.data.to_csv(path_to_3D_data + "datapoints/" + self.chain_label + str('.'+self.rfam_fam if self.rfam_fam != '' else ''))
 
 
 class Job:
@@ -1058,18 +1124,10 @@ def download_BGSU_NR_list():
     full_structures_list = nrlist['class_members'].tolist()
     print(f"\t{validsymb}", flush=True)
 
-    # Split the codes
-    all_chains = []
-    for code in full_structures_list:
-        codes = code.replace('+',',').split(',')
-        for c in codes:
-            # Convert every PDB code into a Chain object
-            all_chains.append(Chain(c))
-
     # The beginning of an adventure.
-    return all_chains
+    return full_structures_list
 
-def build_chain(c, rfam, pdb_start, pdb_end):
+def build_chain(c):
     """ Additionally adds all the desired information to a Chain object.
 
     """
@@ -1078,9 +1136,12 @@ def build_chain(c, rfam, pdb_start, pdb_end):
 
     # If no problems, extract the portion we want
     if not c.delete_me:
-        c.extract_portion(c.chain_label, pdb_start, pdb_end)
+        if HOMOLOGY:
+            c.extract_portion()
+        else:
+            c.extract_all()
 
-    # If no problems, map it to an Rfam family, and annotate it with DSSR
+    # If no problems, annotate it with DSSR
     if not c.delete_me:
         c.extract_3D_data()
 
@@ -1126,6 +1187,8 @@ def cm_realign(rfam_acc, chains, label):
                     f.write(">"+record.description+'\n'+str(record.seq)+'\n')
                     ids.append(record.id)
 
+        print("Adding PDB chains...")
+        
         # Add the chains sequences to the file
         for c in chains:
             f.write(f"> {str(c)}\n"+c.aligned_seq.replace('-', '').replace('U','T')+'\n') 
@@ -1240,14 +1303,13 @@ def alignment_nt_stats(f):
     # Open the alignment
     try:
         align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
-        alilen = align.get_alignment_length()
     except:
         warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         exit(1)
 
     # Compute statistics per column
     pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
-    frequencies = np.array([ summarize_position(pssm[i]) for i in pbar ]).T
+    frequencies = np.array([ summarize_position(pssm[i]) for i in range(align.get_alignment_length()) ]).T
 
     # For each sequence, find the right chain and save the PSSMs inside.
     pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} chains", leave=False)
@@ -1266,17 +1328,115 @@ def alignment_nt_stats(f):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
 
-if __name__ == "__main__":
+def infer_all_mappings(allmappings, codelist):
+    """Given a list of PDB chains corresponding to an equivalence class from BGSU's NR list, 
+    build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
+    of any element of the list to all the list elements.
+    """
+    newchains = []
+    known_mappings = pd.DataFrame()
 
-    # # temporary, for debugging: start from zero knowledge
-    # if os.path.exists(path_to_3D_data + "known_issues.txt"):
-    #     subprocess.run(["rm", path_to_3D_data + "known_issues.txt"])
+    # Split the comma-separated list of chain codes into chain codes:
+    codes = str(codelist).replace('+',',').split(',')
+
+    # Search for mappings that apply to an element of this PDB chains list:
+    for c in codes:
+        # search for Rfam mappings with this chain c:
+        m_row_indices = allmappings.pdb_id + "|1|" + allmappings.chain == c[:4].lower()+c[4:]
+        m = allmappings.loc[m_row_indices].drop(['bit_score','evalue_score','cm_start','cm_end','hex_colour'], axis=1)
+        if len(m):
+            # remove the found mappings from the dataframe
+            allmappings = allmappings.loc[m_row_indices == False]
+            # Add the found mappings to the list of found mappings for this class of equivalence
+            known_mappings = pd.concat([known_mappings, m])
+    
+    # Now infer mappings for chains that are not explicitely listed in Rfam-PDB mappings:
+    if len(known_mappings):
+        families = set(known_mappings['rfam_acc'])
+
+        # generalize
+        inferred_mappings = known_mappings.drop(['pdb_id','chain'], axis=1).drop_duplicates()
+        
+        # check for approximative redundancy:
+        if len(inferred_mappings) != len(inferred_mappings.drop_duplicates(subset="rfam_acc")):
+            # Then, there exists some mapping variants onto the same Rfam family CM,
+            # but varing in the start/end positions in the chain. 
+            # ==> Summarize them in one mapping but with the largest window.
+            for rfam in families:
+                sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
+                thisfam_5_3 =  (inferred_mappings['rfam_acc'] == rfam ) & sel_5_to_3
+                thisfam_3_5 =  (inferred_mappings['rfam_acc'] == rfam ) & (sel_5_to_3 == False)
+
+                if (
+                        len(inferred_mappings[thisfam_5_3]) !=  len(inferred_mappings[ inferred_mappings['rfam_acc'] == rfam ])
+                    and len(inferred_mappings[thisfam_5_3]) > 0
+                ):
+                    warn(f"There are mappings for {rfam} in both directions:", error=True)
+                    print(inferred_mappings)
+                    exit(1)
+
+                # Compute consensus for chains in 5' -> 3' sense
+                if len(inferred_mappings[thisfam_5_3]):
+                    pdb_start_min = min(inferred_mappings[ thisfam_5_3]['pdb_start'])
+                    pdb_end_max = max(inferred_mappings[ thisfam_5_3]['pdb_end']) 
+                    pdb_start_max = max(inferred_mappings[ thisfam_5_3]['pdb_start'])
+                    pdb_end_min = min(inferred_mappings[ thisfam_5_3]['pdb_end'])
+                    if (pdb_start_max - pdb_start_min < 100) and (pdb_end_max - pdb_end_min < 100):
+                        # the variation is only a few nucleotides, we take the largest window.
+                        inferred_mappings.loc[ thisfam_5_3, 'pdb_start'] = pdb_start_min
+                        inferred_mappings.loc[ thisfam_5_3, 'pdb_end'] = pdb_end_max
+                    else:
+                        # there probably is an outlier. We chose the median value in the whole list of known_mappings.
+                        known_sel_5_to_3 = (known_mappings['rfam_acc'] == rfam ) & (known_mappings['pdb_start'] < known_mappings['pdb_end'])
+                        inferred_mappings.loc[ thisfam_5_3, 'pdb_start'] = known_mappings.loc[known_sel_5_to_3, 'pdb_start'].median()
+                        inferred_mappings.loc[ thisfam_5_3, 'pdb_end'] = known_mappings.loc[known_sel_5_to_3, 'pdb_end'].median()
+
+                #  Compute consensus for chains in 3' -> 5' sense
+                if len(inferred_mappings[thisfam_3_5]):
+                    pdb_start_min = min(inferred_mappings[ thisfam_3_5]['pdb_start'])
+                    pdb_end_max = max(inferred_mappings[ thisfam_3_5]['pdb_end']) 
+                    pdb_start_max = max(inferred_mappings[ thisfam_3_5]['pdb_start'])
+                    pdb_end_min = min(inferred_mappings[ thisfam_3_5]['pdb_end'])
+                    if (pdb_start_max - pdb_start_min < 100) and (pdb_end_max - pdb_end_min < 100):
+                        # the variation is only a few nucleotides, we take the largest window.
+                        inferred_mappings.loc[ thisfam_3_5, 'pdb_start'] = pdb_start_max
+                        inferred_mappings.loc[ thisfam_3_5, 'pdb_end'] = pdb_end_min
+                    else:
+                        # there probably is an outlier. We chose the median value in the whole list of known_mappings.
+                        known_sel_3_to_5 = (known_mappings['rfam_acc'] == rfam ) & (known_mappings['pdb_start'] > known_mappings['pdb_end'])
+                        inferred_mappings.loc[ thisfam_3_5, 'pdb_start'] = known_mappings.loc[known_sel_3_to_5, 'pdb_start'].median()
+                        inferred_mappings.loc[ thisfam_3_5, 'pdb_end'] = known_mappings.loc[known_sel_3_to_5, 'pdb_end'].median()
+            inferred_mappings.drop_duplicates(inplace=True)
+
+        for c in codes:
+            nr = c.split('|')
+            pdb_id = nr[0].lower()
+            pdb_model = int(nr[1])
+            pdb_chain_id = nr[2]
+            for rfam in families:
+
+                # if a known mapping of this chain on this family exists, apply it
+                m = known_mappings.loc[ (known_mappings.pdb_id + "|1|" + known_mappings.chain == c[:4].lower()+c[4:]) & (known_mappings['rfam_acc'] == rfam ) ]
+                if len(m):
+                    pdb_start = int(m.pdb_start)
+                    pdb_end = int(m.pdb_end)
+                else: # otherwise, use the inferred mapping
+                    pdb_start = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_start)
+                    pdb_end = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_end)
+                chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}_{pdb_start}-{pdb_end}"
+                newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, pdb_start=pdb_start, pdb_end=pdb_end))
+    
+    return newchains
+
+if __name__ == "__main__":
 
     # Parse options
     try:
         opts, args = getopt.getopt( sys.argv[1:], 
                                     "r:h", 
-                                [   "help", "resolution=", "keep-hetatm=", "fill-gaps=", "3d-folder=", "seq-folder=", "no-homology"])
+                                [   "help", "resolution=", "keep-hetatm=", 
+                                    "fill-gaps=", "3d-folder=", "seq-folder=", 
+                                    "no-homology", "force-retry" ])
     except getopt.GetoptError as err:
         print(err)
         sys.exit(2)
@@ -1299,17 +1459,18 @@ if __name__ == "__main__":
             print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
                     "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
                     "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
-                    "\n\t\t\t\t\tpseudotorsions/\t\tAnnotations by DSSR"
+                    "\n\t\t\t\t\tannotations/\t\tAnnotations by DSSR"
                     "\n\t\t\t\t\tdatapoints/\t\tFinal results in specified file format.")
             print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files."
                     "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
                     "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
             print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
                     "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
+            print("--force-retry\t\t\tIgnore already known issues, and retry to build them from scratch.")
             sys.exit()
 
         elif opt == '--version':
-            print("RNANet alpha 3")
+            print("RNANet 0.4 alpha ")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert arg in ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "20.0"]
@@ -1320,50 +1481,36 @@ if __name__ == "__main__":
         elif opt=="--fill-gaps":
             assert arg in [ "True", "False" ]
             FILL_GAPS = (arg == "True")
-        elif opt=="--no-homolgy":
-            HOMOLOGY == False
+        elif opt=="--no-homology":
+            HOMOLOGY = False
         elif opt=='--3d-folder':
             path_to_3D_data = path.abspath(arg)
+            if path_to_3D_data[-1] != '/':
+                path_to_3D_data += '/'
+            print("Storing 3D data into", path_to_3D_data)
         elif opt=='--seq-folder':
             path_to_seq_data = path.abspath(arg)
+            if path_to_seq_data[-1] != '/':
+                path_to_seq_data += '/'
+            print("Storing sequences into", path_to_seq_data)
+        elif opt == "--force-retry":
+            USE_KNOWN_ISSUES = False
     
     if path_to_3D_data == "tobedefinedbyoptions" or path_to_seq_data == "tobedefinedbyoptions":
         print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
         print("See RNANet.py --help for more information.")
-        exit(1)
+        
+        path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
+        path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
+        print(f"\n[DEBUG]\tUsing hard-coded paths to data:\n\t\t{path_to_3D_data}\n\t\t{path_to_seq_data}\n")
+        # exit(1)
 
     # ===========================================================================
     # List 3D chains with available Rfam mapping
     # ===========================================================================
 
     # List all 3D RNA chains below 4Ang resolution
-    all_chains = set(download_BGSU_NR_list())
-
-    # Ask Rfam if some are mapped to Rfam families
-    mappings = download_Rfam_PDB_mappings()
-
-    # Filter the chains with mapping
-    if HOMOLOGY:
-        chains_with_mapping = []
-        for c in all_chains:
-            mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) ]
-            n = len(mapping.rfam_acc.values)
-            for j in range(n):
-                if j == n-1:
-                    chains_with_mapping.append(c)
-                else:
-                    chains_with_mapping.append(copy.deepcopy(c))
-                chains_with_mapping[-1].set_rfam(mapping.rfam_acc.values[j])
-    else:
-        chains_with_mapping = all_chains
-    n_chains = len(chains_with_mapping)
-
-    # ===========================================================================
-    # Download 3D structures, extract the desired chain portions, 
-    # and extract their informations
-    # ===========================================================================
-
-    print("> Building download list...", flush=True)
+    full_structures_list = download_BGSU_NR_list()
 
     # Check for a list of known problems:
     known_issues = []
@@ -1371,34 +1518,65 @@ if __name__ == "__main__":
         f = open(path_to_3D_data + "known_issues.txt", 'r')
         known_issues = [ x[:-1] for x in f.readlines() ]
         f.close()
-        print("\t> Ignoring known issues:")
-        for x in known_issues:
-            print("\t  ", x)
+        if USE_KNOWN_ISSUES:
+            print("\t> Ignoring known issues:")
+            for x in known_issues:
+                print("\t  ", x)
 
+    all_chains = []
+    if HOMOLOGY:
+        # Ask Rfam if some are mapped to Rfam families
+        allmappings = download_Rfam_PDB_mappings()
+
+        print("> Building list of structures...", flush=True)
+        ncores = read_cpu_number()
+        p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=ncores)
+
+        pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, bar_format="{percentage:3.0f}%|{bar}|")
+        for i, newchains in enumerate(p.imap_unordered(partial(infer_all_mappings, allmappings), full_structures_list)): 
+            all_chains += newchains
+            pbar.update(1) # Everytime the iteration finishes, update the global progress bar
+
+        pbar.close()
+        p.close()
+        p.join()
+                        
+    else:
+        for codelist in tqdm(full_structures_list):
+            codes = str(codelist).replace('+',',').split(',')
+            for c in codes:
+                nr = c.split('|')
+                pdb_id = nr[0].lower()
+                pdb_model = int(nr[1])
+                pdb_chain_id = nr[2].upper()
+                chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
+                all_chains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
+                        
+    n_chains = len(all_chains)
+    print(">", validsymb, n_chains, "RNA chains of interest.")
+
+    # ===========================================================================
+    # Download 3D structures, extract the desired chain portions, 
+    # and extract their informations
+    # ===========================================================================
+
+    print("> Building download list...", flush=True)
     mmcif_parser = MMCIFParser()
     joblist = []
-    for c in chains_with_mapping:
-
-        # read mappings information
-        mapping = mappings.loc[ (mappings.pdb_id == c.pdb_id) & (mappings.chain == c.pdb_chain_id) & (mappings.rfam_acc == c.rfam_fam) ]
-        pdb_start = str(mapping.pdb_start.values[0])
-        pdb_end = str(mapping.pdb_end.values[0])
-
-        # Add a job to build the chain to the list
-        c.chain_label = f"{c.pdb_id}_{str(c.pdb_model)}_{c.pdb_chain_id}_{pdb_start}-{pdb_end}"
-        ncores = read_cpu_number()
-        if c.chain_label not in known_issues:
+    for c in all_chains:
+        if (c.chain_label not in known_issues) or not USE_KNOWN_ISSUES:
             joblist.append(Job(function=build_chain,  # Apply function build_chain to every c.chain_label
-                               how_many_in_parallel=ncores,
-                               args=[c, mapping.rfam_acc.values[0], pdb_start, pdb_end]))
+                               how_many_in_parallel=ncores, args=[c]))
 
     # Prepare the results folders
     if not path.isdir(path_to_3D_data + "RNAcifs"):
         os.makedirs(path_to_3D_data + "RNAcifs")    # for the whole structures
-    if not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
+    if HOMOLOGY and not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
         os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
-    if not path.isdir(path_to_3D_data+"pseudotorsions/"):
-        os.makedirs(path_to_3D_data+"pseudotorsions/") # for the annotations by DSSR
+    if not HOMOLOGY and not path.isdir(path_to_3D_data + "rna_only"):
+        os.makedirs(path_to_3D_data + "rna_only") # extract chains of pure RNA
+    if not path.isdir(path_to_3D_data+"annotations"):
+        os.makedirs(path_to_3D_data+"annotations") # for the annotations by DSSR
 
     # Run the builds and extractions
     results = execute_joblist(joblist)[1]
@@ -1406,15 +1584,15 @@ if __name__ == "__main__":
     # Remove the chains whose parsing resulted in errors
     loaded_chains = [ c for c in results if not c.delete_me ]
 
-    print(f"> Loaded {len(loaded_chains)} RNA chains ({len(chains_with_mapping) - len(loaded_chains)} errors).")
+    print(f"> Loaded {len(loaded_chains)} RNA chains ({len(all_chains) - len(loaded_chains)} errors).")
+    del all_chains # Here ends its utility, so let's free some memory
 
     if not HOMOLOGY:
         # Save chains to file
         for c in loaded_chains:
-            c.data3D.to_csv(path_to_3D_data + "datapoints/" + c.chain_label)
+            c.data.to_csv(path_to_3D_data + "datapoints/" + c.chain_label)
         print("Completed.")
         exit()
-
 
     # ===========================================================================
     # Download RNA sequences of the corresponding Rfam families
@@ -1426,11 +1604,16 @@ if __name__ == "__main__":
 
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
+    mappings_list = {}
     for c in loaded_chains:
         if c.rfam_fam not in rfam_acc_to_download:
             rfam_acc_to_download[c.rfam_fam] = [ c ]
+            mappings_list[c.rfam_fam] = [ c.chain_label ]
         else:
             rfam_acc_to_download[c.rfam_fam].append(c)
+            mappings_list[c.rfam_fam].append(c.chain_label)
+    pd.DataFrame.from_dict(mappings_list, orient='index').transpose().to_csv(path_to_seq_data + "realigned/mappings_list.csv")
+    exit()
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to download and re-align with the crystals' sequences:")
 
     # Download the covariance models for all families

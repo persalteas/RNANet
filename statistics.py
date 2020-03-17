@@ -2,12 +2,15 @@
 import os
 import numpy as np
 import pandas as pd
+import threading as th
 import scipy.stats as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
 from mpl_toolkits.mplot3d import axes3d
 from matplotlib import cm 
 from tqdm import tqdm
+from multiprocessing import Pool
+from RNAnet import read_cpu_number
 
 
 if os.path.isdir("/home/ubuntu/"): # this is the IFB-core cloud
@@ -26,27 +29,35 @@ else:
     print("I don't know that machine... I'm shy, maybe you should introduce yourself ?")
     exit(1)
 
-if __name__ == "__main__":
+def load_rna_frome_file(path_to_textfile):
+    return pd.read_csv(path_to_textfile, sep=',', header=0, engine="c", index_col=0)
 
-    #TODO: compute nt frequencies, chain lengths
-
-    print("loading CSV files...")
-    rna_points = []
+def reproduce_wadley_results(dfs, show=True):
     all_etas = []
     all_thetas = []
-    for csvfile in tqdm(os.listdir(path_to_3D_data + "pseudotorsions")):
-        df = pd.read_csv(path_to_3D_data + "pseudotorsions/" + csvfile).drop('Unnamed: 0', axis=1)
+    all_forms = []
+    c = 0
+    for df in dfs:
         all_etas += list(df['eta'].values)
         all_thetas += list(df['theta'].values)
-        rna_points.append(df)
+        all_forms += list(df['form'].values)
+        if (len([ x for x in df['eta'].values if x < 0 or x > 7]) or 
+            len([ x for x in df['theta'].values if x < 0 or x > 7])):
+            c += 1
+    print(c,"points on",len(dfs),"have non-radian angles !")
+
 
     print("combining etas and thetas...")
-    # increase all the angles by 180°
-    alldata = [ ((e+360)%360-180, (t+360)%360-180) 
-                for e, t in zip(all_etas, all_thetas) 
+    # # increase all the angles by 180°
+    # alldata = [ ((e+360)%360-180, (t+360)%360-180) 
+    #             for e, t in zip(all_etas, all_thetas) 
+    #             if ('nan' not in str((e,t))) 
+    #             and not(e<-150 and t<-110) and not (e>160 and t<-110) ]
+    alldata = [ (e, t) 
+                for e, t, f in zip(all_etas, all_thetas, all_forms) 
                 if ('nan' not in str((e,t))) 
-                and not(e<-150 and t<-110) and not (e>160 and t<-110) ]
-    print(len(alldata), "couples of nts found.")
+                and f == '.' ]
+    print(len(alldata), "couples of non-helical nts found.")
 
     x = np.array([ p[0] for p in alldata ])
     y = np.array([ p[1] for p in alldata ])
@@ -71,7 +82,7 @@ if __name__ == "__main__":
     plt.contourf(xx, yy, z, cmap=cm.BuPu, alpha=0.5)
     ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
     ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
-    ax.add_patch(ptch.Rectangle((-20,0),50,70, linewidth=1, edgecolor='r', facecolor='#ff000080'))
+    # ax.add_patch(ptch.Rectangle((-20,0),50,70, linewidth=1, edgecolor='r', facecolor='#ff000080'))
 
     ax = fig.add_subplot(132, projection='3d')
     ax.plot_surface(xx, yy, z_inc, cmap=cm.coolwarm, linewidth=0, antialiased=True)
@@ -86,4 +97,50 @@ if __name__ == "__main__":
     ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
     ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
     plt.savefig("results/clusters_rot180.png")
-    plt.show()
+    if show:
+        plt.show()
+
+def stats_len(dfs):
+    lengths = []
+    full_lengths = []
+    for r in dfs:
+        nt_codes = r['nt_code'].values.tolist()
+        lengths.append(len(nt_codes))
+        full_lengths.append(len([ c for c in nt_codes if c != '-']))
+
+
+
+if __name__ == "__main__":
+
+    #TODO: compute nt frequencies, chain lengths
+
+    #################################################################
+    #               LOAD ALL FILES
+    #################################################################
+    print("Loading mappings list...")
+    mappings_list = pd.read_csv(path_to_seq_data + "realigned/mappings_list.csv", sep=',', index_col=0).to_dict()
+
+    print("Loading datapoints from file...")
+    filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
+    rna_points = []
+    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
+    pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
+    for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
+        rna_points.append(rna)
+        pbar.update(1)
+    pbar.close()
+    p.close()
+    p.join()
+    npoints = len(rna_points)
+    print(npoints, "RNA files loaded.")
+
+    #################################################################
+    #               Define threads for the tasks
+    #################################################################
+    wadley_thr = th.Thread(target=reproduce_wadley_results, args=[rna_points])
+
+
+    wadley_thr.start()
+    wadley_thr.join()
+
+    
