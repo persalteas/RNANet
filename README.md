@@ -13,9 +13,7 @@ You need to install Infernal, DSSR, and SINA before running this.
 I moved to python3.8.1. Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.*.
 
 Packages numpy, pandas, matplotlib, requests, psutil, biopython, sqlalchemy and tqdm are required.
-`python3.8 -m pip install numpy pandas matplotlib pymysql requests psutil biopython sqlalchemy tqdm`
-
-Before use, please set the two variables `path_to_3D_data` and `path_to_seq_data` (around line 30 of RNAnet.py) to two folders where you want to store RNA 3D structures and RNA sequences. A few gigabytes will be produced.
+`python3.8 -m pip install numpy matplotlib pandas biopython psutil pymysql requests sqlalchemy tqdm`
 
 # What it does
 The script follows these steps:
