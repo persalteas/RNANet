@@ -3,12 +3,16 @@ import os
 import numpy as np
 import pandas as pd
 import threading as th
+import seaborn as sb
 import scipy.stats as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
 from mpl_toolkits.mplot3d import axes3d
+from Bio.Phylo.TreeConstruction import DistanceCalculator
+from Bio import AlignIO
 from matplotlib import cm 
 from tqdm import tqdm
+from functools import partial
 from multiprocessing import Pool
 from RNAnet import read_cpu_number
 
@@ -29,35 +33,74 @@ else:
     print("I don't know that machine... I'm shy, maybe you should introduce yourself ?")
     exit(1)
 
-def load_rna_frome_file(path_to_textfile):
-    return pd.read_csv(path_to_textfile, sep=',', header=0, engine="c", index_col=0)
+class DataPoint():
+    def __init__(self, path_to_textfile):
+        self.df = pd.read_csv(path_to_textfile, sep=',', header=0, engine="c", index_col=0)
+        self.family = path_to_textfile.split('.')[-1]
+        self.chain_label = path_to_textfile.split('.')[-2].split('/')[-1]
 
-def reproduce_wadley_results(dfs, show=True):
+def load_rna_frome_file(path_to_textfile):
+    return DataPoint(path_to_textfile)
+
+def reproduce_wadley_results(points, show=False, filter_helical=None, carbon=4, zone=(2.7,3.3,3.5,4.5)):
+    """
+    Plot the joint distribution of pseudotorsion angles, in a Ramachandran-style graph.
+    See Wadley & Pyle (2007)
+    """
+
+    if carbon == 4:
+        angle = "eta"
+        xlabel = "$\\eta=C_4'^{i-1}-P^i-C_4'^i-P^{i+1}$"
+        ylabel = "$\\theta=P^i-C_4'^i-P^{i+1}-C_4'^{i+1}$"
+    elif carbon == 1:
+        angle = "eta_prime"
+        xlabel = "$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$"
+        ylabel = "$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$"
+    else:
+        exit("You overestimate my capabilities !")
+
     all_etas = []
     all_thetas = []
     all_forms = []
     c = 0
-    for df in dfs:
-        all_etas += list(df['eta'].values)
-        all_thetas += list(df['theta'].values)
-        all_forms += list(df['form'].values)
-        if (len([ x for x in df['eta'].values if x < 0 or x > 7]) or 
-            len([ x for x in df['theta'].values if x < 0 or x > 7])):
+    for p in points:
+        all_etas += list(p.df[angle].values)
+        all_thetas += list(p.df['th'+angle].values)
+        all_forms += list(p.df['form'].values)
+        if (len([ x for x in p.df[angle].values if x < 0 or x > 7]) or 
+            len([ x for x in p.df['th'+angle].values if x < 0 or x > 7])):
             c += 1
-    print(c,"points on",len(dfs),"have non-radian angles !")
-
+    if c:
+        print(c,"points on",len(points),"have non-radian angles !")
 
     print("combining etas and thetas...")
-    # # increase all the angles by 180°
-    # alldata = [ ((e+360)%360-180, (t+360)%360-180) 
-    #             for e, t in zip(all_etas, all_thetas) 
-    #             if ('nan' not in str((e,t))) 
-    #             and not(e<-150 and t<-110) and not (e>160 and t<-110) ]
-    alldata = [ (e, t) 
-                for e, t, f in zip(all_etas, all_thetas, all_forms) 
-                if ('nan' not in str((e,t))) 
-                and f == '.' ]
-    print(len(alldata), "couples of non-helical nts found.")
+    warn = ""
+    if not filter_helical:
+        alldata = [ (e, t) 
+                    for e, t in zip(all_etas, all_thetas) 
+                    if ('nan' not in str((e,t)))  ]
+    elif filter_helical == "form":
+        alldata = [ (e, t) 
+                    for e, t, f in zip(all_etas, all_thetas, all_forms) 
+                    if ('nan' not in str((e,t))) 
+                    and f == '.' ]
+        warn = "(helical nucleotides removed)"
+        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
+    elif filter_helical == "zone":
+        alldata = [ (e, t) 
+                    for e, t in zip(all_etas, all_thetas) 
+                    if ('nan' not in str((e,t))) 
+                    and not (e>zone[0] and e<zone[1] and t>zone[2] and t<zone[3]) ]
+        warn = "(massive peak of helical nucleotides removed in red zone)"
+        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
+    elif filter_helical == "both":
+        alldata = [ (e, t) 
+                    for e, t, f in zip(all_etas, all_thetas, all_forms) 
+                    if ('nan' not in str((e,t))) 
+                    and f == '.'
+                    and not (e>zone[0] and e<zone[1] and t>zone[2] and t<zone[3]) ]
+        warn = "(helical nucleotide and massive peak in the red zone removed)"
+        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
 
     x = np.array([ p[0] for p in alldata ])
     y = np.array([ p[1] for p in alldata ])
@@ -75,38 +118,78 @@ def reproduce_wadley_results(dfs, show=True):
     # histogram : 
     fig, axs = plt.subplots(1,3, figsize=(18, 6))
     ax = fig.add_subplot(131)
+    ax.cla()
     
     plt.axhline(y=0, alpha=0.5, color='black')
     plt.axvline(x=0, alpha=0.5, color='black')
     plt.scatter(x, y, s=1, alpha=0.1)
     plt.contourf(xx, yy, z, cmap=cm.BuPu, alpha=0.5)
-    ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
-    ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
-    # ax.add_patch(ptch.Rectangle((-20,0),50,70, linewidth=1, edgecolor='r', facecolor='#ff000080'))
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if filter_helical in ["zone","both"]:
+        ax.add_patch(ptch.Rectangle((zone[0],zone[2]),zone[1]-zone[0],zone[3]-zone[2], linewidth=1, edgecolor='r', facecolor='#ff000080'))
 
     ax = fig.add_subplot(132, projection='3d')
+    ax.cla()
     ax.plot_surface(xx, yy, z_inc, cmap=cm.coolwarm, linewidth=0, antialiased=True)
-    ax.set_title("\"Wadley plot\"\n$\\eta'$, $\\theta'$ pseudotorsions in 3D RNA structures\n(Massive peak removed in the red zone, = double helices)")
-    ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
-    ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
+    ax.set_title(f"\"Wadley plot\" of {len(alldata)} nucleotides\nJoint distribution of pseudotorsions in 3D RNA structures\n" + warn)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     ax = fig.add_subplot(133, projection='3d')
-    hist, xedges, yedges = np.histogram2d(x, y, bins=300, range=[[xmin, xmax], [ymin, ymax]])
+    ax.cla()
+    hist, xedges, yedges = np.histogram2d(x, y, bins=200, range=[[xmin, xmax], [ymin, ymax]])
     xpos, ypos = np.meshgrid(xedges[:-1], yedges[:-1], indexing="ij")
-    ax.bar3d(xpos.ravel(), ypos.ravel(), 0, 0.5, 0.5, hist.ravel(), zsort='average')
-    ax.set_xlabel("$\\eta'=C_1'^{i-1}-P^i-C_1'^i-P^{i+1}$")
-    ax.set_ylabel("$\\theta'=P^i-C_1'^i-P^{i+1}-C_1'^{i+1}$")
-    plt.savefig("results/clusters_rot180.png")
+    ax.bar3d(xpos.ravel(), ypos.ravel(), 0, 0.2, 0.2, hist.ravel(), zsort='average')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.savefig(f"results/wadley_{angle}_{filter_helical}.png")
     if show:
         plt.show()
 
-def stats_len(dfs):
-    lengths = []
-    full_lengths = []
-    for r in dfs:
-        nt_codes = r['nt_code'].values.tolist()
-        lengths.append(len(nt_codes))
-        full_lengths.append(len([ c for c in nt_codes if c != '-']))
+def stats_len(mappings_list, points):
+
+    lengths = {}
+    full_lengths = {}
+    for f in sorted(mappings_list.keys()):
+        lengths[f] = []
+        full_lengths[f] = []
+        for r in points:
+            if r.family != f: continue
+            nt_codes = r.df['nt_code'].values.tolist()
+            lengths[f].append(len(nt_codes))
+            full_lengths[f].append(len([ c for c in nt_codes if c != '-']))
+
+    # then for all families
+    lengths["all"] = []
+    full_lengths["all"] = []
+    for r in points:
+        nt_codes = r.df['nt_code'].values.tolist()
+        lengths["all"].append(len(nt_codes))
+        full_lengths["all"].append(len([ c for c in nt_codes if c != '-']))
+    dlengths = pd.DataFrame.from_dict(lengths, orient='index').transpose().drop(["all"], axis='columns').dropna(axis='columns', thresh=2)
+    dfulllengths = pd.DataFrame.from_dict(full_lengths, orient='index').transpose().drop(["all"], axis='columns').dropna(axis='columns', thresh=2)
+    print(dlengths.head())
+
+
+    axs = dlengths.plot.hist(figsize=(10, 15), bins=range(0,650,50), sharex=True, sharey=True, subplots=True, layout=(12,6), legend=False, log=True)
+    # for ax, f in zip(axs, sorted(mappings_list.keys())):
+    #     ax.text(600,150, str(len([ x for x in lengths[f] if x != np.NaN ])), fontsize=14)
+    plt.savefig("results/length_distribs.png")
+
+    axs = dfulllengths.plot.hist(figsize=(10, 15), bins=range(0,650,50), sharex=True, sharey=True, subplots=True, layout=(12,6), legend=False, log=True)
+    # for ax, f in zip(axs, sorted(mappings_list.keys())):
+    #     ax.text(600,150, str(len([ x for x in lengths[f] if x != np.NaN ])), fontsize=14)
+    plt.savefig("results/full_length_distribs.png")
+
+def seq_idty(mappings_list):
+    idty_matrix = {}
+    dm = DistanceCalculator('identity')
+    for f in mappings_list.keys():
+        with open(path_to_seq_data+"realigned/"+f+"++.stk") as al_file:
+            al = AlignIO.read(al_file, "stockholm")
+        idty_matrix[f] = dm.get_distance(al)
+
 
 
 
@@ -117,12 +200,18 @@ if __name__ == "__main__":
     #################################################################
     #               LOAD ALL FILES
     #################################################################
+
     print("Loading mappings list...")
-    mappings_list = pd.read_csv(path_to_seq_data + "realigned/mappings_list.csv", sep=',', index_col=0).to_dict()
+    mappings_list = pd.read_csv(path_to_seq_data + "realigned/mappings_list.csv", sep=',', index_col=0).to_dict(orient='list')
+    for k in mappings_list.keys():
+        mappings_list[k] = [ x for x in mappings_list[k] if str(x) != 'nan' ]
+    print(mappings_list)
+    exit()
+
 
     print("Loading datapoints from file...")
-    filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
     rna_points = []
+    filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
     p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
     pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
     for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
@@ -133,14 +222,34 @@ if __name__ == "__main__":
     p.join()
     npoints = len(rna_points)
     print(npoints, "RNA files loaded.")
+    exit()
 
     #################################################################
     #               Define threads for the tasks
     #################################################################
-    wadley_thr = th.Thread(target=reproduce_wadley_results, args=[rna_points])
+    # wadley_thr = []
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "zone"}))
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "form"}))
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "both"}))
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "form"}))
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "form"}))
+    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "both"}))
+    # seq_len_thr = th.Thread(target=partial(stats_len, mappings_list), args=[rna_points])
+    # dist_thr = th.Thread(target=seq_idty, args=[mappings_list])
+
+    # for t in wadley_thr:
+    #     t.start()
+    # seq_len_thr.start()
+    # dist_thr.start()
+
+    # for t in wadley_thr:
+    #     t.join()
+    # seq_len_thr.join()
+    # dist_thr.join()
 
 
-    wadley_thr.start()
-    wadley_thr.join()
+    # reproduce_wadley_results(rna_points)
+    seq_idty(mappings_list)
+    # stats_len(mappings_list, rna_points)
 
     

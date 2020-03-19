@@ -436,14 +436,14 @@ class Chain:
                 return
             
             # Creating a df for easy saving to CSV
-            df.to_csv(path_to_3D_data + f"annotations/{self.chain_label}.{self.rfam}.csv")
+            df.to_csv(path_to_3D_data + f"annotations/{self.chain_label}.{self.rfam_fam}.csv")
             del df
             print("\t> Saved", self.chain_label, f"annotations to CSV.\t\t{validsymb}", flush=True)
         else:
             print("\t> Computing", self.chain_label, f"annotations...\t{validsymb}\t(already done)", flush=True)
 
         # Now load data from the CSV file
-        d = pd.read_csv(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam}.csv", index_col=0)
+        d = pd.read_csv(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam_fam}.csv", index_col=0)
         self.seq = "".join(d.nt_code.values)
         self.aligned_seq = "".join(d.nt_align_code.values)
         self.length = len([ x for x in self.aligned_seq if x != "-" ])
@@ -561,11 +561,9 @@ class Chain:
                 'alpha','beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi',
                 'bb_type','glyco_bond','form','ssZp','Dp',
                 'eta','theta','eta_prime','theta_prime','eta_base','theta_base',
-                'v0', 'v1', 'v2', 'v3', 'v4', 'amplitude', 'phase_angle', 'puckering', 
-                'P_x','P_y','P_z','C5prime_x','C5prime_y','C5prime_z'
+                'v0', 'v1', 'v2', 'v3', 'v4', 'amplitude', 'phase_angle', 'puckering'
                ]
         self.data = self.data[cols]
-        self.save() # save to file
         
     def save(self, fformat = "csv"):
         # save to file
@@ -1310,6 +1308,7 @@ def alignment_nt_stats(f):
     # Compute statistics per column
     pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
     frequencies = np.array([ summarize_position(pssm[i]) for i in range(align.get_alignment_length()) ]).T
+    del pssm
 
     # For each sequence, find the right chain and save the PSSMs inside.
     pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} chains", leave=False)
@@ -1320,11 +1319,18 @@ def alignment_nt_stats(f):
 
         # get the right 3D chain:
         idx = chains_ids.index(s.id)
+
+        # call its method to set its frequencies, and save it
         list_of_chains[idx].set_freqs_from_aln(s.seq, frequencies)
+        list_of_chains[idx].save(fformat='csv')
+
+        del list_of_chains[idx]  # saves a bit of memory because of the Chain object sizes
+        del chains_ids[idx]      # to keep indexes aligned with list_of_chains
         pbar.update(1)
+
     pbar.close()
 
-
+    del rfam_acc_to_download[f] # We won't need this family's chain objects anymore, free up
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
 
@@ -1551,7 +1557,8 @@ if __name__ == "__main__":
                 pdb_chain_id = nr[2].upper()
                 chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
                 all_chains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
-                        
+
+    del full_structures_list
     n_chains = len(all_chains)
     print(">", validsymb, n_chains, "RNA chains of interest.")
 
@@ -1586,6 +1593,8 @@ if __name__ == "__main__":
 
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(all_chains) - len(loaded_chains)} errors).")
     del all_chains # Here ends its utility, so let's free some memory
+    del joblist
+    del results
 
     if not HOMOLOGY:
         # Save chains to file
@@ -1613,7 +1622,7 @@ if __name__ == "__main__":
             rfam_acc_to_download[c.rfam_fam].append(c)
             mappings_list[c.rfam_fam].append(c.chain_label)
     pd.DataFrame.from_dict(mappings_list, orient='index').transpose().to_csv(path_to_seq_data + "realigned/mappings_list.csv")
-    exit()
+    del mappings_list
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to download and re-align with the crystals' sequences:")
 
     # Download the covariance models for all families
@@ -1632,6 +1641,7 @@ if __name__ == "__main__":
         for f in fam_list:
             line = fam_stats[fam_stats["rfam_acc"]==f]
             print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
+    del fam_stats
 
     # Download the sequences
     for f in fam_list:
@@ -1650,6 +1660,7 @@ if __name__ == "__main__":
     
     # Execute the jobs
     execute_joblist(fulljoblist, printstats=True) # printstats=True will show a summary of time/memory usage of the jobs
+    del fulljoblist
 
     # ==========================================================================================
     # Now compute statistics on base variants at each position of every 3D chain
@@ -1669,7 +1680,7 @@ if __name__ == "__main__":
 
     # Start a process pool to dispatch the RNA families,
     # over multiple CPUs (one family by CPU)
-    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=ncores)
+    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=int(ncores/2))
 
     fam_pbar = tqdm(total=len(fam_list), desc="RNA families", position=0, leave=True) 
     for i, _ in enumerate(p.imap_unordered(alignment_nt_stats, fam_list)): # Apply alignment_nt_stats to each RNA family
