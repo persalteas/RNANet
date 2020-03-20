@@ -3,10 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 import threading as th
-import seaborn as sb
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import pylab
 import scipy.cluster.hierarchy as sch
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
@@ -186,6 +184,8 @@ def stats_len(mappings_list, points):
     plt.savefig("results/full_length_distribs.png")
 
 def to_dist_matrix(f):
+    if path.isfile("data/"+f+".npy"):
+        return 0
     print(f)
     dm = DistanceCalculator('identity')
     with open(path_to_seq_data+"realigned/"+f+"++.afa") as al_file:
@@ -198,13 +198,21 @@ def to_dist_matrix(f):
     return 0
 
 def seq_idty(mappings_list):
+    # compute distance matrices
+    p = Pool(processes=8)
+    pbar = tqdm(total=len(mappings_list.keys()), desc="RNA families", position=0, leave=True)
+    for i, _ in enumerate(p.imap_unordered(to_dist_matrix, sorted(mappings_list.keys()))):
+        pbar.update(1)
+    pbar.close()
+    p.close()
+    p.join()
+
+    # load them
     fam_arrays = []
     for f in sorted(mappings_list.keys()):
         if path.isfile("data/"+f+".npy"):
             fam_arrays.append(np.load("data/"+f+".npy"))
         else:
-            # to_dist_matrix(f)
-            # fam_arrays.append(np.load("data/"+f+".npy"))
             fam_arrays.append([])
 
     fig, axs = plt.subplots(11,7, figsize=(25,25))
