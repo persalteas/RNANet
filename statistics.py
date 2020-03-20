@@ -6,14 +6,17 @@ import threading as th
 import seaborn as sb
 import scipy.stats as st
 import matplotlib.pyplot as plt
-import matplotlib.patches as ptch
+import pylab
+import scipy.cluster.hierarchy as sch
+from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio.Phylo.TreeConstruction import DistanceCalculator
-from Bio import AlignIO
+from Bio import AlignIO, SeqIO
 from matplotlib import cm 
 from tqdm import tqdm
 from functools import partial
 from multiprocessing import Pool
+from os import path
 from RNAnet import read_cpu_number
 
 
@@ -182,14 +185,52 @@ def stats_len(mappings_list, points):
     #     ax.text(600,150, str(len([ x for x in lengths[f] if x != np.NaN ])), fontsize=14)
     plt.savefig("results/full_length_distribs.png")
 
-def seq_idty(mappings_list):
-    idty_matrix = {}
+def to_dist_matrix(f):
+    print(f)
     dm = DistanceCalculator('identity')
-    for f in mappings_list.keys():
-        with open(path_to_seq_data+"realigned/"+f+"++.stk") as al_file:
-            al = AlignIO.read(al_file, "stockholm")
-        idty_matrix[f] = dm.get_distance(al)
+    with open(path_to_seq_data+"realigned/"+f+"++.afa") as al_file:
+        al = AlignIO.read(al_file, "fasta")[-len(mappings_list[f]):]
+    idty = dm.get_distance(al).matrix # list of lists
+    del al
+    l = len(idty)
+    np.save("data/"+f+".npy", np.array([ idty[i] + [0]*(l-1-i) if i<l-1 else idty[i]  for i in range(l) ]))
+    del idty
+    return 0
 
+def seq_idty(mappings_list):
+    fam_arrays = []
+    for f in sorted(mappings_list.keys()):
+        if path.isfile("data/"+f+".npy"):
+            fam_arrays.append(np.load("data/"+f+".npy"))
+        else:
+            # to_dist_matrix(f)
+            # fam_arrays.append(np.load("data/"+f+".npy"))
+            fam_arrays.append([])
+
+    fig, axs = plt.subplots(11,7, figsize=(25,25))
+    axs = axs.ravel()
+    [axi.set_axis_off() for axi in axs]
+    for f, D, ax in zip(sorted(mappings_list.keys()), fam_arrays, axs):
+        if not len(D): continue
+        if D.shape[0] > 2:  # Cluster only if there is more than 2 sequences to organize
+            D = D + D.T     # Copy the lower triangle to upper, to get a symetrical matrix
+            condensedD = squareform(D)
+
+            # Compute basic dendrogram by Ward's method
+            Y = sch.linkage(condensedD, method='ward')
+            Z = sch.dendrogram(Y, orientation='left', no_plot=True)
+
+            # Reorganize rows and cols
+            idx1 = Z['leaves']
+            D = D[idx1,:]
+            D = D[:,idx1[::-1]]
+        im = ax.matshow(D, vmin=0, vmax=1, origin='lower')
+        ax.set_title(f)
+    fig.suptitle("Distance matrices of sequences from various families\nclustered by sequence identity (Ward's method)", fontsize="18")
+    fig.tight_layout() 
+    fig.subplots_adjust(top=0.92)
+    fig.colorbar(im, ax=axs.tolist(), shrink=0.98)
+    fig.savefig(f"results/distances.png")
 
 
 
@@ -205,24 +246,20 @@ if __name__ == "__main__":
     mappings_list = pd.read_csv(path_to_seq_data + "realigned/mappings_list.csv", sep=',', index_col=0).to_dict(orient='list')
     for k in mappings_list.keys():
         mappings_list[k] = [ x for x in mappings_list[k] if str(x) != 'nan' ]
-    print(mappings_list)
-    exit()
 
-
-    print("Loading datapoints from file...")
-    rna_points = []
-    filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
-    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
-    pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
-    for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
-        rna_points.append(rna)
-        pbar.update(1)
-    pbar.close()
-    p.close()
-    p.join()
-    npoints = len(rna_points)
-    print(npoints, "RNA files loaded.")
-    exit()
+    # print("Loading datapoints from file...")
+    # rna_points = []
+    # filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
+    # p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
+    # pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
+    # for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
+    #     rna_points.append(rna)
+    #     pbar.update(1)
+    # pbar.close()
+    # p.close()
+    # p.join()
+    # npoints = len(rna_points)
+    # print(npoints, "RNA files loaded.")
 
     #################################################################
     #               Define threads for the tasks
