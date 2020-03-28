@@ -397,7 +397,7 @@ class Chain:
                 df['paired'] = paired
                 df['pair_type_LW'] = pair_type_LW
                 df['pair_type_DSSR'] = pair_type_DSSR
-                df['Ninteract'] = interacts
+                df['nb_interact'] = interacts
                 df = df.drop(['C5prime_xyz', 'P_xyz', 'nt_id'], axis=1) # remove now useless descriptors
 
                 if self.reversed:
@@ -545,7 +545,7 @@ class Chain:
             point[9,i] = temp_freqs[3, i]
             point[10,i] = temp_freqs[4, i]
         
-        self.data = pd.concat([self.data, pd.DataFrame(point.T, columns=["position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
+        self.data = pd.concat([self.data, pd.DataFrame(point.T, columns=["nt_position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
         # reorder columns:
         cols = [ # 1D structure descriptors
                 'index_chain','nt_resnum','position',
@@ -554,7 +554,7 @@ class Chain:
                 'freq_A','freq_C','freq_G','freq_U','freq_other',
                 
                 # 2D structure descriptors
-                'dbn','paired','Ninteract',
+                'dbn','paired','nb_interact',
                 'pair_type_LW','pair_type_DSSR',
                 
                 # 3D strcuture descriptors
