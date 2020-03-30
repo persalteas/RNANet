@@ -1,20 +1,22 @@
 #!/usr/bin/python3.8
-import os
+import os, pickle
 import numpy as np
 import pandas as pd
 import threading as th
 import scipy.stats as st
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.patches as mpatches
 import scipy.cluster.hierarchy as sch
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio import AlignIO, SeqIO
-from matplotlib import cm 
 from tqdm import tqdm
 from functools import partial
 from multiprocessing import Pool
 from os import path
+from collections import Counter
 from RNAnet import read_cpu_number
 
 
@@ -43,11 +45,24 @@ class DataPoint():
 def load_rna_frome_file(path_to_textfile):
     return DataPoint(path_to_textfile)
 
-def reproduce_wadley_results(points, show=False, filter_helical=None, carbon=4, zone=(2.7,3.3,3.5,4.5)):
+def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
     """
     Plot the joint distribution of pseudotorsion angles, in a Ramachandran-style graph.
     See Wadley & Pyle (2007)
+
+    Arguments:
+    show: True or False, call plt.show() at this end or not
+    filter_helical: None, "form", "zone", or "both"
+                    None: do not remove helical nucleotide
+                    "form": remove nucleotides if they belong to a A, B or Z form stem
+                    "zone": remove nucleotides falling in an arbitrary zone (see zone argument)
+                    "both": remove nucleotides fulfilling one or both of the above conditions
+    carbon: 1 or 4, use C4' (eta and theta) or C1' (eta_prime and theta_prime)
+    sd_range: tuple, set values below avg + sd_range[0] * stdev to 0,
+                     and values above avg + sd_range[1] * stdev to avg + sd_range[1] * stdev.
+                     This removes noise and cuts too high peaks, to clearly see the clusters.
     """
+    worker_nbr = 1 + (carbon==1)
 
     if carbon == 4:
         angle = "eta"
@@ -60,133 +75,225 @@ def reproduce_wadley_results(points, show=False, filter_helical=None, carbon=4, 
     else:
         exit("You overestimate my capabilities !")
 
-    all_etas = []
-    all_thetas = []
-    all_forms = []
-    c = 0
-    for p in points:
-        all_etas += list(p.df[angle].values)
-        all_thetas += list(p.df['th'+angle].values)
-        all_forms += list(p.df['form'].values)
-        if (len([ x for x in p.df[angle].values if x < 0 or x > 7]) or 
-            len([ x for x in p.df['th'+angle].values if x < 0 or x > 7])):
-            c += 1
-    if c:
-        print(c,"points on",len(points),"have non-radian angles !")
+    if not path.isfile(f"data/wadley_kernel_{angle}.npz"):
+        c2_endo_etas = []
+        c3_endo_etas = []
+        c2_endo_thetas = []
+        c3_endo_thetas = []
+        for p in points:
+            df = p.df.loc[(p.df[angle].isna()==False) & (p.df["th"+angle].isna()==False), ["form","puckering", angle,"th"+angle]]
+            c2_endo_etas   += list(df.loc[ (df.puckering=="C2'-endo"), angle ].values)
+            c3_endo_etas   += list(df.loc[ (df.form=='.') & (df.puckering=="C3'-endo"), angle ].values)
+            c2_endo_thetas += list(df.loc[ (df.puckering=="C2'-endo"), "th"+angle ].values)
+            c3_endo_thetas += list(df.loc[ (df.form=='.') & (df.puckering=="C3'-endo"), "th"+angle ].values)
 
-    print("combining etas and thetas...")
-    warn = ""
-    if not filter_helical:
-        alldata = [ (e, t) 
-                    for e, t in zip(all_etas, all_thetas) 
-                    if ('nan' not in str((e,t)))  ]
-    elif filter_helical == "form":
-        alldata = [ (e, t) 
-                    for e, t, f in zip(all_etas, all_thetas, all_forms) 
-                    if ('nan' not in str((e,t))) 
-                    and f == '.' ]
-        warn = "(helical nucleotides removed)"
-        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
-    elif filter_helical == "zone":
-        alldata = [ (e, t) 
-                    for e, t in zip(all_etas, all_thetas) 
-                    if ('nan' not in str((e,t))) 
-                    and not (e>zone[0] and e<zone[1] and t>zone[2] and t<zone[3]) ]
-        warn = "(massive peak of helical nucleotides removed in red zone)"
-        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
-    elif filter_helical == "both":
-        alldata = [ (e, t) 
-                    for e, t, f in zip(all_etas, all_thetas, all_forms) 
-                    if ('nan' not in str((e,t))) 
-                    and f == '.'
-                    and not (e>zone[0] and e<zone[1] and t>zone[2] and t<zone[3]) ]
-        warn = "(helical nucleotide and massive peak in the red zone removed)"
-        print(len(alldata), "couples of non-helical nts found in", len(all_etas))
+        xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
+        positions = np.vstack([xx.ravel(), yy.ravel()])
 
-    x = np.array([ p[0] for p in alldata ])
-    y = np.array([ p[1] for p in alldata ])
-    xmin, xmax = min(x), max(x)
-    ymin, ymax = min(y), max(y)
-    xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-    positions = np.vstack([xx.ravel(), yy.ravel()])
-    values = np.vstack([x, y])
-    kernel = st.gaussian_kde(values)
-    f = np.reshape(kernel(positions).T, xx.shape)
-    sign_threshold = np.mean(f) + np.std(f)
-    z = np.where(f < sign_threshold, 0.0, f)
-    z_inc = np.where(f < sign_threshold, sign_threshold, f)
+        values_c3 = np.vstack([c3_endo_etas, c3_endo_thetas])
+        kernel_c3 = st.gaussian_kde(values_c3)
+        f_c3 = np.reshape(kernel_c3(positions).T, xx.shape)
+        values_c2 = np.vstack([c2_endo_etas, c2_endo_thetas])
+        kernel_c2 = st.gaussian_kde(values_c2)
+        f_c2 = np.reshape(kernel_c2(positions).T, xx.shape)
 
-    # histogram : 
-    fig, axs = plt.subplots(1,3, figsize=(18, 6))
-    ax = fig.add_subplot(131)
-    ax.cla()
-    
-    plt.axhline(y=0, alpha=0.5, color='black')
-    plt.axvline(x=0, alpha=0.5, color='black')
-    plt.scatter(x, y, s=1, alpha=0.1)
-    plt.contourf(xx, yy, z, cmap=cm.BuPu, alpha=0.5)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    if filter_helical in ["zone","both"]:
-        ax.add_patch(ptch.Rectangle((zone[0],zone[2]),zone[1]-zone[0],zone[3]-zone[2], linewidth=1, edgecolor='r', facecolor='#ff000080'))
+        # Uncomment to save the data to an archive for later use without the need to recompute
+        np.savez(f"data/wadley_kernel_{angle}.npz",
+                  c3_endo_e=c3_endo_etas, c3_endo_t=c3_endo_thetas,
+                  c2_endo_e=c2_endo_etas, c2_endo_t=c2_endo_thetas,
+                  kernel_c3=f_c3, kernel_c2=f_c2)
+    else:
+        f = np.load(f"data/wadley_kernel_{angle}.npz")
+        c2_endo_etas = f["c2_endo_e"]
+        c3_endo_etas = f["c3_endo_e"]
+        c2_endo_thetas = f["c2_endo_t"]
+        c3_endo_thetas = f["c3_endo_t"]
+        f_c3 = f["kernel_c3"]
+        f_c2 = f["kernel_c2"]
+        xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
 
-    ax = fig.add_subplot(132, projection='3d')
-    ax.cla()
-    ax.plot_surface(xx, yy, z_inc, cmap=cm.coolwarm, linewidth=0, antialiased=True)
-    ax.set_title(f"\"Wadley plot\" of {len(alldata)} nucleotides\nJoint distribution of pseudotorsions in 3D RNA structures\n" + warn)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    print(f"[{worker_nbr}]\tKernel computed (or loaded from file).")
 
-    ax = fig.add_subplot(133, projection='3d')
-    ax.cla()
-    hist, xedges, yedges = np.histogram2d(x, y, bins=200, range=[[xmin, xmax], [ymin, ymax]])
-    xpos, ypos = np.meshgrid(xedges[:-1], yedges[:-1], indexing="ij")
-    ax.bar3d(xpos.ravel(), ypos.ravel(), 0, 0.2, 0.2, hist.ravel(), zsort='average')
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.savefig(f"results/wadley_{angle}_{filter_helical}.png")
-    if show:
-        plt.show()
+    # exact counts:
+    hist_c2, xedges, yedges = np.histogram2d(c2_endo_etas, c2_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
+    hist_c3, xedges, yedges = np.histogram2d(c3_endo_etas, c3_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
+    color_values = cm.jet(hist_c3.ravel()/hist_c3.max())
+
+    for x, y, hist, f, l in zip( (c3_endo_etas, c2_endo_etas), (c3_endo_thetas, c2_endo_thetas), (hist_c3, hist_c2), (f_c3, f_c2), ("c3","c2")):
+        # cut hist and kernel
+        hist_sup_thr = hist.mean() + sd_range[1]*hist.std()
+        hist_cut = np.where( hist > hist_sup_thr, hist_sup_thr, hist)
+        f_sup_thr = f.mean() + sd_range[1]*f.std()
+        f_low_thr = f.mean() + sd_range[0]*f.std()
+        f_cut = np.where(f > f_sup_thr, f_sup_thr, f)
+        f_cut = np.where(f_cut < f_low_thr, 0, f_cut)
+        levels = [f.mean()+f.std(), f.mean()+2*f.std(), f.mean()+4*f.std()]
+
+        # histogram:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        xpos, ypos = np.meshgrid(xedges[:-1], yedges[:-1], indexing="ij")
+        ax.bar3d(xpos.ravel(), ypos.ravel(), 0.0, 0.09, 0.09, hist_cut.ravel(), color=color_values, zorder="max")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        plt.savefig(f"results/wadley_hist_{angle}_{l}.png")
+        if show:
+            plt.show()
+        plt.close()
+
+        # Smoothed joint distribution
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_surface(xx, yy, f_cut, cmap=cm.coolwarm, linewidth=0, antialiased=True)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        plt.savefig(f"results/wadley_distrib_{angle}_{l}.png")
+        if show:
+            plt.show()
+        plt.close()
+
+        # 2D Wadley plot
+        fig = plt.figure(figsize=(5,5))
+        ax = fig.gca()
+        ax.scatter(x, y, s=1, alpha=0.1)
+        ax.contourf(xx, yy, f_cut, alpha=0.5, cmap=cm.coolwarm, levels=levels, extend="max")
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        fig.savefig(f"results/wadley_{angle}_{l}.png")
+        if show:
+            plt.show()
+    print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
 
 def stats_len(mappings_list, points):
-
-    lengths = {}
-    full_lengths = {}
+    cols = []
+    lengths = []
     for f in sorted(mappings_list.keys()):
-        lengths[f] = []
-        full_lengths[f] = []
+        if f in ["RF02540","RF02541","RF02543"]:
+            cols.append("red") # LSU
+        elif f in ["RF00177","RF01960","RF01959","RF02542"]:
+            cols.append("blue") # SSU
+        elif f in ["RF00001"]:
+            cols.append("green")
+        elif f in ["RF00002"]:
+            cols.append("purple")
+        elif f in ["RF00005"]:
+            cols.append("orange")
+        else:
+            cols.append("grey")
+        l = []
         for r in points:
             if r.family != f: continue
-            nt_codes = r.df['nt_code'].values.tolist()
-            lengths[f].append(len(nt_codes))
-            full_lengths[f].append(len([ c for c in nt_codes if c != '-']))
+            l.append(len(r.df['nt_code']))
+        lengths.append(l)
 
-    # then for all families
-    lengths["all"] = []
-    full_lengths["all"] = []
+    plt.figure(figsize=(10,3))
+    ax = plt.gca()
+    ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=sorted(mappings_list.keys()))
+    ax.set_xlabel("Sequence length (nucleotides)")
+    ax.set_ylabel("Number of 3D chains")
+    plt.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'),
+                        mpatches.Patch(color='blue'), mpatches.Patch(color='white'),
+                        mpatches.Patch(color='green'), mpatches.Patch(color='purple'),
+                        mpatches.Patch(color='orange'), mpatches.Patch(color='grey')]
+    filtered_labels = ['Large Ribosomal Subunits', '(RF02540, RF02541, RF02543)','Small Ribosomal Subunits','(RF01960, RF00177)',
+                       '5S rRNA (RF00001)', '5.8S rRNA (RF00002)', 'tRNA (RF00005)', 'Other']
+    ax.legend(filtered_handles, filtered_labels, loc='best', ncol=2)# bbox_to_anchor=(0.5, -0.5), ncol=4, fontsize=)
+    plt.savefig("results/lengths.png")
+    print("[3]\tComputed sequence length statistics and saved the figure.")
+
+def format_percentage(tot, x):
+        if not tot:
+            return '0 %'
+        x = 100*x/tot
+        if x >= 0.01:
+            x = "%.2f" % x
+        else:
+            x = "<.01"
+        return x + '%'
+
+def stats_freq(mappings_list, points):
+    freqs = {}
+    for f in mappings_list.keys():
+        freqs[f] = Counter()
+
     for r in points:
-        nt_codes = r.df['nt_code'].values.tolist()
-        lengths["all"].append(len(nt_codes))
-        full_lengths["all"].append(len([ c for c in nt_codes if c != '-']))
-    dlengths = pd.DataFrame.from_dict(lengths, orient='index').transpose().drop(["all"], axis='columns').dropna(axis='columns', thresh=2)
-    dfulllengths = pd.DataFrame.from_dict(full_lengths, orient='index').transpose().drop(["all"], axis='columns').dropna(axis='columns', thresh=2)
-    print(dlengths.head())
+        freqs[r.family].update(dict(r.df['nt_name'].value_counts()))
+    
+    df = pd.DataFrame()
+    for f in sorted(mappings_list.keys()):
+        tot = sum(freqs[f].values())
+        df = pd.concat([ df, pd.DataFrame([[ format_percentage(tot, x) for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
+    df = df.fillna(0)
+    df.to_csv("results/frequencies.csv")
 
+    print("[4]\tComputed nucleotide statistics and saved CSV file.")
 
-    axs = dlengths.plot.hist(figsize=(10, 15), bins=range(0,650,50), sharex=True, sharey=True, subplots=True, layout=(12,6), legend=False, log=True)
-    # for ax, f in zip(axs, sorted(mappings_list.keys())):
-    #     ax.text(600,150, str(len([ x for x in lengths[f] if x != np.NaN ])), fontsize=14)
-    plt.savefig("results/length_distribs.png")
+def stats_pairs(mappings_list, points):
 
-    axs = dfulllengths.plot.hist(figsize=(10, 15), bins=range(0,650,50), sharex=True, sharey=True, subplots=True, layout=(12,6), legend=False, log=True)
-    # for ax, f in zip(axs, sorted(mappings_list.keys())):
-    #     ax.text(600,150, str(len([ x for x in lengths[f] if x != np.NaN ])), fontsize=14)
-    plt.savefig("results/full_length_distribs.png")
+    def line_format(family_data):
+        return family_data.apply(partial(format_percentage, sum(family_data)))
+
+    # Create a Counter() object by family
+    freqs = {}
+    for f in mappings_list.keys():
+        freqs[f] = Counter()
+
+    # Iterate over data points
+    for r in tqdm(points, desc="RNA points", position=0, leave=False):
+        # Skip if linear piece of RNA
+        if not sum([ x != 0 for x in r.df.paired ]):
+            continue 
+
+        # Count each pair type within the molecule
+        vcnts = pd.concat(
+                            [   pd.Series(row['pair_type_LW'].split(',')) 
+                                for _, row in r.df.dropna(subset=["pair_type_LW"]).iterrows() ]
+                        ).reset_index(drop=True).value_counts()
+
+        # Add these new counts to the family's counter
+        freqs[r.family].update(dict(vcnts))
+    
+    # Create the output dataframe
+    df = pd.DataFrame()
+    for f in sorted(mappings_list.keys()):
+        df = pd.concat([ df, pd.DataFrame([[ x for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
+    df = df.fillna(0)
+
+    # Remove not very well defined pair types (not in the 12 LW types)
+    col_list = [ x for x in df.columns if '.' in x ]
+    df['other'] = df[col_list].sum(axis=1)
+    df.drop(col_list, axis=1, inplace=True)
+
+    # Compute total row
+    total_series = df.sum(numeric_only=True).rename("TOTAL")
+    df = df.append(total_series)
+
+    # format as percentages
+    df = df.apply(line_format, axis=1)
+
+    # reorder columns
+    df.sort_values("TOTAL", axis=1, inplace=True, ascending=False)
+
+    # Save to CSV
+    df.to_csv("results/pairings.csv")
+
+    # Plot barplot of overall types
+    total_series.sort_values(ascending=False, inplace=True)
+    total_series.apply(lambda x: x/2.0) # each interaction was counted twice because one time per extremity
+    ax = total_series.plot(figsize=(5,3), kind='bar', log=True, ylim=(1e4,5000000) )
+    ax.set_ylabel("Number of observations")
+    plt.subplots_adjust(bottom=0.2, right=0.99)
+    plt.savefig("results/pairings.png")
+
+    print("[5]\tComputed nucleotide statistics and saved CSV and PNG file.")
 
 def to_dist_matrix(f):
     if path.isfile("data/"+f+".npy"):
         return 0
-    print(f)
+
     dm = DistanceCalculator('identity')
     with open(path_to_seq_data+"realigned/"+f+"++.afa") as al_file:
         al = AlignIO.read(al_file, "fasta")[-len(mappings_list[f]):]
@@ -198,10 +305,18 @@ def to_dist_matrix(f):
     return 0
 
 def seq_idty(mappings_list):
+    famlist = sorted([ x for x in mappings_list.keys() if len(mappings_list[x]) > 1 ])
+    ignored = []
+    for x in mappings_list.keys():
+        if len(mappings_list[x]) == 1:
+            ignored.append(x)
+    if len(ignored):
+        print("Ignoring families with only one chain:", " ".join(ignored))
+
     # compute distance matrices
     p = Pool(processes=8)
-    pbar = tqdm(total=len(mappings_list.keys()), desc="RNA families", position=0, leave=True)
-    for i, _ in enumerate(p.imap_unordered(to_dist_matrix, sorted(mappings_list.keys()))):
+    pbar = tqdm(total=len(famlist), desc="Families idty matrices", position=1, leave=True)
+    for i, _ in enumerate(p.imap_unordered(to_dist_matrix, famlist)):
         pbar.update(1)
     pbar.close()
     p.close()
@@ -209,16 +324,16 @@ def seq_idty(mappings_list):
 
     # load them
     fam_arrays = []
-    for f in sorted(mappings_list.keys()):
+    for f in famlist:
         if path.isfile("data/"+f+".npy"):
             fam_arrays.append(np.load("data/"+f+".npy"))
         else:
             fam_arrays.append([])
 
-    fig, axs = plt.subplots(11,7, figsize=(25,25))
+    fig, axs = plt.subplots(5,13, figsize=(15,9))
     axs = axs.ravel()
     [axi.set_axis_off() for axi in axs]
-    for f, D, ax in zip(sorted(mappings_list.keys()), fam_arrays, axs):
+    for f, D, ax in zip(famlist, fam_arrays, axs):
         if not len(D): continue
         if D.shape[0] > 2:  # Cluster only if there is more than 2 sequences to organize
             D = D + D.T     # Copy the lower triangle to upper, to get a symetrical matrix
@@ -232,19 +347,15 @@ def seq_idty(mappings_list):
             idx1 = Z['leaves']
             D = D[idx1,:]
             D = D[:,idx1[::-1]]
-        im = ax.matshow(D, vmin=0, vmax=1, origin='lower')
-        ax.set_title(f)
-    fig.suptitle("Distance matrices of sequences from various families\nclustered by sequence identity (Ward's method)", fontsize="18")
-    fig.tight_layout() 
-    fig.subplots_adjust(top=0.92)
-    fig.colorbar(im, ax=axs.tolist(), shrink=0.98)
+        im = ax.matshow(1.0 - D, vmin=0, vmax=1, origin='lower') # convert to identity matrix 1 - D from distance matrix D
+        ax.set_title(f + "\n(" + str(len(mappings_list[f]))+ " chains)")
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0.1, hspace=0.3)
+    fig.colorbar(im, ax=axs[-1], shrink=0.8)
     fig.savefig(f"results/distances.png")
-
-
+    print("[6]\tComputed identity matrices and saved the figure.")
 
 if __name__ == "__main__":
-
-    #TODO: compute nt frequencies, chain lengths
 
     #################################################################
     #               LOAD ALL FILES
@@ -255,46 +366,52 @@ if __name__ == "__main__":
     for k in mappings_list.keys():
         mappings_list[k] = [ x for x in mappings_list[k] if str(x) != 'nan' ]
 
-    # print("Loading datapoints from file...")
-    # rna_points = []
-    # filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
-    # p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
-    # pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
-    # for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
-    #     rna_points.append(rna)
-    #     pbar.update(1)
-    # pbar.close()
-    # p.close()
-    # p.join()
-    # npoints = len(rna_points)
-    # print(npoints, "RNA files loaded.")
+    print("Loading datapoints from file...")
+    if path.isfile("data/rnapoints.dat"):
+        with open("data/rnapoints.dat", 'rb') as f:
+            rna_points = pickle.load(f)
+    else:
+        rna_points = []
+        filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
+        p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
+        pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
+        for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
+            rna_points.append(rna)
+            pbar.update(1)
+        pbar.close()
+        p.close()
+        p.join()
+        with open("data/rnapoints.dat", "wb") as f:
+            pickle.dump(rna_points, f)
+    npoints = len(rna_points)
+    print(npoints, "RNA files loaded.")
 
     #################################################################
     #               Define threads for the tasks
     #################################################################
-    # wadley_thr = []
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "zone"}))
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "form"}))
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1, 'filter_helical': "both"}))
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "form"}))
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "form"}))
-    # wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4, 'filter_helical': "both"}))
-    # seq_len_thr = th.Thread(target=partial(stats_len, mappings_list), args=[rna_points])
-    # dist_thr = th.Thread(target=seq_idty, args=[mappings_list])
+    wadley_thr = []
+    wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}))
+    wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}))
 
-    # for t in wadley_thr:
-    #     t.start()
-    # seq_len_thr.start()
-    # dist_thr.start()
-
-    # for t in wadley_thr:
-    #     t.join()
-    # seq_len_thr.join()
-    # dist_thr.join()
+    seq_len_thr = th.Thread(target=partial(stats_len, mappings_list), args=[rna_points])
+    nt_freq_thr = th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points])
+    pairs_freq_thr = th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points])
+    dist_thr = th.Thread(target=seq_idty, args=[mappings_list])
 
 
-    # reproduce_wadley_results(rna_points)
-    seq_idty(mappings_list)
-    # stats_len(mappings_list, rna_points)
 
-    
+    for t in wadley_thr:
+        t.start()
+    seq_len_thr.start()
+    nt_freq_thr.start()
+    pairs_freq_thr.start()
+    dist_thr.start()
+
+
+    for t in wadley_thr:
+        t.join()
+    seq_len_thr.join()
+    nt_freq_thr.join()
+    pairs_freq_thr.join()
+    dist_thr.join()
+

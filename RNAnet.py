@@ -916,7 +916,7 @@ def execute_joblist(fulljoblist, printstats=False):
 
     if printstats:
         # Write statistics in a file (header here)
-        f = open("jobstats.csv", "w")
+        f = open("data/jobstats.csv", "w")
         f.write("label,comp_time,max_mem\n")
         f.close()
 
@@ -948,7 +948,7 @@ def execute_joblist(fulljoblist, printstats=False):
                 mems = [ r[1] for r in raw_results ]
 
                 # Write them to file
-                f = open("jobstats.csv", "a")
+                f = open("data/jobstats.csv", "a")
                 for j, t, m in zip(bunch, times, mems):
                     j.comp_time = t
                     j.max_mem = m
@@ -1636,7 +1636,7 @@ if __name__ == "__main__":
         n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
         fam_stats["n_pdb_seqs"] = n_pdb
         fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
-        fam_stats.to_csv(path_to_seq_data + "realigned/statistics.csv")
+        fam_stats.to_csv(path_to_seq_data + "data/statistics.csv")
         # print the stats
         for f in fam_list:
             line = fam_stats[fam_stats["rfam_acc"]==f]
