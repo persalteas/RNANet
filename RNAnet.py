@@ -27,7 +27,6 @@ running_stats = m.list()
 running_stats.append(0) # n_launched
 running_stats.append(0) # n_finished
 running_stats.append(0) # n_skipped
-runDir = path.dirname(path.realpath(__file__))
 path_to_3D_data = "tobedefinedbyoptions"
 path_to_seq_data = "tobedefinedbyoptions"
 validsymb = '\U00002705'
@@ -40,6 +39,7 @@ KEEP_HETATM = False
 FILL_GAPS = True 
 HOMOLOGY = True
 USE_KNOWN_ISSUES = True
+RUN_STATS = False
 
 class NtPortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -119,17 +119,18 @@ class Chain:
 
     Chains accumulate information through this scipt, and are saved to files at the end of major steps."""
 
-    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, rfam="", pdb_start=None, pdb_end=None):
+    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, rfam="", inferred=False, pdb_start=None, pdb_end=None):
         self.pdb_id = pdb_id                    # PDB ID
         self.pdb_model = int(pdb_model)         # model ID, starting at 1
         self.pdb_chain_id = pdb_chain_id        # chain ID (mmCIF), multiple letters
         self.pdb_start = pdb_start              # if portion of chain, the start number (relative to the chain, not residue numbers)
         self.pdb_end = pdb_end                  # if portion of chain, the start number (relative to the chain, not residue numbers)
-        self.reversed = False                   # wether pdb_end > pdb_start in the Rfam mapping
+        self.reversed = (pdb_start > pdb_end)   # wether pdb_start > pdb_end in the Rfam mapping
         self.chain_label = chain_label          # chain pretty name 
         self.full_mmCIFpath = ""                # path to the source mmCIF structure
         self.file = ""                          # path to the 3D PDB file
         self.rfam_fam = rfam                    # mapping to an RNA family
+        self.inferred = inferred                # Wether this mapping has been inferred from BGSU's NR list
         self.seq = ""                           # sequence with modified nts
         self.aligned_seq = ""                   # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
@@ -848,7 +849,7 @@ def execute_job(j, jobcount):
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
 
         # Add the command to logfile
-        logfile = open(runDir + "/log_of_the_run.sh", 'a')
+        logfile = open("log_of_the_run.sh", 'a')
         logfile.write(" ".join(j.cmd_))
         logfile.write("\n")
         logfile.close()
@@ -916,7 +917,7 @@ def execute_joblist(fulljoblist, printstats=False):
 
     if printstats:
         # Write statistics in a file (header here)
-        f = open("data/jobstats.csv", "w")
+        f = open(runDir + "/data/jobstats.csv", "w")
         f.write("label,comp_time,max_mem\n")
         f.close()
 
@@ -948,7 +949,7 @@ def execute_joblist(fulljoblist, printstats=False):
                 mems = [ r[1] for r in raw_results ]
 
                 # Write them to file
-                f = open("data/jobstats.csv", "a")
+                f = open(runDir + "/data/jobstats.csv", "a")
                 for j, t, m in zip(bunch, times, mems):
                     j.comp_time = t
                     j.max_mem = m
@@ -1426,11 +1427,13 @@ def infer_all_mappings(allmappings, codelist):
                 if len(m):
                     pdb_start = int(m.pdb_start)
                     pdb_end = int(m.pdb_end)
+                    inferred = False
                 else: # otherwise, use the inferred mapping
                     pdb_start = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_start)
                     pdb_end = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_end)
+                    inferred = True
                 chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}_{pdb_start}-{pdb_end}"
-                newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, pdb_start=pdb_start, pdb_end=pdb_end))
+                newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
     
     return newchains
 
@@ -1439,7 +1442,7 @@ if __name__ == "__main__":
     # Parse options
     try:
         opts, args = getopt.getopt( sys.argv[1:], 
-                                    "r:h", 
+                                    "r:hs", 
                                 [   "help", "resolution=", "keep-hetatm=", 
                                     "fill-gaps=", "3d-folder=", "seq-folder=", 
                                     "no-homology", "force-retry" ])
@@ -1458,7 +1461,8 @@ if __name__ == "__main__":
             print()
             print("-r 4.0 [ --resolution=4.0 ]\t(1.5 | 2.0 | 2.5 | 3.0 | 3.5 | 4.0 | 20.0)"
                     "\n\t\t\t\tMinimum 3D structure resolution to consider a RNA chain.")
-            print("--keep-hetatm=False\t\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
+            print("-s\t\t\t\tRun statistics computations after completion")
+            print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
                     "\n\t\t\t\tDoes not affect the descriptors.")
             print("--fill-gaps=True\t\t(True | False) Replace gaps in sequence due to unresolved residues"
                     "\n\t\t\t\tby the most common nucleotide at this position in the alignment.")
@@ -1481,6 +1485,8 @@ if __name__ == "__main__":
         elif opt == "-r" or opt == "--resolution":
             assert arg in ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "20.0"]
             CRYSTAL_RES = arg
+        elif opt == "-s":
+            RUN_STATS = True
         elif opt=="--keep-hetatm":
             assert arg in [ "True", "False" ]
             KEEP_HETATM = (arg == "True")
@@ -1505,17 +1511,18 @@ if __name__ == "__main__":
     if path_to_3D_data == "tobedefinedbyoptions" or path_to_seq_data == "tobedefinedbyoptions":
         print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
         print("See RNANet.py --help for more information.")
-        
-        path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
-        path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
-        print(f"\n[DEBUG]\tUsing hard-coded paths to data:\n\t\t{path_to_3D_data}\n\t\t{path_to_seq_data}\n")
-        # exit(1)
+        exit(1)
+
+    runDir = path.dirname(path.realpath(__file__))
+    os.makedirs(runDir + "/results", exist_ok=True)
 
     # ===========================================================================
     # List 3D chains with available Rfam mapping
     # ===========================================================================
 
-    # List all 3D RNA chains below 4Ang resolution
+    chains_database = pd.DataFrame(columns=['pdb_id', 'pdb_model', 'pdb_chain', 'rfam_fam', 'pdb_start', 'pdb_end', 'reversed', 'inferred', 'issue'])
+
+    # List all 3D RNA chains below given resolution
     full_structures_list = download_BGSU_NR_list()
 
     # Check for a list of known problems:
@@ -1528,6 +1535,13 @@ if __name__ == "__main__":
             print("\t> Ignoring known issues:")
             for x in known_issues:
                 print("\t  ", x)
+                chains_database = chains_database.append(pd.DataFrame({ 'pdb_id':x.split('_')[0],
+                                                                        'pdb_model':x.split('_')[1],
+                                                                        'pdb_chain':x.split('_')[2],
+                                                                        'pdb_start':x.split('_')[3].split('-')[0],
+                                                                        'pdb_end':x.split('_')[3].split('-')[1],
+                                                                        'issue':True
+                                                                        }, index=[x]))
 
     all_chains = []
     if HOMOLOGY:
@@ -1559,6 +1573,11 @@ if __name__ == "__main__":
                 all_chains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
 
     del full_structures_list
+    chains_database = chains_database.append(pd.DataFrame.from_dict(
+                            {c.chain_label:[ c.pdb_id, c.pdb_model, c.pdb_chain_id, c.rfam_fam, c.pdb_start, c.pdb_end, c.reversed, c.inferred, False ] for c in all_chains},
+                            orient='index',
+                            columns=['pdb_id', 'pdb_model', 'pdb_chain', 'rfam_fam', 'pdb_start', 'pdb_end', 'reversed', 'inferred', 'issue'] ))
+    chains_database.to_csv(runDir + "/results/results_database.csv")
     n_chains = len(all_chains)
     print(">", validsymb, n_chains, "RNA chains of interest.")
 
@@ -1621,7 +1640,7 @@ if __name__ == "__main__":
         else:
             rfam_acc_to_download[c.rfam_fam].append(c)
             mappings_list[c.rfam_fam].append(c.chain_label)
-    pd.DataFrame.from_dict(mappings_list, orient='index').transpose().to_csv(path_to_seq_data + "realigned/mappings_list.csv")
+    pd.DataFrame.from_dict(mappings_list, orient='index').transpose().to_csv(runDir + "/results/mappings_list.csv")
     del mappings_list
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to download and re-align with the crystals' sequences:")
 
@@ -1636,7 +1655,7 @@ if __name__ == "__main__":
         n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
         fam_stats["n_pdb_seqs"] = n_pdb
         fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
-        fam_stats.to_csv(path_to_seq_data + "data/statistics.csv")
+        fam_stats.to_csv(runDir + "/data/statistics.csv")
         # print the stats
         for f in fam_list:
             line = fam_stats[fam_stats["rfam_acc"]==f]
@@ -1690,7 +1709,23 @@ if __name__ == "__main__":
     p.close()
     p.join()
 
-    print("Completed.")  # This part of the code is supposed to release some serotonin in the modeller's brain
+    # ==========================================================================================
+    # Post computation tasks
+    # ==========================================================================================
+
+    # Archive the results
+    os.makedirs("results/archive", exist_ok=True)
+    time_str = time.strftime("%Y%m%d")
+    subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
+    subprocess.run(['ln',"-s", runDir +f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
+
+    # Run statistics
+    if RUN_STATS:
+        os.chdir(runDir)
+        subprocess.run(["python3", "regression.py"])
+        subprocess.run(["python3", "statistics.py", path_to_3D_data, path_to_seq_data])
+
+    print("Completed.")  # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
 
     # # so i can sleep for the end of the night
     # subprocess.run(["shutdown","now"]) 

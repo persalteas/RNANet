@@ -1,5 +1,5 @@
 #!/usr/bin/python3.8
-import os, pickle
+import os, pickle, sys
 import numpy as np
 import pandas as pd
 import threading as th
@@ -20,21 +20,12 @@ from collections import Counter
 from RNAnet import read_cpu_number
 
 
-if os.path.isdir("/home/ubuntu/"): # this is the IFB-core cloud
-    path_to_3D_data = "/mnt/Data/RNA/3D/"
-    path_to_seq_data = "/mnt/Data/RNA/sequences/"
-elif os.path.isdir("/home/persalteas"): # this is my personal workstation
-    path_to_3D_data = "/home/persalteas/Data/RNA/3D/"
-    path_to_seq_data = "/home/persalteas/Data/RNA/sequences/"
-elif os.path.isdir("/home/lbecquey"): # this is the IBISC server
-    path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
-    path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
-elif os.path.isdir("/nhome/siniac/lbecquey"): # this is the office PC
-    path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
-    path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
-else:
-    print("I don't know that machine... I'm shy, maybe you should introduce yourself ?")
-    exit(1)
+path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
+path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
+
+if len(sys.argv) > 1:
+    path_to_3D_data = path.abspath(sys.argv[1])
+    path_to_seq_data = path.abspath(sys.argv[2])
 
 class DataPoint():
     def __init__(self, path_to_textfile):
@@ -80,7 +71,7 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         c3_endo_etas = []
         c2_endo_thetas = []
         c3_endo_thetas = []
-        for p in points:
+        for p in tqdm(points, desc="Loading eta/thetas", position=worker_nbr, leave=False):
             df = p.df.loc[(p.df[angle].isna()==False) & (p.df["th"+angle].isna()==False), ["form","puckering", angle,"th"+angle]]
             c2_endo_etas   += list(df.loc[ (df.puckering=="C2'-endo"), angle ].values)
             c3_endo_etas   += list(df.loc[ (df.form=='.') & (df.puckering=="C3'-endo"), angle ].values)
@@ -112,14 +103,17 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         f_c2 = f["kernel_c2"]
         xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
 
-    print(f"[{worker_nbr}]\tKernel computed (or loaded from file).")
+    # print(f"[{worker_nbr}]\tKernel computed (or loaded from file).")
 
     # exact counts:
     hist_c2, xedges, yedges = np.histogram2d(c2_endo_etas, c2_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
     hist_c3, xedges, yedges = np.histogram2d(c3_endo_etas, c3_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
     color_values = cm.jet(hist_c3.ravel()/hist_c3.max())
 
-    for x, y, hist, f, l in zip( (c3_endo_etas, c2_endo_etas), (c3_endo_thetas, c2_endo_thetas), (hist_c3, hist_c2), (f_c3, f_c2), ("c3","c2")):
+    for x, y, hist, f, l in zip( (c3_endo_etas, c2_endo_etas), 
+                                 (c3_endo_thetas, c2_endo_thetas), 
+                                 (hist_c3, hist_c2), 
+                                 (f_c3, f_c2), ("c3","c2")):
         # cut hist and kernel
         hist_sup_thr = hist.mean() + sd_range[1]*hist.std()
         hist_cut = np.where( hist > hist_sup_thr, hist_sup_thr, hist)
@@ -136,10 +130,9 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         ax.bar3d(xpos.ravel(), ypos.ravel(), 0.0, 0.09, 0.09, hist_cut.ravel(), color=color_values, zorder="max")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        plt.savefig(f"results/wadley_hist_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}.png")
         if show:
-            plt.show()
-        plt.close()
+            fig.show()
 
         # Smoothed joint distribution
         fig = plt.figure()
@@ -147,10 +140,9 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         ax.plot_surface(xx, yy, f_cut, cmap=cm.coolwarm, linewidth=0, antialiased=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        plt.savefig(f"results/wadley_distrib_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}.png")
         if show:
-            plt.show()
-        plt.close()
+            fig.show()
 
         # 2D Wadley plot
         fig = plt.figure(figsize=(5,5))
@@ -160,15 +152,15 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
 
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/wadley_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}.png")
         if show:
-            plt.show()
-    print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
+            fig.show()
+    # print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
 
 def stats_len(mappings_list, points):
     cols = []
     lengths = []
-    for f in sorted(mappings_list.keys()):
+    for f in tqdm(sorted(mappings_list.keys()), desc="Chain length by family", position=3, leave=False):
         if f in ["RF02540","RF02541","RF02543"]:
             cols.append("red") # LSU
         elif f in ["RF00177","RF01960","RF01959","RF02542"]:
@@ -187,22 +179,21 @@ def stats_len(mappings_list, points):
             l.append(len(r.df['nt_code']))
         lengths.append(l)
 
-    plt.figure(figsize=(10,3))
-    ax = plt.gca()
+    fig = plt.figure(figsize=(10,3))
+    ax = fig.gca()
     ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=sorted(mappings_list.keys()))
     ax.set_xlabel("Sequence length (nucleotides)")
     ax.set_ylabel("Number of 3D chains")
-    plt.tight_layout()
-    handles, labels = ax.get_legend_handles_labels()
+    fig.tight_layout()
     filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'),
                         mpatches.Patch(color='blue'), mpatches.Patch(color='white'),
                         mpatches.Patch(color='green'), mpatches.Patch(color='purple'),
                         mpatches.Patch(color='orange'), mpatches.Patch(color='grey')]
     filtered_labels = ['Large Ribosomal Subunits', '(RF02540, RF02541, RF02543)','Small Ribosomal Subunits','(RF01960, RF00177)',
                        '5S rRNA (RF00001)', '5.8S rRNA (RF00002)', 'tRNA (RF00005)', 'Other']
-    ax.legend(filtered_handles, filtered_labels, loc='best', ncol=2)# bbox_to_anchor=(0.5, -0.5), ncol=4, fontsize=)
-    plt.savefig("results/lengths.png")
-    print("[3]\tComputed sequence length statistics and saved the figure.")
+    ax.legend(filtered_handles, filtered_labels, loc='best', ncol=2)
+    fig.savefig("results/lengths.png")
+    # print("[3]\tComputed sequence length statistics and saved the figure.")
 
 def format_percentage(tot, x):
         if not tot:
@@ -210,6 +201,8 @@ def format_percentage(tot, x):
         x = 100*x/tot
         if x >= 0.01:
             x = "%.2f" % x
+        elif x == 0:
+            return "0 %"
         else:
             x = "<.01"
         return x + '%'
@@ -219,7 +212,7 @@ def stats_freq(mappings_list, points):
     for f in mappings_list.keys():
         freqs[f] = Counter()
 
-    for r in points:
+    for r in tqdm(points, desc="Nucleotide frequencies", position=4, leave=False):
         freqs[r.family].update(dict(r.df['nt_name'].value_counts()))
     
     df = pd.DataFrame()
@@ -229,7 +222,7 @@ def stats_freq(mappings_list, points):
     df = df.fillna(0)
     df.to_csv("results/frequencies.csv")
 
-    print("[4]\tComputed nucleotide statistics and saved CSV file.")
+    # print("[4]\tComputed nucleotide statistics and saved CSV file.")
 
 def stats_pairs(mappings_list, points):
 
@@ -242,25 +235,30 @@ def stats_pairs(mappings_list, points):
         freqs[f] = Counter()
 
     # Iterate over data points
-    for r in tqdm(points, desc="RNA points", position=0, leave=False):
-        # Skip if linear piece of RNA
-        if not sum([ x != 0 for x in r.df.paired ]):
-            continue 
+    if not path.isfile("data/pair_counts.csv"):
+        for r in tqdm(points, desc="Leontis-Westhof basepair stats", position=5, leave=False):
+            # Skip if linear piece of RNA
+            if r.df.pair_type_LW.isna().all():
+                continue 
 
-        # Count each pair type within the molecule
-        vcnts = pd.concat(
-                            [   pd.Series(row['pair_type_LW'].split(',')) 
-                                for _, row in r.df.dropna(subset=["pair_type_LW"]).iterrows() ]
-                        ).reset_index(drop=True).value_counts()
+            # Count each pair type within the molecule
+            vcnts = pd.concat(
+                                [   pd.Series(row['pair_type_LW'].split(',')) 
+                                    for _, row in r.df.dropna(subset=["pair_type_LW"]).iterrows() ]
+                            ).reset_index(drop=True).value_counts()
 
-        # Add these new counts to the family's counter
-        freqs[r.family].update(dict(vcnts))
-    
-    # Create the output dataframe
-    df = pd.DataFrame()
-    for f in sorted(mappings_list.keys()):
-        df = pd.concat([ df, pd.DataFrame([[ x for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
-    df = df.fillna(0)
+            # Add these new counts to the family's counter
+            freqs[r.family].update(dict(vcnts))
+        
+        # Create the output dataframe
+        df = pd.DataFrame()
+        for f in sorted(mappings_list.keys()):
+            df = pd.concat([ df, pd.DataFrame([[ x for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
+        df = df.fillna(0)
+        df.to_csv("data/pair_counts.csv")
+    else:
+        df = pd.read_csv("data/pair_counts.csv", index_col=0)
+
 
     # Remove not very well defined pair types (not in the 12 LW types)
     col_list = [ x for x in df.columns if '.' in x ]
@@ -288,7 +286,7 @@ def stats_pairs(mappings_list, points):
     plt.subplots_adjust(bottom=0.2, right=0.99)
     plt.savefig("results/pairings.png")
 
-    print("[5]\tComputed nucleotide statistics and saved CSV and PNG file.")
+    # print("[5]\tComputed nucleotide statistics and saved CSV and PNG file.")
 
 def to_dist_matrix(f):
     if path.isfile("data/"+f+".npy"):
@@ -311,11 +309,11 @@ def seq_idty(mappings_list):
         if len(mappings_list[x]) == 1:
             ignored.append(x)
     if len(ignored):
-        print("Ignoring families with only one chain:", " ".join(ignored))
+        print("Idty matrices: Ignoring families with only one chain:", " ".join(ignored)+'\n')
 
     # compute distance matrices
     p = Pool(processes=8)
-    pbar = tqdm(total=len(famlist), desc="Families idty matrices", position=1, leave=True)
+    pbar = tqdm(total=len(famlist), desc="Families idty matrices", position=0, leave=False)
     for i, _ in enumerate(p.imap_unordered(to_dist_matrix, famlist)):
         pbar.update(1)
     pbar.close()
@@ -353,16 +351,17 @@ def seq_idty(mappings_list):
     fig.subplots_adjust(wspace=0.1, hspace=0.3)
     fig.colorbar(im, ax=axs[-1], shrink=0.8)
     fig.savefig(f"results/distances.png")
-    print("[6]\tComputed identity matrices and saved the figure.")
+    # print("[6]\tComputed identity matrices and saved the figure.")
 
 if __name__ == "__main__":
 
     #################################################################
     #               LOAD ALL FILES
     #################################################################
+    os.makedirs("results/figures/wadley_plots/", exist_ok=True)
 
     print("Loading mappings list...")
-    mappings_list = pd.read_csv(path_to_seq_data + "realigned/mappings_list.csv", sep=',', index_col=0).to_dict(orient='list')
+    mappings_list = pd.read_csv("results/mappings_list.csv", sep=',', index_col=0).to_dict(orient='list')
     for k in mappings_list.keys():
         mappings_list[k] = [ x for x in mappings_list[k] if str(x) != 'nan' ]
 
@@ -372,9 +371,9 @@ if __name__ == "__main__":
             rna_points = pickle.load(f)
     else:
         rna_points = []
-        filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") if ".log" not in f and ".gz" not in f]
+        filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") ]
         p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
-        pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=True)
+        pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=False)
         for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
             rna_points.append(rna)
             pbar.update(1)
@@ -389,29 +388,18 @@ if __name__ == "__main__":
     #################################################################
     #               Define threads for the tasks
     #################################################################
-    wadley_thr = []
-    wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}))
-    wadley_thr.append(th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}))
+    threads = [
+        th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}),
+        th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}),
+        th.Thread(target=partial(stats_len, mappings_list), args=[rna_points]),
+        th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points]),
+        th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points]),
+        th.Thread(target=seq_idty, args=[mappings_list])
+    ]
 
-    seq_len_thr = th.Thread(target=partial(stats_len, mappings_list), args=[rna_points])
-    nt_freq_thr = th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points])
-    pairs_freq_thr = th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points])
-    dist_thr = th.Thread(target=seq_idty, args=[mappings_list])
-
-
-
-    for t in wadley_thr:
+    for t in threads:
         t.start()
-    seq_len_thr.start()
-    nt_freq_thr.start()
-    pairs_freq_thr.start()
-    dist_thr.start()
 
-
-    for t in wadley_thr:
+    for t in threads:
         t.join()
-    seq_len_thr.join()
-    nt_freq_thr.join()
-    pairs_freq_thr.join()
-    dist_thr.join()
 

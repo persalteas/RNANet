@@ -1,12 +1,12 @@
 # execution outputs:
 nohup.out
-jobstats.csv
 log_of_the_run.sh
 
+# results
+results/figures/wadley_plots/
+
 # temporary results files
-data/*.npy
-data/*.npz
-data/olddata
+data/
 
 # environment stuff
 .vscode/
