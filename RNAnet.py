@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, json, os, psutil, re, requests, sqlalchemy, subprocess, sys, time, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, json, os, psutil, re, requests, sqlalchemy, sqlite3, subprocess, sys, time, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -132,13 +132,13 @@ class Chain:
         self.rfam_fam = rfam                    # mapping to an RNA family
         self.inferred = inferred                # Wether this mapping has been inferred from BGSU's NR list
         self.seq = ""                           # sequence with modified nts
-        self.aligned_seq = ""                   # sequence with modified nts replaced, but gaps can exist
+        self.seq_to_align = ""                   # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
-        self.full_length = -1                   # length of the chain extracted from source structure ([start; stop] interval)
+        self.full_length = abs(pdb_end-pdb_start) + 1  # length of the chain extracted from source structure ([start; stop] interval)
         self.delete_me = False                  # an error occured during production/parsing
         self.error_messages = ""                # Error message(s) if any
-        self.data = None                        # Pandas DataFrame with all the 3D data extracted by DSSR.
-
+        self.db_chain_id = -1                   # index of the RNA chain in the SQL database, table chain
+    
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
     
@@ -173,7 +173,7 @@ class Chain:
             self.delete_me = True
             self.error_messages = f"Error downloading {url}"
 
-    def extract_portion(self):
+    def extract_portion(self, conn):
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         
@@ -206,6 +206,17 @@ class Chain:
 
             # Extract the desired chain
             c = s[model_idx][self.pdb_chain_id]
+            # (note that we can use mmcif_parser defined in __main__ only because the process creation method is 'fork'. 
+            # Each worker inherits from the context and gets its own (empty) mmcif_parser object.)
+
+            # Get info about that structure and save it to the database
+            exp_meth = s._mmcif_dict["_exptl.method"]
+            date = s._mmcif_dict["_database_PDB_rev.date_original"]
+            reso = s._mmcif_dict["_refine.ls_d_res_high"]
+            sql_execute(conn, f"""
+            INSERT OR IGNORE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
+            VALUES ({self.pdb_id}, {self.pdb_model}, {date}, {exp_meth}, {reso});
+            """)
 
             # Pay attention to residue numbering
             first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
@@ -227,7 +238,7 @@ class Chain:
 
         print(status + f"\t{validsymb}")
     
-    def extract_all(self):
+    def extract_all(self, conn):
         """ Extract the RNA chain from the main CIF file and save it to another file.
         """
         
@@ -254,6 +265,17 @@ class Chain:
 
             # Load the whole mmCIF into a Biopython structure object:
             s = mmcif_parser.get_structure(self.pdb_id, self.full_mmCIFpath)
+            # (note that we can use mmcif_parser defined in __main__ only because the process creation method is 'fork'. 
+            # Each worker inherits from the context and gets its own (empty) mmcif_parser object.)
+
+            # Get info about that structure and save it to the database
+            exp_meth = s._mmcif_dict["_exptl.method"]
+            date = s._mmcif_dict["_database_PDB_rev.date_original"]
+            reso = s._mmcif_dict["_refine.ls_d_res_high"]
+            sql_execute(conn, f"""
+            INSERT OR IGNORE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
+            VALUES ({self.pdb_id}, {self.pdb_model}, {date}, {exp_meth}, {reso});
+            """)
 
             # Extract the desired chain
             c = s[model_idx][self.pdb_chain_id]
@@ -270,18 +292,16 @@ class Chain:
 
         print(status + f"\t{validsymb}")
 
-    def set_rfam(self, rfam):
-        """ Rember the Rfam mapping for this chain.
-        """
-
-        self.rfam_fam = rfam
-
-    def extract_3D_data(self):
+    def extract_3D_data(self, conn):
         """ Runs DSSR to annotate the 3D chain and get various information about it. """
 
-        # Check if the file exists. If no, compute it.
-        if not os.path.exists(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam_fam}.csv"):
+        # Check if data is in the database.
+        count = sql_ask_database(conn, f"""
+        SELECT COUNT(nt_id) from nucleotide WHERE chain_id = '{self.db_chain_id}';
+        """)[0]
 
+        # If all the nucleotides have not already been computed, compute them
+        if count != abs(self.pdb_end - self.pdb_start) + 1:
             # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
             output = subprocess.run(
                 ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -314,14 +334,8 @@ class Chain:
                 df = pd.DataFrame(nts)
                 # remove low pertinence or undocumented descriptors
                 df = df.drop(['summary', 'chain_name', 'index', 'splay_angle',
-                               'splay_distance', 'splay_ratio', 'sugar_class',
-                               'bin', 'suiteness', 'cluster'], axis=1)
-                # df['P_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['P_xyz'] ]                #
-                # df['P_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['P_xyz'] ]                #
-                # df['P_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['P_xyz'] ]                # Flatten the 
-                # df['C5prime_x'] = [ float(i[0]) if i[0] is not None else np.NaN for i in df['C5prime_xyz'] ]    # Python dictionary
-                # df['C5prime_y'] = [ float(i[1]) if i[1] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
-                # df['C5prime_z'] = [ float(i[2]) if i[2] is not None else np.NaN for i in df['C5prime_xyz'] ]    #
+                               'splay_distance', 'splay_ratio', 'sugar_class', 'is_modified',
+                               'bin', 'suiteness', 'cluster', "filter_rmsd", "frame"], axis=1)
 
                 # Convert angles to radians
                 df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
@@ -356,6 +370,13 @@ class Chain:
                         df.iloc[i:, 0] += 1
                     df = df.reset_index(drop=True)
 
+                # One-hot encoding sequence
+                df["is_A"] = [ 1 if x in "Aa" else 0 for x in df["nt_code"] ]
+                df["is_C"] = [ 1 if x in "Cc" else 0 for x in df["nt_code"] ]
+                df["is_G"] = [ 1 if x in "Gg" else 0 for x in df["nt_code"] ]
+                df["is_U"] = [ 1 if x in "Uu" else 0 for x in df["nt_code"] ]
+                df["is_other"] = [ 0 if x in "ACGUacgu" else 1 for x in df["nt_code"] ]
+                df["nt_position"] = [ float(i+1)/self.full_length for i in range(self.full_length) ]
 
                 # Iterate over pairs to identify base-base interactions
                 res_ids = list(df['nt_id']) # things like "chainID.C4, chainID.U5"
@@ -405,6 +426,7 @@ class Chain:
                     # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
                     # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
                     # Anyways, you need to invert the angles.
+                    # TODO: angles alpha, beta, etc
                     warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting pseudotorsions, other angle measures are not corrected.")
                     df = df.reindex(index=df.index[::-1]).reset_index(drop=True)
                     df['index_chain'] = 1 + df.index
@@ -429,6 +451,23 @@ class Chain:
                             if int(v):
                                 newpairs.append(str(l-int(v)+1))
                     df['paired'] = newpairs
+
+                # Saving to database
+                sql_execute(conn, f"""
+                    INSERT OR IGNORE INTO nucleotide 
+                    (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+                    epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+                    v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
+                    paired, pair_type_LW, pair_type_DSSR, nb_interact)
+                    VALUES ('{self.db_chain_id}', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ;""", many=True, data=list(df.to_records(index=False))
+                )
+
+                del df
+                print("\t> Saved", self.chain_label, f"annotations to database.\t\t{validsymb}", flush=True)
+            
             except KeyError as e:
                 # Mostly, there are no part about nucleotides in the DSSR output. Abort.
                 warn(f"Error while parsing DSSR's json output:\n{e}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
@@ -436,21 +475,12 @@ class Chain:
                 self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
                 return
             
-            # Creating a df for easy saving to CSV
-            df.to_csv(path_to_3D_data + f"annotations/{self.chain_label}.{self.rfam_fam}.csv")
-            del df
-            print("\t> Saved", self.chain_label, f"annotations to CSV.\t\t{validsymb}", flush=True)
-        else:
-            print("\t> Computing", self.chain_label, f"annotations...\t{validsymb}\t(already done)", flush=True)
-
+            
         # Now load data from the CSV file
-        d = pd.read_csv(path_to_3D_data+f"annotations/{self.chain_label}.{self.rfam_fam}.csv", index_col=0)
-        self.seq = "".join(d.nt_code.values)
-        self.aligned_seq = "".join(d.nt_align_code.values)
-        self.length = len([ x for x in self.aligned_seq if x != "-" ])
-        self.full_length = len(d.nt_code)
-        self.data = d
-        print(f"\t> Loaded data from CSV\t\t\t\t{validsymb}", flush=True)
+        self.seq = "".join(sql_ask_database(conn, f"SELECT nt_code from nucleotide WHERE chain_id = '{self.db_chain_id}' ORDER BY index_chain ASC;"))
+        self.seq_to_align = "".join(sql_ask_database(conn, f"SELECT nt_align_code from nucleotide WHERE chain_id = '{self.db_chain_id}' ORDER BY index_chain ASC;"))
+        self.length = len([ x for x in self.seq_to_align if x != "-" ])
+        print(f"\t> Read {self.chain_label} nucleotide data from database\t\t{validsymb}", flush=True)
 
         # Remove too short chains
         if self.length < 5:
@@ -459,28 +489,41 @@ class Chain:
             self.error_messages = "Sequence is too short. (< 5 resolved nts)"
         return
 
-    def set_freqs_from_aln(self, s_seq, ali_freqs):
+    def remap_and_save(self, conn, columns_to_save, s_seq):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
         
-        s_seq: the aligned version of self.aligned_seq
-        ali_freqs: the nucleotide frequencies at every position of s_seq
+        conn: a connection to the database
+        columns_to_save: a set of indexes in the alignment that are mapped to previous sequences in the alignment
+        s_seq: the aligned version of self.seq_to_align
         This also replaces gaps by the most common nucleotide.
         """
+
+        def register_col(i, j, unknown=False):
+            if not unknown:
+                # because index_chain in table nucleotide is in [1,N], we use i+1 and j+1.
+                columns_to_save.add(j) # it's a set, doublons are automaticaly ignored
+                sql_execute(conn, f"""INSERT OR REPLACE INTO re_mapping
+                (chain_id, index_chain, index_ali) VALUES ('{self.db_chain_id}', {i+1}, {j+1});
+                """)
+            else:
+                # Index 0 is kept for an "unknown" values column
+                sql_execute(conn, f"""INSERT OR REPLACE INTO re_mapping
+                (chain_id, index_chain, index_ali) VALUES ('{self.db_chain_id}', {i+1}, 0);""")
+
         alilen = len(s_seq)
 
         # Save colums in the appropriate positions
         i = 0
         j = 0
-        temp_freqs = np.zeros((5,0))
         while i<self.full_length and j<alilen:
-            # Here we try to map self.aligned_seq (the sequence of the 3D chain, including gaps when residues are missing), 
+            # Here we try to map self.seq_to_align (the sequence of the 3D chain, including gaps when residues are missing), 
             # with s_seq, the sequence aligned in the MSA, containing any of ACGU and two types of gaps, - and .
 
-            if self.aligned_seq[i] == s_seq[j].upper(): # alignment and sequence correspond (incl. gaps)
-                temp_freqs = np.concatenate((temp_freqs, ali_freqs[:,j].reshape(-1,1)), axis=1)
+            if self.seq_to_align[i] == s_seq[j].upper(): # alignment and sequence correspond (incl. gaps)
+                register_col(i, j)
                 i += 1
                 j += 1
-            elif self.aligned_seq[i] == '-': # gap in the chain, but not in the aligned sequence
+            elif self.seq_to_align[i] == '-': # gap in the chain, but not in the aligned sequence
 
                 # search for a gap to the consensus nearby
                 k = 0
@@ -496,80 +539,61 @@ class Chain:
 
                 # if not, search for a insertion gap nearby
                 if j<alilen and s_seq[j] == '.':
-                    temp_freqs = np.concatenate((temp_freqs, ali_freqs[:,j].reshape(-1,1)), axis=1)
+                    register_col(i, j)
                     i += 1
                     j += 1
                     continue
 
                 # else, just ignore the gap.
-                temp_freqs = np.concatenate((temp_freqs, np.array([0.0,0.0,0.0,0.0,1.0]).reshape(-1,1)), axis=1)
+                register_col(i, j, unknown=True)
                 i += 1
             elif s_seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
                 j += 1 # ignore the column
             else: # sequence mismatch which is not a gap...
-                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.aligned_seq[i-1:i+2]}) with seq[{j}] ({s_seq[j-3:j+4]}).\n", 
-                        self.aligned_seq, 
+                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.seq_to_align[i-1:i+2]}) with seq[{j}] ({s_seq[j-3:j+4]}).\n", 
+                        self.seq_to_align, 
                         sep='', flush=True)
-                exit(1)
+                raise Exception('Something is wrong with sequence alignment.')
 
         # Replace gapped positions by the consensus sequence:
         if FILL_GAPS:
-            c_aligned_seq = list(self.aligned_seq)
+            homology_data = sql_ask_database(conn, """
+            SELECT freq_A, freq_C, freq_G, freq_U, freq_other FROM
+            (SELECT chain_id, rfam_acc FROM chain)
+            NATURAL JOIN re_mapping
+            NATURAL JOIN align_column;
+            """)
+            assert len(homology_data) == self.full_length
+            c_seq_to_align = list(self.seq_to_align)
             c_seq = list(self.seq)
             letters = ['A', 'C', 'G', 'U', 'N']
             for i in range(self.full_length):
-                if c_aligned_seq[i] == '-':      # (then c_seq[i] also is)
-                    freq = temp_freqs[:,i]
-                    l = letters[freq.tolist().index(max(freq))]
-                    c_aligned_seq[i] = l
+                if c_seq_to_align[i] == '-':      # (then c_seq[i] also is)
+                    freq = homology_data[i]
+                    l = letters[freq.index(max(freq))]
+                    c_seq_to_align[i] = l
                     c_seq[i] = l
-                    self.data.iloc[i,3] = l # self.data['nt_code'][i]
-            self.aligned_seq = ''.join(c_aligned_seq)
+                    sql_execute(conn, f"""UPDATE nucleotide SET nt_align_code = '{l}', is_{l if l in "ACGU" else "other"} = 1
+                    WHERE chain_id = {self.db_chain_id} AND index_chain = {i+1};""")
+            self.seq_to_align = ''.join(c_seq_to_align)
             self.seq = ''.join(c_seq)
-
-        # Temporary np array to store the computations
-        point = np.zeros((11, self.full_length))
-        for i in range(self.full_length):
-            # normalized position in the chain
-            point[0,i] = float(i+1)/self.full_length 
-
-            # one-hot encoding of the actual sequence
-            if self.seq[i] in letters[:4]:
-                point[ 1 + letters[:4].index(self.seq[i]), i ] = 1
-            else:
-                point[5,i] = 1
-
-            # PSSMs
-            point[6,i] = temp_freqs[0, i]
-            point[7,i] = temp_freqs[1, i]
-            point[8,i] = temp_freqs[2, i]
-            point[9,i] = temp_freqs[3, i]
-            point[10,i] = temp_freqs[4, i]
         
-        self.data = pd.concat([self.data, pd.DataFrame(point.T, columns=["nt_position","is_A","is_C","is_G","is_U","is_other","freq_A","freq_C","freq_G","freq_U","freq_other"])], axis=1)
-        # reorder columns:
-        cols = [ # 1D structure descriptors
-                'index_chain','nt_resnum','position',
-                'nt_name','nt_code','nt_align_code',
-                'is_A','is_C','is_G','is_U','is_other',
-                'freq_A','freq_C','freq_G','freq_U','freq_other',
-                
-                # 2D structure descriptors
-                'dbn','paired','nb_interact',
-                'pair_type_LW','pair_type_DSSR',
-                
-                # 3D strcuture descriptors
-                'alpha','beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi',
-                'bb_type','glyco_bond','form','ssZp','Dp',
-                'eta','theta','eta_prime','theta_prime','eta_base','theta_base',
-                'v0', 'v1', 'v2', 'v3', 'v4', 'amplitude', 'phase_angle', 'puckering'
-               ]
-        self.data = self.data[cols]
-        
-    def save(self, fformat = "csv"):
+    def save(self, conn, fformat = "csv"):
         # save to file
+        df = pd.read_sql_query(f"""
+        SELECT (index_chain, nt_resnum, position, nt_name, nt_code, nt_align_code, 
+        is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn,
+        paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
+        chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+        v0, v1, v2, v3, v4, amlitude, phase_angle, puckering) FROM (
+            (SELECT (chain_id, rfam_acc) from chain WHERE chain_id = '{self.db_chain_id}')
+            NATURAL JOIN re_mapping
+            NATURAL JOIN nucleotide
+            NATURAL JOIN align_column
+        )
+        ;""", conn)
         if fformat == "csv":
-            self.data.to_csv(path_to_3D_data + "datapoints/" + self.chain_label + str('.'+self.rfam_fam if self.rfam_fam != '' else ''))
+            df.to_csv(path_to_3D_data + "datapoints/" + self.chain_label + str('.'+self.rfam_fam if self.rfam_fam != '' else ''))
 
 
 class Job:
@@ -891,7 +915,7 @@ def execute_job(j, jobcount):
     t = end_time - start_time
     return (t,m,r)
 
-def execute_joblist(fulljoblist, printstats=False):
+def execute_joblist(fulljoblist):
     """ Run a list of job objects.
 
     The jobs in the list can have differente priorities and/or different number of threads.
@@ -915,14 +939,8 @@ def execute_joblist(fulljoblist, printstats=False):
     # number of different priorities in the list
     nprio = max(jobs.keys())
 
-    if printstats:
-        # Write statistics in a file (header here)
-        f = open(runDir + "/data/jobstats.csv", "w")
-        f.write("label,comp_time,max_mem\n")
-        f.close()
-
     # Process the jobs from priority 1 to nprio
-    results = {}
+    results = []
     for i in range(1,nprio+1):
         if i not in jobs.keys(): continue # no job has the priority level i
 
@@ -930,7 +948,6 @@ def execute_joblist(fulljoblist, printstats=False):
         different_thread_numbers = sorted(jobs[i].keys())
         
         # jobs should be processed 1 by 1, 2 by 2, or n by n depending on their definition
-        res = []
         for n in different_thread_numbers:
             # get the bunch of jobs of same priority and thread number
             bunch = jobs[i][n]
@@ -943,25 +960,15 @@ def execute_joblist(fulljoblist, printstats=False):
             p.close()
             p.join()
 
-            if printstats:
-                # Extract computation times
-                times = [ r[0] for r in raw_results ]
-                mems = [ r[1] for r in raw_results ]
-
-                # Write them to file
-                f = open(runDir + "/data/jobstats.csv", "a")
-                for j, t, m in zip(bunch, times, mems):
-                    j.comp_time = t
-                    j.max_mem = m
-                    print(f"\t> {j.label} finished in {t:.2f} sec with {int(m/1000000):d} MB of memory. \t{validsymb}", flush=True)
-                    f.write(f"{j.label},{t},{m}\n")
-                f.close()
-            
-            # Separate the job results in a different list 
+            # Extract computation times
+            times += [ r[0] for r in raw_results ]
+            mems += [ r[1] for r in raw_results ]
             res += [ r[2] for r in raw_results ]
 
-        # Add the results of this tree branch to the main list
-        results[i] = res
+            for j, r, t, m in zip(bunch, res, times, mems):
+                j.comp_time = round(t, 2) # secondes
+                j.max_mem = int(m/1000000) # MB
+                results.append( (j.label, r, round(t, 2), int(m/1000000)))
     
     # throw back the money
     return results
@@ -975,17 +982,17 @@ def download_Rfam_PDB_mappings():
     try:
         db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
         mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
-        mappings.to_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
+        mappings.to_csv(runDir + "/data/Rfam-PDB-mappings.csv")
         print(f"\t{validsymb}")
     except sqlalchemy.exc.OperationalError:  # Cannot connect :'()
         print(f"\t{errsymb}")
         # Check if a previous run succeeded (if file exists, use it)
-        if path.isfile(path_to_3D_data + 'Rfam-PDB-mappings.csv'):
+        if path.isfile(runDir + "/data/Rfam-PDB-mappings.csv"):
             print("\t> Using previous version.")
-            mappings = pd.read_csv(path_to_3D_data + 'Rfam-PDB-mappings.csv')
+            mappings = pd.read_csv(runDir + "/data/Rfam-PDB-mappings.csv")
         else: # otherwise, abort.
-            print("Can't do anything without data. Can't reach mysql-rfam-public.ebi.ac.uk on port 4497. Is it open on your system ? Exiting.")
-            exit(1)
+            print("Can't do anything without data. Exiting.")
+            raise Exception("Can't reach mysql-rfam-public.ebi.ac.uk on port 4497. Is it open on your system ?")
 
     return mappings
 
@@ -1055,6 +1062,7 @@ def download_Rfam_family_stats(list_of_families):
     """
     try: 
         db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
+        conn = sqlite3.connect(runDir + "/results/RNANet.db")
 
         # Prepare the SQL query. It computes the length of the chains and gets the maximum length by family.
         q = """SELECT fr.rfam_acc, COUNT(DISTINCT fr.rfamseq_acc) AS 'n_seq',
@@ -1070,14 +1078,30 @@ def download_Rfam_family_stats(list_of_families):
                 FROM full_region fr
                 GROUP BY fr.rfam_acc"""
 
-        # Query the database
+        # Query the public database
         d = pd.read_sql(q, con=db_connection)
 
         # filter the results to families we are interested in
-        return d[ d["rfam_acc"].isin(list_of_families) ]
+        d = d[ d["rfam_acc"].isin(list_of_families) ]
+
+        # save the statistics to local database
+        n_pdb = [ len(rfam_acc_to_download[f]) for f in d["rfam_acc"] ]
+        d["n_pdb_seqs"] = n_pdb
+        d["total_seqs"] = d["n_seq"] + d["n_pdb_seqs"]
+        sql_execute(conn, """
+            INSERT OR REPLACE INTO family (rfam_acc, nb_homologs, max_len, nb_3d_chains, nb_total_homol))
+            VALUES (?, ?, ?, ?, ?);""", many=True, data=list(d.to_records(index=False))
+        ) # We use the replace keyword to get the latest information
+        conn.commit()
+        conn.close()
+        
+        # print the stats
+        for f in d:
+            line = d[d["rfam_acc"]==f]
+            print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
+
     except sqlalchemy.exc.OperationalError:
         warn("Something's wrong with the SQL database. Check mysql-rfam-public.ebi.ac.uk status and try again later. Not printing statistics.")
-        return {}
 
 def download_Rfam_sequences(rfam_acc):
     """ Downloads the unaligned sequences known related to a given RNA family.
@@ -1130,15 +1154,38 @@ def build_chain(c):
     """ Additionally adds all the desired information to a Chain object.
 
     """
+
+    # Register the chain, and get its chain_id
+    conn = sqlite3.connect(runDir+"/results/RNANet.db")
+    if c.pdb_start is not None:
+        sql = f"""INSERT OR IGNORE INTO chain 
+                  (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
+                  VALUES 
+                  ('{c.pdb_id}', '{c.pdb_chain_id}', {int(c.pdb_start)}, {int(c.pdb_end)}, {int(c.reversed)}, {int(c.inferred)}, '{c.rfam_fam}', 0);
+               """
+    else:
+        sql = f"""INSERT OR IGNORE INTO chain (structure_id, chain_name, issue)
+                  VALUES ('{c.pdb_id}', '{c.pdb_chain_id}', 0);
+               """
+    sql_execute(conn, sql)
+    cid = sql_ask_database(conn, f"""
+    SELECT (chain_id) FROM chain 
+    WHERE structure_id='{c.pdb_id}' 
+        AND chain_name='{c.pdb_chain_id}';
+    """)
+    if not len(cid):
+        raise Exception("Chain has not registered properly !")
+    c.db_chain_id = cid[0][0]
+
     # Download the whole mmCIF file containing the chain we are interested in
     c.download_3D()
 
     # If no problems, extract the portion we want
     if not c.delete_me:
         if HOMOLOGY:
-            c.extract_portion()
+            c.extract_portion(conn)
         else:
-            c.extract_all()
+            c.extract_all(conn)
 
     # If no problems, annotate it with DSSR
     if not c.delete_me:
@@ -1147,17 +1194,21 @@ def build_chain(c):
     # If there were newly discovered problems, add this chain to the known issues
     if c.delete_me and c.chain_label not in known_issues:
         warn(f"Adding {c.chain_label} to known issues.\t\t")
-        f = open(path_to_3D_data + "known_issues.txt", 'a')
+        f = open(runDir + "/known_issues.txt", 'a')
         f.write(c.chain_label + '\n')
         f.close()
-        f = open(path_to_3D_data + "known_issues_reasons.txt", 'a')
+        f = open(runDir + "/known_issues_reasons.txt", 'a')
         f.write(c.chain_label + '\n' + c.error_messages + '\n\n')
         f.close()
+        sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = '{c.db_chain_id}';")
+    
+    conn.commit()
+    conn.close()
     
     # The Chain object is ready
     return c
 
-def cm_realign(rfam_acc, chains, label):
+def cm_realign(rfam_acc, chains):
     """ Runs multiple sequence alignements by RNA family.
 
     It aligns the Rfam hits from a RNA family with the sequences from the list of chains. 
@@ -1167,7 +1218,7 @@ def cm_realign(rfam_acc, chains, label):
 
     # If the computation was already done before, do not recompute.
     if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
-        print(f"\t> {label} completed \t{validsymb}\t(already done)", flush=True)
+        print(f"\t> {rfam_acc} re-alignment completed \t{validsymb}\t(already done)", flush=True)
         return
 
     if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.fa"):
@@ -1190,7 +1241,7 @@ def cm_realign(rfam_acc, chains, label):
         
         # Add the chains sequences to the file
         for c in chains:
-            f.write(f"> {str(c)}\n"+c.aligned_seq.replace('-', '').replace('U','T')+'\n') 
+            f.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U','T')+'\n') 
 
         f.close()
 
@@ -1206,7 +1257,7 @@ def cm_realign(rfam_acc, chains, label):
                 f.close()
 
         # Running alignment
-        print(f"\t> {label} (cmalign)...", flush=True)
+        print(f"\t> Re-aligning {rfam_acc} with {len(chains)} chains (cmalign)...", flush=True)
         f = open(path_to_seq_data + f"realigned/{rfam_acc}++.stk", "w")
         subprocess.run(["cmalign", "--mxsize", "2048", path_to_seq_data + f"realigned/{rfam_acc}.cm", path_to_seq_data + f"realigned/{rfam_acc}++.fa"], stdout=f)
         f.close()
@@ -1258,7 +1309,7 @@ def cm_realign(rfam_acc, chains, label):
             arbfile = "realigned/LSU.arb"
 
         # Run alignment
-        print(f"\t> {label} (SINA)...", flush=True)
+        print(f"\t> Re-aligning {rfam_acc} with {len(chains)} chains (SINA)...", flush=True)
         subprocess.run(["sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
                                "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa",
                                "-r", path_to_seq_data + arbfile,
@@ -1290,6 +1341,7 @@ def alignment_nt_stats(f):
     Also saves every chain of the family to file.
     Uses only 1 core, so this function can be called in parallel.
     """
+    conn = sqlite3.connect(runDir + '/results/RNANet.db')
 
     # Get a worker number to position the progress bar
     global idxQueue
@@ -1304,33 +1356,47 @@ def alignment_nt_stats(f):
         align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
     except:
         warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
-        exit(1)
+        raise Exception(f"{f}'s alignment is wrong.")
 
     # Compute statistics per column
     pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
-    frequencies = np.array([ summarize_position(pssm[i]) for i in range(align.get_alignment_length()) ]).T
+    frequencies = [ summarize_position(pssm[i]) for i in range(align.get_alignment_length()) ]
     del pssm
 
-    # For each sequence, find the right chain and save the PSSMs inside.
+    # For each sequence, find the right chain and remap chain residues with alignment columns
+    columns_to_save = {}
     pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} chains", leave=False)
     pbar.update(0)
     for s in align:
         if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
             continue
-
         # get the right 3D chain:
         idx = chains_ids.index(s.id)
+        # call its remap method 
+        columns_to_save = list_of_chains[idx].remap_and_save(conn, columns_to_save, s.seq)
 
-        # call its method to set its frequencies, and save it
-        list_of_chains[idx].set_freqs_from_aln(s.seq, frequencies)
-        list_of_chains[idx].save(fformat='csv')
-
-        del list_of_chains[idx]  # saves a bit of memory because of the Chain object sizes
-        del chains_ids[idx]      # to keep indexes aligned with list_of_chains
         pbar.update(1)
-
     pbar.close()
 
+    # Save the useful columns in the database
+    data = [ (f, j+1) + frequencies[j] for j in sorted(columns_to_save) ]
+    sql_execute(conn, """INSERT OR REPLACE INTO align_column
+    (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
+    VALUES (?, ?, ?, ?, ?, ?, ?);""", many=True, data=data)
+    # Add an unknown values column, with index_ali 0
+    sql_execute(conn, f"""INSERT OR REPLACE INTO align_column
+    (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
+    VALUES ('{f}', 0, 0.0, 0.0, 0.0, 0.0, 1.0);""")
+
+    # Save chains to CSV
+    for s in align:
+        if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
+            continue
+        idx = chains_ids.index(s.id)
+        list_of_chains[idx].save(conn)
+
+    conn.commit()
+    conn.close()
     del rfam_acc_to_download[f] # We won't need this family's chain objects anymore, free up
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
@@ -1437,15 +1503,121 @@ def infer_all_mappings(allmappings, codelist):
     
     return newchains
 
+def sql_define_tables(conn):
+    conn.executescript(
+        """ CREATE TABLE IF NOT EXISTS structure (
+                pdb_id         CHAR(4) PRIMARY KEY NOT NULL,
+                model          CHAR(1) NOT NULL,
+                date           DATE,
+                exp_method     VARCHAR(50),
+                resolution     REAL,
+                UNIQUE (pdb_id, model)
+            );
+            CREATE TABLE IF NOT EXISTS chain (
+                chain_id        INT PRIMARY KEY,
+                structure_id    CHAR(4) NOT NULL,
+                chain_name      VARCHAR(2) NOT NULL,
+                pdb_start       SMALLINT,
+                pdb_end         SMALLINT,
+                reversed        TINYINT,
+                issue           TINYINT,
+                rfam_acc        CHAR(7),
+                inferred        TINYINT,
+                chain_freq_A    REAL,
+                chain_freq_C    REAL,
+                chain_freq_G    REAL,
+                chain_freq_U    REAL,
+                chain_freq_other REAL,
+                pair_count_cWW  SMALLINT,
+                pair_count_cWH  SMALLINT,
+                UNIQUE (structure_id, chain_name, rfam_acc)
+            );
+            CREATE TABLE IF NOT EXISTS nucleotide (
+                nt_id           UNSIGNED INT PRIMARY KEY,
+                chain_id        INT,
+                index_chain     SMALLINT,
+                nt_resnum       SMALLINT,
+                nt_position     SMALLINT,
+                nt_name         VARCHAR(5),
+                nt_code         CHAR(1),
+                nt_align_code   CHAR(1),
+                is_A TINYINT, is_C TINYINT, is_G TINYINT, is_U TINYINT, is_other TINYINT,
+                dbn             CHAR(1),
+                paired          VARCHAR(20),
+                nb_interact     TINYINT,
+                pair_type_LW    VARCHAR(20),
+                pair_type_DSSR  VARCHAR(25),
+                alpha REAL, beta REAL, gamma REAL, delta REAL, epsilon REAL, zeta REAL,
+                epsilon_zeta    REAL,
+                bb_type         VARCHAR(5),
+                chi             REAL,
+                glyco_bond      VARCHAR(3),
+                v0 REAL, v1 REAL, v2 REAL, v3 REAL, v4 REAL,
+                form            CHAR(1),
+                ssZp            REAL,
+                Dp              REAL,
+                eta REAL, theta REAL, eta_prime REAL, theta_prime REAL, eta_base REAL, theta_base REAL,
+                phase_angle     REAL,
+                amplitude       REAL,
+                puckering       VARCHAR(20),
+                UNIQUE (chain_id, index_chain)
+            );
+            CREATE TABLE IF NOT EXISTS re_mapping (
+                remapping_id    BIGINT PRIMARY KEY,
+                chain_id        INT NOT NULL,
+                index_chain     INT NOT NULL,
+                index_ali       INT NOT NULL,
+                UNIQUE (chain_id, index_chain),
+                UNIQUE (chain_id, index_ali)
+            );
+            CREATE TABLE IF NOT EXISTS family (
+                rfam_acc        CHAR(7) PRIMARY KEY NOT NULL,
+                nb_homologs     INT,
+                nb_3d_chains    INT,
+                nb_total_homol  INT,
+                max_len         UNSIGNED SMALLINT,
+                comput_time     REAL,
+                comput_peak_mem REAL,
+                idty_percent    REAL
+            );
+            CREATE TABLE IF NOT EXISTS align_column (
+                column_id       BIGINT PRIMARY KEY,
+                rfam_acc        CHAR(7) NOT NULL,
+                index_ali       INT NOT NULL,
+                freq_A          REAL,
+                freq_C          REAL,
+                freq_G          REAL,
+                freq_U          REAL,
+                freq_other      REAL,
+                UNIQUE (rfam_acc, index_ali)
+            );
+         """)
+
+def sql_ask_database(conn, sql):
+    cursor = conn.cursor()
+    result = cursor.execute(sql).fetchall()
+    cursor.close()
+    return result
+
+def sql_execute(conn, sql, many=False, data=None):
+    if many:
+        conn.executemany(sql, data)
+    else:
+        cur = conn.cursor()
+        cur.execute(sql)
+        cur.close()
+    conn.commit()
+
 if __name__ == "__main__":
 
     # Parse options
+    runDir = path.dirname(path.realpath(__file__))
     try:
         opts, args = getopt.getopt( sys.argv[1:], 
                                     "r:hs", 
-                                [   "help", "resolution=", "keep-hetatm=", 
+                                [   "help", "resolution=", "keep-hetatm=", "from-scratch"
                                     "fill-gaps=", "3d-folder=", "seq-folder=", 
-                                    "no-homology", "force-retry" ])
+                                    "no-homology", "retry-issues" ])
     except getopt.GetoptError as err:
         print(err)
         sys.exit(2)
@@ -1469,18 +1641,18 @@ if __name__ == "__main__":
             print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
                     "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
                     "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
-                    "\n\t\t\t\t\tannotations/\t\tAnnotations by DSSR"
-                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in specified file format.")
+                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
             print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files."
                     "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
                     "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
             print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
                     "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
-            print("--force-retry\t\t\tIgnore already known issues, and retry to build them from scratch.")
+            print("--from-scratch\t\t\tDelete already computed data and known issues, and recompute.")
+            print("--retry-issues\t\t\tIgnore already known issues, and retry to build them from scratch.")
             sys.exit()
 
         elif opt == '--version':
-            print("RNANet 0.4 alpha ")
+            print("RNANet 1.0 alpha ")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert arg in ["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "20.0"]
@@ -1499,49 +1671,50 @@ if __name__ == "__main__":
             path_to_3D_data = path.abspath(arg)
             if path_to_3D_data[-1] != '/':
                 path_to_3D_data += '/'
-            print("Storing 3D data into", path_to_3D_data)
+            print("> Storing 3D data into", path_to_3D_data)
         elif opt=='--seq-folder':
             path_to_seq_data = path.abspath(arg)
             if path_to_seq_data[-1] != '/':
                 path_to_seq_data += '/'
-            print("Storing sequences into", path_to_seq_data)
-        elif opt == "--force-retry":
+            print("> Storing sequences into", path_to_seq_data)
+        elif opt == "--retry-issues":
             USE_KNOWN_ISSUES = False
+        elif opt == "--from-scratch":
+            subprocess.run(["rm", "-f", "/known_issues.txt"])
+
     
     if path_to_3D_data == "tobedefinedbyoptions" or path_to_seq_data == "tobedefinedbyoptions":
         print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
         print("See RNANet.py --help for more information.")
         exit(1)
 
-    runDir = path.dirname(path.realpath(__file__))
     os.makedirs(runDir + "/results", exist_ok=True)
+    os.makedirs(runDir + "/data", exist_ok=True)
+
+    # Check existence of the database, or create it
+    conn = sqlite3.connect(runDir + '/results/RNANet.db')
+    sql_define_tables(conn)
+    conn.commit()
+    conn.close()
+    print("> Storing results into", runDir + "/results/RNANet.db")
 
     # ===========================================================================
     # List 3D chains with available Rfam mapping
     # ===========================================================================
-
-    chains_database = pd.DataFrame(columns=['pdb_id', 'pdb_model', 'pdb_chain', 'rfam_fam', 'pdb_start', 'pdb_end', 'reversed', 'inferred', 'issue'])
 
     # List all 3D RNA chains below given resolution
     full_structures_list = download_BGSU_NR_list()
 
     # Check for a list of known problems:
     known_issues = []
-    if path.isfile(path_to_3D_data + "known_issues.txt"):
-        f = open(path_to_3D_data + "known_issues.txt", 'r')
+    if path.isfile(runDir + "/known_issues.txt"):
+        f = open(runDir + "/known_issues.txt", 'r')
         known_issues = [ x[:-1] for x in f.readlines() ]
         f.close()
         if USE_KNOWN_ISSUES:
             print("\t> Ignoring known issues:")
             for x in known_issues:
                 print("\t  ", x)
-                chains_database = chains_database.append(pd.DataFrame({ 'pdb_id':x.split('_')[0],
-                                                                        'pdb_model':x.split('_')[1],
-                                                                        'pdb_chain':x.split('_')[2],
-                                                                        'pdb_start':x.split('_')[3].split('-')[0],
-                                                                        'pdb_end':x.split('_')[3].split('-')[1],
-                                                                        'issue':True
-                                                                        }, index=[x]))
 
     all_chains = []
     if HOMOLOGY:
@@ -1564,6 +1737,7 @@ if __name__ == "__main__":
     else:
         for codelist in tqdm(full_structures_list):
             codes = str(codelist).replace('+',',').split(',')
+            # Convert the list of codes to Chain() objects
             for c in codes:
                 nr = c.split('|')
                 pdb_id = nr[0].lower()
@@ -1573,13 +1747,9 @@ if __name__ == "__main__":
                 all_chains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
 
     del full_structures_list
-    chains_database = chains_database.append(pd.DataFrame.from_dict(
-                            {c.chain_label:[ c.pdb_id, c.pdb_model, c.pdb_chain_id, c.rfam_fam, c.pdb_start, c.pdb_end, c.reversed, c.inferred, False ] for c in all_chains},
-                            orient='index',
-                            columns=['pdb_id', 'pdb_model', 'pdb_chain', 'rfam_fam', 'pdb_start', 'pdb_end', 'reversed', 'inferred', 'issue'] ))
-    chains_database.to_csv(runDir + "/results/results_database.csv")
+    
     n_chains = len(all_chains)
-    print(">", validsymb, n_chains, "RNA chains of interest.")
+    print("\n>", validsymb, n_chains, "RNA chains of interest.")
 
     # ===========================================================================
     # Download 3D structures, extract the desired chain portions, 
@@ -1601,14 +1771,14 @@ if __name__ == "__main__":
         os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
     if not HOMOLOGY and not path.isdir(path_to_3D_data + "rna_only"):
         os.makedirs(path_to_3D_data + "rna_only") # extract chains of pure RNA
-    if not path.isdir(path_to_3D_data+"annotations"):
-        os.makedirs(path_to_3D_data+"annotations") # for the annotations by DSSR
 
     # Run the builds and extractions
-    results = execute_joblist(joblist)[1]
+    results = execute_joblist(joblist)
+
+    # At this point, structure, chain and nucleotide tables of the database are up to date.
 
     # Remove the chains whose parsing resulted in errors
-    loaded_chains = [ c for c in results if not c.delete_me ]
+    loaded_chains = [ c[1] for c in results if not c[1].delete_me ]
 
     print(f"> Loaded {len(loaded_chains)} RNA chains ({len(all_chains) - len(loaded_chains)} errors).")
     del all_chains # Here ends its utility, so let's free some memory
@@ -1618,7 +1788,7 @@ if __name__ == "__main__":
     if not HOMOLOGY:
         # Save chains to file
         for c in loaded_chains:
-            c.data.to_csv(path_to_3D_data + "datapoints/" + c.chain_label)
+            c.save()
         print("Completed.")
         exit()
 
@@ -1648,19 +1818,10 @@ if __name__ == "__main__":
     download_Rfam_cm()
 
     # Ask the SQL server how much we have to download for each family
-    fam_stats = download_Rfam_family_stats(rfam_acc_to_download.keys())
     fam_list = sorted(rfam_acc_to_download.keys())
-    if len(fam_stats.keys()): # 'if' protected, for the case the server is down,  fam_stats is empty
-        # save the statistics to CSV file
-        n_pdb = [ len(rfam_acc_to_download[f]) for f in fam_stats["rfam_acc"] ]
-        fam_stats["n_pdb_seqs"] = n_pdb
-        fam_stats["total_seqs"] = fam_stats["n_seq"] + fam_stats["n_pdb_seqs"]
-        fam_stats.to_csv(runDir + "/data/statistics.csv")
-        # print the stats
-        for f in fam_list:
-            line = fam_stats[fam_stats["rfam_acc"]==f]
-            print(f"\t> {f}: {line.n_seq.values[0]} Rfam hits + {line.n_pdb_seqs.values[0]} PDB sequences to realign")
-    del fam_stats
+    download_Rfam_family_stats(fam_list)
+
+    # At this point, the family table is up to date
 
     # Download the sequences
     for f in fam_list:
@@ -1673,12 +1834,16 @@ if __name__ == "__main__":
     # Prepare the job list
     fulljoblist = []
     for f in fam_list:
-        label = f"Realign {f} + {len(rfam_acc_to_download[f])} chains"
-        fulljoblist.append( Job( function=cm_realign, args=[f, rfam_acc_to_download[f], label],  # Apply cm_realign to each RNA family
-                                 how_many_in_parallel=1, label=label))  # the function already uses all CPUs so launch them one by one
+        fulljoblist.append( Job( function=cm_realign, args=[f, rfam_acc_to_download[f]],  # Apply cm_realign to each RNA family
+                                 how_many_in_parallel=1, label=f))  # the function already uses all CPUs so launch them one by one
     
     # Execute the jobs
-    execute_joblist(fulljoblist, printstats=True) # printstats=True will show a summary of time/memory usage of the jobs
+    results = execute_joblist(fulljoblist)
+    conn = sqlite3.connect(runDir + "/results/RNANet.db")
+    sql_execute(conn, """UPDATE family SET comput_time = ?, comput_peak_mem = ? 
+                WHERE rfam_acc = ?;""", many=True, data=[ (r[2], r[3], r[0]) for r in results ])
+    conn.commit()
+    conn.close()
     del fulljoblist
 
     # ==========================================================================================
@@ -1686,10 +1851,6 @@ if __name__ == "__main__":
     # ==========================================================================================
 
     print("Computing nucleotide frequencies in alignments...")
-
-    # Prepare a results folder
-    if not path.isdir(path_to_3D_data + "datapoints/"):
-        os.makedirs(path_to_3D_data + "datapoints/")
 
     # Prepare the architecture of a shiny multi-progress-bars design
     thr_idx_mgr = Manager()                 # Push the number of workers to a queue. 
@@ -1709,15 +1870,28 @@ if __name__ == "__main__":
     p.close()
     p.join()
 
+    # At this point, the align_column and re_mapping tables are up-to-date.
+
     # ==========================================================================================
     # Post computation tasks
     # ==========================================================================================
 
     # Archive the results
+    if not path.isdir(path_to_3D_data + "datapoints/"):
+        os.makedirs(path_to_3D_data + "datapoints/")
     os.makedirs("results/archive", exist_ok=True)
     time_str = time.strftime("%Y%m%d")
     subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
     subprocess.run(['ln',"-s", runDir +f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
+    conn = sqlite3.connect(runDir+"/results/RNANet.db")
+    pd.read_sql_query("SELECT rfam_acc, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, ciomput_peak_mem from family", 
+                      conn).to_csv(runDir + "/results/families.csv")
+    pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, 
+    reversed, date, exp_method, resolution, issue FROM
+    structure NATURAL JOIN chain
+    ORDER BY structure_id, chain_name, rfam_acc ASC;
+    """, conn).to_csv(runDir + "/results/summary.csv")
+    conn.close()
 
     # Run statistics
     if RUN_STATS:

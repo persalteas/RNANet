@@ -17,7 +17,7 @@ from functools import partial
 from multiprocessing import Pool
 from os import path
 from collections import Counter
-from RNAnet import read_cpu_number
+from RNAnet import read_cpu_number, sql_ask_database
 
 
 path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
@@ -182,17 +182,22 @@ def stats_len(mappings_list, points):
     fig = plt.figure(figsize=(10,3))
     ax = fig.gca()
     ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=sorted(mappings_list.keys()))
-    ax.set_xlabel("Sequence length (nucleotides)")
-    ax.set_ylabel("Number of 3D chains")
+    ax.set_xlabel("Sequence length (nucleotides)", fontsize=8)
+    ax.set_ylabel("Number of 3D chains", fontsize=8)
+    ax.set_xlim(left=-150)
+    ax.tick_params(axis='both', which='both', labelsize=8)
     fig.tight_layout()
-    filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'),
-                        mpatches.Patch(color='blue'), mpatches.Patch(color='white'),
+    fig.subplots_adjust(right=0.78)
+    filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
+                        mpatches.Patch(color='blue'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
                         mpatches.Patch(color='green'), mpatches.Patch(color='purple'),
                         mpatches.Patch(color='orange'), mpatches.Patch(color='grey')]
-    filtered_labels = ['Large Ribosomal Subunits', '(RF02540, RF02541, RF02543)','Small Ribosomal Subunits','(RF01960, RF00177)',
+    filtered_labels = ['Large Ribosomal Subunits', '(RF02540,', 'RF02541', 'RF02543)',
+                        'Small Ribosomal Subunits','(RF01960,', 'RF00177)',
                        '5S rRNA (RF00001)', '5.8S rRNA (RF00002)', 'tRNA (RF00005)', 'Other']
-    ax.legend(filtered_handles, filtered_labels, loc='best', ncol=2)
-    fig.savefig("results/lengths.png")
+    ax.legend(filtered_handles, filtered_labels, loc='right', 
+                ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.55))
+    fig.savefig("results/figures/lengths.png")
     # print("[3]\tComputed sequence length statistics and saved the figure.")
 
 def format_percentage(tot, x):
@@ -284,7 +289,7 @@ def stats_pairs(mappings_list, points):
     ax = total_series.plot(figsize=(5,3), kind='bar', log=True, ylim=(1e4,5000000) )
     ax.set_ylabel("Number of observations")
     plt.subplots_adjust(bottom=0.2, right=0.99)
-    plt.savefig("results/pairings.png")
+    plt.savefig("results/figures/pairings.png")
 
     # print("[5]\tComputed nucleotide statistics and saved CSV and PNG file.")
 
@@ -350,7 +355,7 @@ def seq_idty(mappings_list):
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.1, hspace=0.3)
     fig.colorbar(im, ax=axs[-1], shrink=0.8)
-    fig.savefig(f"results/distances.png")
+    fig.savefig(f"results/figures/distances.png")
     # print("[6]\tComputed identity matrices and saved the figure.")
 
 if __name__ == "__main__":
@@ -389,12 +394,12 @@ if __name__ == "__main__":
     #               Define threads for the tasks
     #################################################################
     threads = [
-        th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}),
-        th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}),
+        # th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}),
+        # th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}),
         th.Thread(target=partial(stats_len, mappings_list), args=[rna_points]),
-        th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points]),
-        th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points]),
-        th.Thread(target=seq_idty, args=[mappings_list])
+        # th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points]),
+        # th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points]),
+        # th.Thread(target=seq_idty, args=[mappings_list])
     ]
 
     for t in threads:
