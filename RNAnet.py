@@ -132,9 +132,9 @@ class Chain:
         self.rfam_fam = rfam                    # mapping to an RNA family
         self.inferred = inferred                # Wether this mapping has been inferred from BGSU's NR list
         self.seq = ""                           # sequence with modified nts
-        self.seq_to_align = ""                   # sequence with modified nts replaced, but gaps can exist
+        self.seq_to_align = ""                  # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
-        self.full_length = abs(pdb_end-pdb_start) + 1  # length of the chain extracted from source structure ([start; stop] interval)
+        self.full_length = -1                   # length of the chain extracted from source structure ([start; stop] interval, or a subset for inferred mappings)
         self.delete_me = False                  # an error occured during production/parsing
         self.error_messages = ""                # Error message(s) if any
         self.db_chain_id = -1                   # index of the RNA chain in the SQL database, table chain
@@ -210,13 +210,19 @@ class Chain:
             # Each worker inherits from the context and gets its own (empty) mmcif_parser object.)
 
             # Get info about that structure and save it to the database
-            exp_meth = s._mmcif_dict["_exptl.method"]
-            date = s._mmcif_dict["_database_PDB_rev.date_original"]
-            reso = s._mmcif_dict["_refine.ls_d_res_high"]
-            sql_execute(conn, f"""
-            INSERT OR IGNORE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
-            VALUES ({self.pdb_id}, {self.pdb_model}, {date}, {exp_meth}, {reso});
-            """)
+            exp_meth = mmcif_parser._mmcif_dict["_exptl.method"][0]
+            date = mmcif_parser._mmcif_dict["_pdbx_database_status.recvd_initial_deposition_date"][0]
+            if "_refine.ls_d_res_high" in mmcif_parser._mmcif_dict.keys():
+                reso = mmcif_parser._mmcif_dict["_refine.ls_d_res_high"][0]
+            elif "_refine.ls_d_res_low" in mmcif_parser._mmcif_dict.keys():
+                reso = mmcif_parser._mmcif_dict["_refine.ls_d_res_low"][0]
+            elif "_em_3d_reconstruction.resolution" in mmcif_parser._mmcif_dict.keys():
+                reso = mmcif_parser._mmcif_dict["_em_3d_reconstruction.resolution"][0]
+            else:
+                warn(f"Wtf, structure {self.pdb_id} has no resolution ? Check https://files.rcsb.org/header/{self.pdb_id}.cif to figure it out.")
+                reso = 0.0
+            sql_execute(conn, """INSERT OR IGNORE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
+                                 VALUES (?, ?, DATE(?), ?, ?);""", data = (self.pdb_id, self.pdb_model, date, exp_meth, reso))
 
             # Pay attention to residue numbering
             first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
@@ -296,9 +302,7 @@ class Chain:
         """ Runs DSSR to annotate the 3D chain and get various information about it. """
 
         # Check if data is in the database.
-        count = sql_ask_database(conn, f"""
-        SELECT COUNT(nt_id) from nucleotide WHERE chain_id = '{self.db_chain_id}';
-        """)[0]
+        count = sql_ask_database(conn, f"SELECT COUNT(nt_id) as count from nucleotide WHERE chain_id = {self.db_chain_id};")[0][0]
 
         # If all the nucleotides have not already been computed, compute them
         if count != abs(self.pdb_end - self.pdb_start) + 1:
@@ -333,9 +337,10 @@ class Chain:
                 resnum_start = int(nts[0]["nt_resnum"])
                 df = pd.DataFrame(nts)
                 # remove low pertinence or undocumented descriptors
-                df = df.drop(['summary', 'chain_name', 'index', 'splay_angle',
-                               'splay_distance', 'splay_ratio', 'sugar_class', 'is_modified',
-                               'bin', 'suiteness', 'cluster', "filter_rmsd", "frame"], axis=1)
+                cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
+                    "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
+                    "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering" ]
+                df = df[cols_we_keep]
 
                 # Convert angles to radians
                 df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
@@ -347,7 +352,7 @@ class Chain:
                 # Add a sequence column just for the alignments
                 df['nt_align_code'] = [ str(x).upper()
                                               .replace('NAN', '-')      # Unresolved nucleotides are gaps
-                                              .replace('?', '-')         # Unidentified residues, let's delete them
+                                              .replace('?', '-')        # Unidentified residues, let's delete them
                                               .replace('T', 'U')        # 5MU are modified to t, which gives T
                                               .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
                                         for x in df['nt_code'] ]
@@ -357,18 +362,38 @@ class Chain:
                 while True in df.duplicated(['nt_resnum']).values:
                     i = df.duplicated(['nt_resnum']).values.tolist().index(True)
                     df.iloc[i:, 1] += 1
-                l = df.iloc[-1,1] - df.iloc[0,1] + 1
 
-                # Add eventual missing rows because of unsolved residues in the chain:
-                if l != len(df['index_chain']):
-                    # We have some rows to add. First, identify them:
-                    diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)
-
+                # Add eventual missing rows because of unsolved residues in the chain.
+                # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
+                # especially with inferred mappings (e.g. 6hcf chain 82 to RF02543)
+                #
+                # There are several numbering scales in use here: 
+                # nt_numbering: the residue numbers in the RNA molecule. It can be any range. Unresolved residues count for 1.
+                # index_chain and self.length: the nucleotides positions within the 3D chain. It starts at 1, and unresolved residues are skipped.
+                # pdb_start/pdb_end: the RNA molecule portion to extract and map to Rfam. it is related to the index_chain scale.
+                # 
+                # example on 6hcf chain 82:
+                # RNA molecule          1 |------------------------------------------- ... ----------| theoretic length of a large subunit.
+                # portion solved in 3D  1 |--------------|79 85|------------| 156
+                # Rfam mapping           3 |------------------------------------------ ... -------| 3353
+                # nt resnum              3 |--------------------------------|  156
+                # index_chain            1 |-------------|77 83|------------|  149
+                # expected data point    1 |--------------------------------|  154
+                #
+                l = df.iloc[-1,1] - df.iloc[0,1] + 1    # l is the length of chain from nt_resnum point of view.
+                if l != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < l
+                    diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)     # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
                     for i in sorted(diff):
-                        df = pd.concat([df.iloc[:i-1], pd.DataFrame({"index_chain": i, "nt_resnum": i+resnum_start-1, 
-                                                                     "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i-1]), df.iloc[i-1:]])
-                        df.iloc[i:, 0] += 1
+                        # Add a row at position i
+                        df = pd.concat([    df.iloc[:i], 
+                                            pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, 
+                                                          "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i]), 
+                                            df.iloc[i:]
+                                        ])
+                        # Increase the index_chain of all following lines
+                        df.iloc[i+1:, 0] += 1
                     df = df.reset_index(drop=True)
+                self.full_length = len(df.index_chain)
 
                 # One-hot encoding sequence
                 df["is_A"] = [ 1 if x in "Aa" else 0 for x in df["nt_code"] ]
@@ -420,7 +445,7 @@ class Chain:
                 df['pair_type_LW'] = pair_type_LW
                 df['pair_type_DSSR'] = pair_type_DSSR
                 df['nb_interact'] = interacts
-                df = df.drop(['C5prime_xyz', 'P_xyz', 'nt_id'], axis=1) # remove now useless descriptors
+                df = df.drop(['nt_id'], axis=1) # remove now useless descriptors
 
                 if self.reversed:
                     # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
@@ -459,7 +484,7 @@ class Chain:
                     epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                     v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
                     paired, pair_type_LW, pair_type_DSSR, nb_interact)
-                    VALUES ('{self.db_chain_id}', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ;""", many=True, data=list(df.to_records(index=False))
@@ -473,12 +498,12 @@ class Chain:
                 warn(f"Error while parsing DSSR's json output:\n{e}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
                 self.delete_me = True
                 self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
-                return
+                return 1
             
             
         # Now load data from the CSV file
-        self.seq = "".join(sql_ask_database(conn, f"SELECT nt_code from nucleotide WHERE chain_id = '{self.db_chain_id}' ORDER BY index_chain ASC;"))
-        self.seq_to_align = "".join(sql_ask_database(conn, f"SELECT nt_align_code from nucleotide WHERE chain_id = '{self.db_chain_id}' ORDER BY index_chain ASC;"))
+        self.seq = "".join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_code from nucleotide WHERE chain_id = {self.db_chain_id} ORDER BY index_chain ASC;") ])
+        self.seq_to_align = "".join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code from nucleotide WHERE chain_id = {self.db_chain_id} ORDER BY index_chain ASC;") ])
         self.length = len([ x for x in self.seq_to_align if x != "-" ])
         print(f"\t> Read {self.chain_label} nucleotide data from database\t\t{validsymb}", flush=True)
 
@@ -487,7 +512,7 @@ class Chain:
             warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
             self.delete_me = True
             self.error_messages = "Sequence is too short. (< 5 resolved nts)"
-        return
+        return 0
 
     def remap_and_save(self, conn, columns_to_save, s_seq):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
@@ -503,12 +528,12 @@ class Chain:
                 # because index_chain in table nucleotide is in [1,N], we use i+1 and j+1.
                 columns_to_save.add(j) # it's a set, doublons are automaticaly ignored
                 sql_execute(conn, f"""INSERT OR REPLACE INTO re_mapping
-                (chain_id, index_chain, index_ali) VALUES ('{self.db_chain_id}', {i+1}, {j+1});
+                (chain_id, index_chain, index_ali) VALUES ({self.db_chain_id}, {i+1}, {j+1});
                 """)
             else:
                 # Index 0 is kept for an "unknown" values column
                 sql_execute(conn, f"""INSERT OR REPLACE INTO re_mapping
-                (chain_id, index_chain, index_ali) VALUES ('{self.db_chain_id}', {i+1}, 0);""")
+                (chain_id, index_chain, index_ali) VALUES ({self.db_chain_id}, {i+1}, 0);""")
 
         alilen = len(s_seq)
 
@@ -586,7 +611,7 @@ class Chain:
         paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
         chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
         v0, v1, v2, v3, v4, amlitude, phase_angle, puckering) FROM (
-            (SELECT (chain_id, rfam_acc) from chain WHERE chain_id = '{self.db_chain_id}')
+            (SELECT (chain_id, rfam_acc) from chain WHERE chain_id = {self.db_chain_id})
             NATURAL JOIN re_mapping
             NATURAL JOIN nucleotide
             NATURAL JOIN align_column
@@ -955,7 +980,7 @@ def execute_joblist(fulljoblist):
 
             print("using", n, "processes:")
             # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=n)
+            p = Pool(processes=n, maxtasksperchild=5)
             raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch)
             p.close()
             p.join()
@@ -1158,24 +1183,14 @@ def build_chain(c):
     # Register the chain, and get its chain_id
     conn = sqlite3.connect(runDir+"/results/RNANet.db")
     if c.pdb_start is not None:
-        sql = f"""INSERT OR IGNORE INTO chain 
-                  (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
-                  VALUES 
-                  ('{c.pdb_id}', '{c.pdb_chain_id}', {int(c.pdb_start)}, {int(c.pdb_end)}, {int(c.reversed)}, {int(c.inferred)}, '{c.rfam_fam}', 0);
-               """
+        sql_execute(conn, f"""  INSERT OR IGNORE INTO chain 
+                                (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
+                                VALUES 
+                                (?, ?, ?, ?, ?, ?, ?, 0);""", 
+                                data=(c.pdb_id, c.pdb_chain_id, c.pdb_start, c.pdb_end, int(c.reversed), c.rfam_fam, int(c.inferred)))
     else:
-        sql = f"""INSERT OR IGNORE INTO chain (structure_id, chain_name, issue)
-                  VALUES ('{c.pdb_id}', '{c.pdb_chain_id}', 0);
-               """
-    sql_execute(conn, sql)
-    cid = sql_ask_database(conn, f"""
-    SELECT (chain_id) FROM chain 
-    WHERE structure_id='{c.pdb_id}' 
-        AND chain_name='{c.pdb_chain_id}';
-    """)
-    if not len(cid):
-        raise Exception("Chain has not registered properly !")
-    c.db_chain_id = cid[0][0]
+        sql_execute(conn, "INSERT OR IGNORE INTO chain (structure_id, chain_name, issue) VALUES (?, ?, 0);", data=(c.pdb_id, c.pdb_chain_id))
+    c.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{c.pdb_id}' AND chain_name='{c.pdb_chain_id}';")[0][0]
 
     # Download the whole mmCIF file containing the chain we are interested in
     c.download_3D()
@@ -1189,7 +1204,7 @@ def build_chain(c):
 
     # If no problems, annotate it with DSSR
     if not c.delete_me:
-        c.extract_3D_data()
+        c.extract_3D_data(conn)
 
     # If there were newly discovered problems, add this chain to the known issues
     if c.delete_me and c.chain_label not in known_issues:
@@ -1200,7 +1215,7 @@ def build_chain(c):
         f = open(runDir + "/known_issues_reasons.txt", 'a')
         f.write(c.chain_label + '\n' + c.error_messages + '\n\n')
         f.close()
-        sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = '{c.db_chain_id}';")
+        sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c.db_chain_id))
     
     conn.commit()
     conn.close()
@@ -1386,7 +1401,7 @@ def alignment_nt_stats(f):
     # Add an unknown values column, with index_ali 0
     sql_execute(conn, f"""INSERT OR REPLACE INTO align_column
     (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
-    VALUES ('{f}', 0, 0.0, 0.0, 0.0, 0.0, 1.0);""")
+    VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 1.0);""", data=(f))
 
     # Save chains to CSV
     for s in align:
@@ -1507,14 +1522,14 @@ def sql_define_tables(conn):
     conn.executescript(
         """ CREATE TABLE IF NOT EXISTS structure (
                 pdb_id         CHAR(4) PRIMARY KEY NOT NULL,
-                model          CHAR(1) NOT NULL,
+                pdb_model      CHAR(1) NOT NULL,
                 date           DATE,
                 exp_method     VARCHAR(50),
                 resolution     REAL,
-                UNIQUE (pdb_id, model)
+                UNIQUE (pdb_id, pdb_model)
             );
             CREATE TABLE IF NOT EXISTS chain (
-                chain_id        INT PRIMARY KEY,
+                chain_id        INTEGER PRIMARY KEY NOT NULL,
                 structure_id    CHAR(4) NOT NULL,
                 chain_name      VARCHAR(2) NOT NULL,
                 pdb_start       SMALLINT,
@@ -1533,7 +1548,7 @@ def sql_define_tables(conn):
                 UNIQUE (structure_id, chain_name, rfam_acc)
             );
             CREATE TABLE IF NOT EXISTS nucleotide (
-                nt_id           UNSIGNED INT PRIMARY KEY,
+                nt_id           INTEGER PRIMARY KEY NOT NULL,
                 chain_id        INT,
                 index_chain     SMALLINT,
                 nt_resnum       SMALLINT,
@@ -1563,7 +1578,7 @@ def sql_define_tables(conn):
                 UNIQUE (chain_id, index_chain)
             );
             CREATE TABLE IF NOT EXISTS re_mapping (
-                remapping_id    BIGINT PRIMARY KEY,
+                remapping_id    INTEGER PRIMARY KEY NOT NULL,
                 chain_id        INT NOT NULL,
                 index_chain     INT NOT NULL,
                 index_ali       INT NOT NULL,
@@ -1581,7 +1596,7 @@ def sql_define_tables(conn):
                 idty_percent    REAL
             );
             CREATE TABLE IF NOT EXISTS align_column (
-                column_id       BIGINT PRIMARY KEY,
+                column_id       INTEGER PRIMARY KEY NOT NULL,
                 rfam_acc        CHAR(7) NOT NULL,
                 index_ali       INT NOT NULL,
                 freq_A          REAL,
@@ -1594,6 +1609,10 @@ def sql_define_tables(conn):
          """)
 
 def sql_ask_database(conn, sql):
+    """
+    Reads the SQLite database.
+    Returns a list of tuples.
+    """
     cursor = conn.cursor()
     result = cursor.execute(sql).fetchall()
     cursor.close()
@@ -1604,7 +1623,10 @@ def sql_execute(conn, sql, many=False, data=None):
         conn.executemany(sql, data)
     else:
         cur = conn.cursor()
-        cur.execute(sql)
+        if data is None:
+            cur.execute(sql)
+        else:
+            cur.execute(sql, data)
         cur.close()
     conn.commit()
 
@@ -1860,7 +1882,7 @@ if __name__ == "__main__":
 
     # Start a process pool to dispatch the RNA families,
     # over multiple CPUs (one family by CPU)
-    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=int(ncores/2))
+    p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=int(ncores/2), maxtasksperchild=5)
 
     fam_pbar = tqdm(total=len(fam_list), desc="RNA families", position=0, leave=True) 
     for i, _ in enumerate(p.imap_unordered(alignment_nt_stats, fam_list)): # Apply alignment_nt_stats to each RNA family
