@@ -306,36 +306,48 @@ class Chain:
 
         # If all the nucleotides have not already been computed, compute them
         if count != abs(self.pdb_end - self.pdb_start) + 1:
-            # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
-            output = subprocess.run(
-                ["x3dna-dssr", f"-i={self.file}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout = output.stdout.decode('utf-8') # this contains the results in JSON format, or is empty if there are errors
-            stderr = output.stderr.decode('utf-8') # this contains the evenutal errors
 
-            try:
+            if not path.isfile(path_to_3D_data + "annotations/" + self.pdb_id + ".json"):
+
+                # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
+                output = subprocess.run(
+                    ["x3dna-dssr", f"-i={self.full_mmCIFpath}", "--json", "--auxfile=no"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout = output.stdout.decode('utf-8') # this contains the results in JSON format, or is empty if there are errors
+                stderr = output.stderr.decode('utf-8') # this contains the evenutal errors
+
                 if "exception" in stderr:
                     # DSSR is unable to parse the chain.
                     warn(f"Exception while running DSSR: {stderr}\n\tIgnoring {self.chain_label}.\t\t\t", error=True)
                     self.delete_me = True
                     self.error_messages = f"Exception while running DSSR for {self.chain_label}:\n {stderr}"
-                    return
+                    return 1
 
-                # Get the JSON from DSSR output 
+                # save the analysis to file
+                json_file = open(path_to_3D_data + "annotations/" + self.pdb_id + ".json", "w")
+                json_file.write(stdout)
+                json_file.close()
+
+                # and use it in a json object
                 json_object = json.loads(stdout)
+                print("\t> Computed", self.chain_label, f"annotations with DSSR\t\t{validsymb}", flush=True)
+            else:
+                with open(path_to_3D_data + "annotations/" + self.pdb_id + ".json", 'r') as json_file:
+                    json_object = json.load(json_file)
+                print("\t> Computed", self.chain_label, f"annotations with DSSR\t{validsymb}\t(read from previous analysis)", flush=True)
 
-                # Print eventual warnings given by DSSR, and abort if there are some
-                if "warning" in json_object.keys():
-                    warn(f"Ignoring {self.chain_label} ({json_object['warning']})\t", error=True)
-                    self.delete_me = True
-                    self.error_messages = f"DSSR warning for {self.chain_label}: {json_object['warning']}"
-                    return
+            # Print eventual warnings given by DSSR, and abort if there are some
+            if "warning" in json_object.keys():
+                warn(f"Ignoring {self.chain_label} ({json_object['warning']})\t", error=True)
+                self.delete_me = True
+                self.error_messages = f"DSSR warning for {self.chain_label}: {json_object['warning']}"
+                return
 
-                # Extract the interesting parts
-                nts = json_object["nts"]
+            try:
+                # Prepare a data structure (Pandas DataFrame) for the nucleotides
+                nts = json_object["nts"]                         # sub-json-object
+                df = pd.DataFrame(nts)                           # conversion to dataframe
+                df = df[ df.chain_name == self.pdb_chain_id ]    # keeping only this chain's nucleotides
 
-                # Prepare a data structure (Pandas DataFrame)
-                resnum_start = int(nts[0]["nt_resnum"])
-                df = pd.DataFrame(nts)
                 # remove low pertinence or undocumented descriptors
                 cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
                     "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
@@ -344,164 +356,172 @@ class Chain:
 
                 # Convert angles to radians
                 df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
-                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] *= np.pi/180.0
+                            'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] *= np.pi/180.0
                 # mapping [-pi, pi] into [0, 2pi]
                 df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
-                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
-
-                # Add a sequence column just for the alignments
-                df['nt_align_code'] = [ str(x).upper()
-                                              .replace('NAN', '-')      # Unresolved nucleotides are gaps
-                                              .replace('?', '-')        # Unidentified residues, let's delete them
-                                              .replace('T', 'U')        # 5MU are modified to t, which gives T
-                                              .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
-                                        for x in df['nt_code'] ]
-
-                # Shift numbering when duplicate residue numbers are found.
-                # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
-                while True in df.duplicated(['nt_resnum']).values:
-                    i = df.duplicated(['nt_resnum']).values.tolist().index(True)
-                    df.iloc[i:, 1] += 1
-
-                # Add eventual missing rows because of unsolved residues in the chain.
-                # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
-                # especially with inferred mappings (e.g. 6hcf chain 82 to RF02543)
-                #
-                # There are several numbering scales in use here: 
-                # nt_numbering: the residue numbers in the RNA molecule. It can be any range. Unresolved residues count for 1.
-                # index_chain and self.length: the nucleotides positions within the 3D chain. It starts at 1, and unresolved residues are skipped.
-                # pdb_start/pdb_end: the RNA molecule portion to extract and map to Rfam. it is related to the index_chain scale.
-                # 
-                # example on 6hcf chain 82:
-                # RNA molecule          1 |------------------------------------------- ... ----------| theoretic length of a large subunit.
-                # portion solved in 3D  1 |--------------|79 85|------------| 156
-                # Rfam mapping           3 |------------------------------------------ ... -------| 3353
-                # nt resnum              3 |--------------------------------|  156
-                # index_chain            1 |-------------|77 83|------------|  149
-                # expected data point    1 |--------------------------------|  154
-                #
-                l = df.iloc[-1,1] - df.iloc[0,1] + 1    # l is the length of chain from nt_resnum point of view.
-                if l != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < l
-                    diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)     # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
-                    for i in sorted(diff):
-                        # Add a row at position i
-                        df = pd.concat([    df.iloc[:i], 
-                                            pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, 
-                                                          "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i]), 
-                                            df.iloc[i:]
-                                        ])
-                        # Increase the index_chain of all following lines
-                        df.iloc[i+1:, 0] += 1
-                    df = df.reset_index(drop=True)
-                self.full_length = len(df.index_chain)
-
-                # One-hot encoding sequence
-                df["is_A"] = [ 1 if x in "Aa" else 0 for x in df["nt_code"] ]
-                df["is_C"] = [ 1 if x in "Cc" else 0 for x in df["nt_code"] ]
-                df["is_G"] = [ 1 if x in "Gg" else 0 for x in df["nt_code"] ]
-                df["is_U"] = [ 1 if x in "Uu" else 0 for x in df["nt_code"] ]
-                df["is_other"] = [ 0 if x in "ACGUacgu" else 1 for x in df["nt_code"] ]
-                df["nt_position"] = [ float(i+1)/self.full_length for i in range(self.full_length) ]
-
-                # Iterate over pairs to identify base-base interactions
-                res_ids = list(df['nt_id']) # things like "chainID.C4, chainID.U5"
-                paired = [ "0" ] * l
-                pair_type_LW = [ '' ] * l
-                pair_type_DSSR = [ '' ] * l
-                interacts = [ 0 ] * l
-                if "pairs" in json_object.keys():
-                    pairs = json_object["pairs"]
-                    for p in pairs:
-                        nt1 = p["nt1"]
-                        nt2 = p["nt2"]
-                        if nt1 in res_ids and nt2 in res_ids:
-                            nt1_idx = res_ids.index(nt1)
-                            nt2_idx = res_ids.index(nt2)
-                            if paired[nt1_idx] == "0":
-                                paired[nt1_idx] = str(nt2_idx + 1)
-                                pair_type_LW[nt1_idx] = p["LW"]
-                                pair_type_DSSR[nt1_idx] = p["DSSR"]
-                            else:
-                                paired[nt1_idx] += ',' + str(nt2_idx + 1)
-                                pair_type_LW[nt1_idx] += ',' + p["LW"]
-                                pair_type_DSSR[nt1_idx] += ',' + p["DSSR"]
-                            if paired[nt2_idx] == "0":
-                                paired[nt2_idx] = str(nt1_idx + 1)
-                                pair_type_LW[nt2_idx] = p["LW"]
-                                pair_type_DSSR[nt2_idx] = p["DSSR"]
-                            else:
-                                paired[nt2_idx] += ',' + str(nt1_idx + 1)
-                                pair_type_LW[nt2_idx] += ',' + p["LW"]
-                                pair_type_DSSR[nt2_idx] += ',' + p["DSSR"]
-                            interacts[nt1_idx] += 1
-                            interacts[nt2_idx] += 1
-                        elif nt1 in res_ids:
-                            nt1_idx = res_ids.index(nt1)
-                            interacts[nt1_idx] += 1
-                        elif nt2 in res_ids:
-                            nt2_idx = res_ids.index(nt2)
-                            interacts[nt2_idx] += 1
-                df['paired'] = paired
-                df['pair_type_LW'] = pair_type_LW
-                df['pair_type_DSSR'] = pair_type_DSSR
-                df['nb_interact'] = interacts
-                df = df.drop(['nt_id'], axis=1) # remove now useless descriptors
-
-                if self.reversed:
-                    # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
-                    # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
-                    # Anyways, you need to invert the angles.
-                    # TODO: angles alpha, beta, etc
-                    warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting pseudotorsions, other angle measures are not corrected.")
-                    df = df.reindex(index=df.index[::-1]).reset_index(drop=True)
-                    df['index_chain'] = 1 + df.index
-                    temp_eta = df['eta']
-                    df['eta'] = [ df['theta'][n] for n in range(l) ]              # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-                    df['theta'] = [ temp_eta[n] for n in range(l) ]               # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-                    temp_eta = df['eta_prime']
-                    df['eta_prime'] = [ df['theta_prime'][n] for n in range(l) ]  # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-                    df['theta_prime'] = [ temp_eta[n] for n in range(l) ]         # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-                    temp_eta = df['eta_base']
-                    df['eta_base'] = [ df['theta_base'][n] for n in range(l) ]    # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-                    df['theta_base'] = [ temp_eta[n] for n in range(l) ]          # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-                    newpairs = []
-                    for v in df['paired']:
-                        if ',' in v:
-                            temp_v = []
-                            vs = v.split(',')
-                            for _ in vs:
-                                temp_v.append(str(l-int(_)+1))
-                            newpairs.append(','.join(temp_v))
-                        else:
-                            if int(v):
-                                newpairs.append(str(l-int(v)+1))
-                    df['paired'] = newpairs
-
-                # Saving to database
-                sql_execute(conn, f"""
-                    INSERT OR IGNORE INTO nucleotide 
-                    (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
-                    epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
-                    v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
-                    paired, pair_type_LW, pair_type_DSSR, nb_interact)
-                    VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ;""", many=True, data=list(df.to_records(index=False))
-                )
-
-                del df
-                print("\t> Saved", self.chain_label, f"annotations to database.\t\t{validsymb}", flush=True)
-            
+                            'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
             except KeyError as e:
                 # Mostly, there are no part about nucleotides in the DSSR output. Abort.
                 warn(f"Error while parsing DSSR's json output:\n{e}\n\tignoring {self.chain_label}\t\t\t\t", error=True)
                 self.delete_me = True
                 self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
+                # raise Exception("Error while parsing DSSR output (no nucleotides ?)")
                 return 1
+
+            # Add a sequence column just for the alignments
+            df['nt_align_code'] = [ str(x).upper()
+                                            .replace('NAN', '-')      # Unresolved nucleotides are gaps
+                                            .replace('?', '-')        # Unidentified residues, let's delete them
+                                            .replace('T', 'U')        # 5MU are modified to t, which gives T
+                                            .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
+                                    for x in df['nt_code'] ]
+
+            # Shift numbering when duplicate residue numbers are found.
+            # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
+            while True in df.duplicated(['nt_resnum']).values:
+                i = df.duplicated(['nt_resnum']).values.tolist().index(True)
+                df.iloc[i:, 1] += 1
+
+            # Add eventual missing rows because of unsolved residues in the chain.
+            # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
+            # especially with inferred mappings (e.g. 6hcf chain 82 to RF02543)
+            #
+            # There are several numbering scales in use here: 
+            # nt_numbering: the residue numbers in the RNA molecule. It can be any range. Unresolved residues count for 1.
+            # index_chain and self.length: the nucleotides positions within the 3D chain. It starts at 1, and unresolved residues are skipped.
+            # pdb_start/pdb_end: the RNA molecule portion to extract and map to Rfam. it is related to the index_chain scale.
+            # 
+            # example on 6hcf chain 82:
+            # RNA molecule          1 |------------------------------------------- ... ----------| theoretic length of a large subunit.
+            # portion solved in 3D  1 |--------------|79 85|------------| 156
+            # Rfam mapping           3 |------------------------------------------ ... -------| 3353
+            # nt resnum              3 |--------------------------------|  156
+            # index_chain            1 |-------------|77 83|------------|  149
+            # expected data point    1 |--------------------------------|  154
+            #
+            if df.iloc[-1,1] - df.iloc[0,1] + 1 != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < length of chain from nt_resnum point of view
+                resnum_start = int(df.nt_resnum[0])
+                diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)     # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
+                for i in sorted(diff):
+                    # Add a row at position i
+                    df = pd.concat([    df.iloc[:i], 
+                                        pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, 
+                                                        "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i]), 
+                                        df.iloc[i:]
+                                    ])
+                    # Increase the index_chain of all following lines
+                    df.iloc[i+1:, 0] += 1
+                df = df.reset_index(drop=True)
+            self.full_length = len(df.index_chain)
+
+            # One-hot encoding sequence
+            df["is_A"] = [ 1 if x in "Aa" else 0 for x in df["nt_code"] ]
+            df["is_C"] = [ 1 if x in "Cc" else 0 for x in df["nt_code"] ]
+            df["is_G"] = [ 1 if x in "Gg" else 0 for x in df["nt_code"] ]
+            df["is_U"] = [ 1 if x in "Uu" else 0 for x in df["nt_code"] ]
+            df["is_other"] = [ 0 if x in "ACGUacgu" else 1 for x in df["nt_code"] ]
+            df["nt_position"] = [ float(i+1)/self.full_length for i in range(self.full_length) ]
+
+            # Iterate over pairs to identify base-base interactions
+            res_ids = list(df['nt_id']) # things like "chainID.C4, chainID.U5"
+            paired = [ "0" ] * self.full_length
+            pair_type_LW = [ '' ] * self.full_length
+            pair_type_DSSR = [ '' ] * self.full_length
+            interacts = [ 0 ] * self.full_length
+            if "pairs" in json_object.keys():
+                pairs = json_object["pairs"]
+                for p in pairs:
+                    nt1 = p["nt1"]
+                    nt2 = p["nt2"]
+                    lw_pair = p["LW"]
+                    dssr_pair = p["DSSR"]
+
+                    # set nucleotide 1
+                    if nt1 in res_ids:
+                        nt1_idx = res_ids.index(nt1)
+                        interacts[nt1_idx] += 1
+                        if pair_type_LW[nt1_idx] == "":
+                            pair_type_LW[nt1_idx] = lw_pair
+                            pair_type_DSSR[nt1_idx] = dssr_pair
+                        else:
+                            pair_type_LW[nt1_idx] += ',' + lw_pair
+                            pair_type_DSSR[nt1_idx] += ',' + dssr_pair
+                    
+                    # set nucleotide 2 with the opposite base-pair
+                    if nt2 in res_ids:
+                        nt2_idx = res_ids.index(nt2)
+                        interacts[nt2_idx] += 1
+                        if pair_type_LW[nt2_idx] == "":
+                            pair_type_LW[nt2_idx] = lw_pair[0] + lw_pair[2] + lw_pair[1]
+                            pair_type_DSSR[nt2_idx] = dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+                        else:
+                            pair_type_LW[nt2_idx] += ',' + lw_pair[0] + lw_pair[2] + lw_pair[1]
+                            pair_type_DSSR[nt2_idx] += ',' + dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+
+                    # set the paired column, if both are in the chain
+                    if nt1 in res_ids and nt2 in res_ids:
+                        if paired[nt1_idx] == "0":
+                            paired[nt1_idx] = str(nt2_idx + 1)
+                        else:
+                            paired[nt1_idx] += ',' + str(nt2_idx + 1)
+
+                        if paired[nt2_idx] == "0":
+                            paired[nt2_idx] = str(nt1_idx + 1)
+                        else:
+                            paired[nt2_idx] += ',' + str(nt1_idx + 1)
+            df['paired'] = paired
+            df['pair_type_LW'] = pair_type_LW
+            df['pair_type_DSSR'] = pair_type_DSSR
+            df['nb_interact'] = interacts
+            df = df.drop(['nt_id'], axis=1) # remove now useless descriptors
+
+            if self.reversed:
+                # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
+                # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
+                # Anyways, you need to invert the angles.
+                # TODO: angles alpha, beta, etc
+                warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting pseudotorsions, other angle measures are not corrected.")
+                df = df.reindex(index=df.index[::-1]).reset_index(drop=True)
+                df['index_chain'] = 1 + df.index
+                temp_eta = df['eta']
+                df['eta'] = [ df['theta'][n] for n in range(l) ]              # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                df['theta'] = [ temp_eta[n] for n in range(l) ]               # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                temp_eta = df['eta_prime']
+                df['eta_prime'] = [ df['theta_prime'][n] for n in range(l) ]  # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                df['theta_prime'] = [ temp_eta[n] for n in range(l) ]         # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                temp_eta = df['eta_base']
+                df['eta_base'] = [ df['theta_base'][n] for n in range(l) ]    # eta(n)    = theta(l-n+1) forall n in ]1, l] 
+                df['theta_base'] = [ temp_eta[n] for n in range(l) ]          # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
+                newpairs = []
+                for v in df['paired']:
+                    if ',' in v:
+                        temp_v = []
+                        vs = v.split(',')
+                        for _ in vs:
+                            temp_v.append(str(l-int(_)+1))
+                        newpairs.append(','.join(temp_v))
+                    else:
+                        if int(v):
+                            newpairs.append(str(l-int(v)+1))
+                df['paired'] = newpairs
+
+            # Saving to database
+            sql_execute(conn, f"""
+                INSERT OR IGNORE INTO nucleotide 
+                (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+                epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+                v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
+                paired, pair_type_LW, pair_type_DSSR, nb_interact)
+                VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ;""", many=True, data=list(df.to_records(index=False))
+            )
+
+            del df
+            print("\t> Saved", self.chain_label, f"annotations to database.\t\t{validsymb}", flush=True)
             
-            
-        # Now load data from the CSV file
+        # Now load data from the database
         self.seq = "".join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_code from nucleotide WHERE chain_id = {self.db_chain_id} ORDER BY index_chain ASC;") ])
         self.seq_to_align = "".join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code from nucleotide WHERE chain_id = {self.db_chain_id} ORDER BY index_chain ASC;") ])
         self.length = len([ x for x in self.seq_to_align if x != "-" ])
@@ -1789,6 +1809,8 @@ if __name__ == "__main__":
     # Prepare the results folders
     if not path.isdir(path_to_3D_data + "RNAcifs"):
         os.makedirs(path_to_3D_data + "RNAcifs")    # for the whole structures
+    if not path.isdir(path_to_3D_data + "annotations"):
+        os.makedirs(path_to_3D_data + "annotations")    # for DSSR analysis of the whole structures
     if HOMOLOGY and not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
         os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
     if not HOMOLOGY and not path.isdir(path_to_3D_data + "rna_only"):
