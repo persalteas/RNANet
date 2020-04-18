@@ -1,5 +1,11 @@
 #!/usr/bin/python3.8
-import os, pickle, sys
+
+# This file computes additional statistics over the produced dataset.
+# Run this file if you want the base counts, pair-type counts, identity percents, etc
+# in the database.
+# This should be run from the folder where the file is (to access the database with path "results/RNANet.db")
+
+import os, pickle, sqlite3, sys
 import numpy as np
 import pandas as pd
 import threading as th
@@ -12,31 +18,24 @@ from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio import AlignIO, SeqIO
-from tqdm import tqdm
 from functools import partial
 from multiprocessing import Pool
 from os import path
+from tqdm import tqdm
 from collections import Counter
-from RNAnet import read_cpu_number, sql_ask_database
+from RNAnet import read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker
 
-
-path_to_3D_data = "/nhome/siniac/lbecquey/Data/RNA/3D/"
-path_to_seq_data = "/nhome/siniac/lbecquey/Data/RNA/sequences/"
-
+# This sets the paths
+path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
+path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
 if len(sys.argv) > 1:
     path_to_3D_data = path.abspath(sys.argv[1])
     path_to_seq_data = path.abspath(sys.argv[2])
 
-class DataPoint():
-    def __init__(self, path_to_textfile):
-        self.df = pd.read_csv(path_to_textfile, sep=',', header=0, engine="c", index_col=0)
-        self.family = path_to_textfile.split('.')[-1]
-        self.chain_label = path_to_textfile.split('.')[-2].split('/')[-1]
+LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
+SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
 
-def load_rna_frome_file(path_to_textfile):
-    return DataPoint(path_to_textfile)
-
-def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
+def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
     """
     Plot the joint distribution of pseudotorsion angles, in a Ramachandran-style graph.
     See Wadley & Pyle (2007)
@@ -53,7 +52,6 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
                      and values above avg + sd_range[1] * stdev to avg + sd_range[1] * stdev.
                      This removes noise and cuts too high peaks, to clearly see the clusters.
     """
-    worker_nbr = 1 + (carbon==1)
 
     if carbon == 4:
         angle = "eta"
@@ -66,17 +64,16 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
     else:
         exit("You overestimate my capabilities !")
 
+    
     if not path.isfile(f"data/wadley_kernel_{angle}.npz"):
-        c2_endo_etas = []
-        c3_endo_etas = []
-        c2_endo_thetas = []
-        c3_endo_thetas = []
-        for p in tqdm(points, desc="Loading eta/thetas", position=worker_nbr, leave=False):
-            df = p.df.loc[(p.df[angle].isna()==False) & (p.df["th"+angle].isna()==False), ["form","puckering", angle,"th"+angle]]
-            c2_endo_etas   += list(df.loc[ (df.puckering=="C2'-endo"), angle ].values)
-            c3_endo_etas   += list(df.loc[ (df.form=='.') & (df.puckering=="C3'-endo"), angle ].values)
-            c2_endo_thetas += list(df.loc[ (df.puckering=="C2'-endo"), "th"+angle ].values)
-            c3_endo_thetas += list(df.loc[ (df.form=='.') & (df.puckering=="C3'-endo"), "th"+angle ].values)
+        conn = sqlite3.connect("results/RNANet.db")
+        df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE puckering="C2'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+        c2_endo_etas = df[angle].values.tolist()
+        c2_endo_thetas = df["th"+angle].values.tolist()
+        df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE form = '.' AND puckering="C3'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+        c3_endo_etas = df[angle].values.tolist()
+        c3_endo_thetas = df["th"+angle].values.tolist()
+        conn.close()
 
         xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
         positions = np.vstack([xx.ravel(), yy.ravel()])
@@ -103,12 +100,13 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         f_c2 = f["kernel_c2"]
         xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
 
-    # print(f"[{worker_nbr}]\tKernel computed (or loaded from file).")
+    notify(f"Kernel computed for {angle}/th{angle} (or loaded from file).")
 
     # exact counts:
     hist_c2, xedges, yedges = np.histogram2d(c2_endo_etas, c2_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
     hist_c3, xedges, yedges = np.histogram2d(c3_endo_etas, c3_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
-    color_values = cm.jet(hist_c3.ravel()/hist_c3.max())
+    cmap = cm.get_cmap("jet")
+    color_values = cmap(hist_c3.ravel()/hist_c3.max())
 
     for x, y, hist, f, l in zip( (c3_endo_etas, c2_endo_etas), 
                                  (c3_endo_thetas, c2_endo_thetas), 
@@ -137,7 +135,7 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         # Smoothed joint distribution
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.plot_surface(xx, yy, f_cut, cmap=cm.coolwarm, linewidth=0, antialiased=True)
+        ax.plot_surface(xx, yy, f_cut, cmap=cm.get_cmap("coolwarm"), linewidth=0, antialiased=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}.png")
@@ -148,7 +146,7 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
         fig = plt.figure(figsize=(5,5))
         ax = fig.gca()
         ax.scatter(x, y, s=1, alpha=0.1)
-        ax.contourf(xx, yy, f_cut, alpha=0.5, cmap=cm.coolwarm, levels=levels, extend="max")
+        ax.contourf(xx, yy, f_cut, alpha=0.5, cmap=cm.get_cmap("coolwarm"), levels=levels, extend="max")
 
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
@@ -157,31 +155,34 @@ def reproduce_wadley_results(points, show=False, carbon=4, sd_range=(1,4)):
             fig.show()
     # print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
 
-def stats_len(mappings_list, points):
+def stats_len():
+    """Plots statistics on chain lengths in RNA families.
+    
+    REQUIRES tables chain, nucleotide up to date.
+    """
+
     cols = []
     lengths = []
-    for f in tqdm(sorted(mappings_list.keys()), desc="Chain length by family", position=3, leave=False):
-        if f in ["RF02540","RF02541","RF02543"]:
+    conn = sqlite3.connect("results/RNANet.db")
+    for i,f in enumerate(fam_list):
+        if f in LSU_set:
             cols.append("red") # LSU
-        elif f in ["RF00177","RF01960","RF01959","RF02542"]:
+        elif f in SSU_set:
             cols.append("blue") # SSU
         elif f in ["RF00001"]:
             cols.append("green")
-        elif f in ["RF00002"]:
-            cols.append("purple")
         elif f in ["RF00005"]:
             cols.append("orange")
         else:
             cols.append("grey")
-        l = []
-        for r in points:
-            if r.family != f: continue
-            l.append(len(r.df['nt_code']))
+        l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(nt_id) FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY chain_id;") ]
         lengths.append(l)
+        notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
+    conn.close()
 
     fig = plt.figure(figsize=(10,3))
     ax = fig.gca()
-    ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=sorted(mappings_list.keys()))
+    ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=fam_list)
     ax.set_xlabel("Sequence length (nucleotides)", fontsize=8)
     ax.set_ylabel("Number of 3D chains", fontsize=8)
     ax.set_xlim(left=-150)
@@ -190,15 +191,18 @@ def stats_len(mappings_list, points):
     fig.subplots_adjust(right=0.78)
     filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
                         mpatches.Patch(color='blue'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
-                        mpatches.Patch(color='green'), mpatches.Patch(color='purple'),
-                        mpatches.Patch(color='orange'), mpatches.Patch(color='grey')]
-    filtered_labels = ['Large Ribosomal Subunits', '(RF02540,', 'RF02541', 'RF02543)',
-                        'Small Ribosomal Subunits','(RF01960,', 'RF00177)',
-                       '5S rRNA (RF00001)', '5.8S rRNA (RF00002)', 'tRNA (RF00005)', 'Other']
+                        mpatches.Patch(color='green'), mpatches.Patch(color='white'),
+                        mpatches.Patch(color='orange'), mpatches.Patch(color='white'),
+                        mpatches.Patch(color='grey')]
+    filtered_labels = ['Large Ribosomal Subunits', '(RF00002, RF02540,', 'RF02541, RF02543,', 'RF02546)',
+                        'Small Ribosomal Subunits','(RF01960, RF00177,', 'RF02545)',
+                       '5S rRNA', '(RF00001)', 
+                       'tRNA', '(RF00005)', 
+                       'Other']
     ax.legend(filtered_handles, filtered_labels, loc='right', 
-                ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.55))
+                ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.5))
     fig.savefig("results/figures/lengths.png")
-    # print("[3]\tComputed sequence length statistics and saved the figure.")
+    notify("Computed sequence length statistics and saved the figure.")
 
 def format_percentage(tot, x):
         if not tot:
@@ -212,63 +216,100 @@ def format_percentage(tot, x):
             x = "<.01"
         return x + '%'
 
-def stats_freq(mappings_list, points):
+def stats_freq():
+    """Computes base frequencies in all RNA families.
+
+    Outputs results/frequencies.csv
+    REQUIRES tables chain, nucleotide up to date."""
     freqs = {}
-    for f in mappings_list.keys():
+    for f in fam_list:
         freqs[f] = Counter()
 
-    for r in tqdm(points, desc="Nucleotide frequencies", position=4, leave=False):
-        freqs[r.family].update(dict(r.df['nt_name'].value_counts()))
+    conn = sqlite3.connect("results/RNANet.db")
+    for i,f in enumerate(fam_list):
+        counts = dict(sql_ask_database(conn, f"SELECT nt_name, COUNT(nt_name) FROM (SELECT chain_id from chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY nt_name;"))
+        freqs[f].update(counts)
+        notify(f"[{i+1}/{len(fam_list)}] Computed {f} nucleotide frequencies.")
+    conn.close()
     
     df = pd.DataFrame()
-    for f in sorted(mappings_list.keys()):
+    for f in fam_list:
         tot = sum(freqs[f].values())
         df = pd.concat([ df, pd.DataFrame([[ format_percentage(tot, x) for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
     df = df.fillna(0)
-    df.to_csv("results/frequencies.csv")
+    df.to_csv("results/frequencies.csv")    
+    notify("Saved nucleotide frequencies to CSV file.")
 
-    # print("[4]\tComputed nucleotide statistics and saved CSV file.")
+def parallel_stats_pairs(f):
+    """Counts occurrences of intra-chain base-pair types in one RNA family
 
-def stats_pairs(mappings_list, points):
+    REQUIRES tables chain, nucleotide up-to-date.""" 
+
+    with sqlite3.connect("results/RNANet.db") as conn:
+        # Get comma separated lists of basepairs per nucleotide
+        interactions = pd.read_sql(f"SELECT paired, pair_type_LW FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide WHERE nb_interact>0;", conn)
+
+    # expand the comma-separated lists in real lists
+    expanded_list = pd.concat([ pd.DataFrame({ 'paired':row['paired'].split(','), 'pair_type_LW':row['pair_type_LW'].split(',') }) 
+                                for _, row in interactions.iterrows() ]).reset_index(drop=True)
+    # keep only intra-chain interactions
+    expanded_list = expanded_list[ expanded_list.paired != '0' ].pair_type_LW
+
+    # Count each pair type
+    vcnts = expanded_list.value_counts()
+
+    # Add these new counts to the family's counter
+    cnt = Counter()
+    cnt.update(dict(vcnts))
+
+    # Create an output DataFrame
+    return pd.DataFrame([[ x for x in cnt.values() ]], columns=list(cnt), index=[f])
+
+def stats_pairs():
+    """Counts occurrences of intra-chain base-pair types in RNA families
+
+    Creates a temporary results file in data/pair_counts.csv, and a results file in results/pairings.csv.
+    REQUIRES tables chain, nucleotide up-to-date.""" 
 
     def line_format(family_data):
         return family_data.apply(partial(format_percentage, sum(family_data)))
 
-    # Create a Counter() object by family
-    freqs = {}
-    for f in mappings_list.keys():
-        freqs[f] = Counter()
-
-    # Iterate over data points
     if not path.isfile("data/pair_counts.csv"):
-        for r in tqdm(points, desc="Leontis-Westhof basepair stats", position=5, leave=False):
-            # Skip if linear piece of RNA
-            if r.df.pair_type_LW.isna().all():
-                continue 
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=read_cpu_number(), maxtasksperchild=5)
+        try:
+            fam_pbar = tqdm(total=len(fam_list), desc="Pair-types in families", position=0, leave=True) 
+            results = []
+            for i, fam_df in enumerate(p.imap_unordered(parallel_stats_pairs, fam_list)):
+                fam_pbar.update(1)
+                results.append(fam_df)
+            fam_pbar.close()
+            p.close()
+            p.join()
+        except KeyboardInterrupt:
+            warn("KeyboardInterrupt, terminating workers.", error=True)
+            fam_pbar.close()
+            p.terminate()
+            p.join()
+            exit(1)
 
-            # Count each pair type within the molecule
-            vcnts = pd.concat(
-                                [   pd.Series(row['pair_type_LW'].split(',')) 
-                                    for _, row in r.df.dropna(subset=["pair_type_LW"]).iterrows() ]
-                            ).reset_index(drop=True).value_counts()
-
-            # Add these new counts to the family's counter
-            freqs[r.family].update(dict(vcnts))
-        
-        # Create the output dataframe
-        df = pd.DataFrame()
-        for f in sorted(mappings_list.keys()):
-            df = pd.concat([ df, pd.DataFrame([[ x for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
-        df = df.fillna(0)
+        df = pd.concat(results).fillna(0)
         df.to_csv("data/pair_counts.csv")
     else:
         df = pd.read_csv("data/pair_counts.csv", index_col=0)
 
-
+    print(df)
     # Remove not very well defined pair types (not in the 12 LW types)
     col_list = [ x for x in df.columns if '.' in x ]
     df['other'] = df[col_list].sum(axis=1)
     df.drop(col_list, axis=1, inplace=True)
+    print(df)
+
+    # drop duplicate types
+    # The twelve Leontis-Westhof types are
+    # cWW cWH cWS cHH cHS cSS (do not count cHW cSW and cSH, they are the same as their opposites)
+    # tWW tWH tWS tHH tHS tSS (do not count tHW tSW and tSH, they are the same as their opposites)
+    df.drop([ "cHW", "tHW", "cSW", "tSW", "cHS", "tHS"], axis=1)
+    df.loc[ ["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "other"] ] /= 2.0
 
     # Compute total row
     total_series = df.sum(numeric_only=True).rename("TOTAL")
@@ -291,10 +332,11 @@ def stats_pairs(mappings_list, points):
     plt.subplots_adjust(bottom=0.2, right=0.99)
     plt.savefig("results/figures/pairings.png")
 
-    # print("[5]\tComputed nucleotide statistics and saved CSV and PNG file.")
+    notify("Computed nucleotide statistics and saved CSV and PNG file.")
 
 def to_dist_matrix(f):
     if path.isfile("data/"+f+".npy"):
+        notify(f"Computed {f} distance matrix", "loaded from file")
         return 0
 
     dm = DistanceCalculator('identity')
@@ -305,23 +347,24 @@ def to_dist_matrix(f):
     l = len(idty)
     np.save("data/"+f+".npy", np.array([ idty[i] + [0]*(l-1-i) if i<l-1 else idty[i]  for i in range(l) ]))
     del idty
+    notify(f"Computed {f} distance matrix")
     return 0
 
-def seq_idty(mappings_list):
-    famlist = sorted([ x for x in mappings_list.keys() if len(mappings_list[x]) > 1 ])
-    ignored = []
-    for x in mappings_list.keys():
-        if len(mappings_list[x]) == 1:
-            ignored.append(x)
+def seq_idty():
+    """Computes identity matrices for each of the RNA families.
+    
+    Creates temporary results files in data/*.npy
+    REQUIRES tables chain, family un to date."""
+
+    conn = sqlite3.connect("results/RNANet.db")
+    famlist = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains > 1 ORDER BY rfam_acc ASC;") ]
+    ignored = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains < 2 ORDER BY rfam_acc ASC;") ]
     if len(ignored):
         print("Idty matrices: Ignoring families with only one chain:", " ".join(ignored)+'\n')
 
     # compute distance matrices
     p = Pool(processes=8)
-    pbar = tqdm(total=len(famlist), desc="Families idty matrices", position=0, leave=False)
-    for i, _ in enumerate(p.imap_unordered(to_dist_matrix, famlist)):
-        pbar.update(1)
-    pbar.close()
+    p.map(to_dist_matrix, famlist)
     p.close()
     p.join()
 
@@ -333,9 +376,20 @@ def seq_idty(mappings_list):
         else:
             fam_arrays.append([])
 
+    # Update database with identity percentages
+    conn = sqlite3.connect("results/RNANet.db")
+    for f, D in zip(famlist, fam_arrays):
+        if not len(D): continue
+        a = 1.0 - np.average(D + D.T) # Get symmetric matrix instead of lower triangle + convert from distance matrix to identity matrix
+        conn.execute(f"UPDATE family SET idty_percent = {float(a)} WHERE rfam_acc = '{f}';")
+    conn.commit()
+    conn.close()
+
+    # Plots plots plots
     fig, axs = plt.subplots(5,13, figsize=(15,9))
     axs = axs.ravel()
     [axi.set_axis_off() for axi in axs]
+    im = "" # Just to declare the variable, it will be set in the loop
     for f, D, ax in zip(famlist, fam_arrays, axs):
         if not len(D): continue
         if D.shape[0] > 2:  # Cluster only if there is more than 2 sequences to organize
@@ -356,55 +410,54 @@ def seq_idty(mappings_list):
     fig.subplots_adjust(wspace=0.1, hspace=0.3)
     fig.colorbar(im, ax=axs[-1], shrink=0.8)
     fig.savefig(f"results/figures/distances.png")
-    # print("[6]\tComputed identity matrices and saved the figure.")
+    notify("Computed all identity matrices and saved the figure.")
+
+def per_chain_stats():
+    """Computes per-chain frequencies and base-pair type counts.
+
+    REQUIRES tables chain, nucleotide up to date. """
+
+    with sqlite3.connect("results/RNANet.db") as conn:
+        # Compute per-chain nucleotide frequencies
+        df = pd.read_sql("SELECT SUM(is_A) as A, SUM(is_C) AS C, SUM(is_G) AS G, SUM(is_U) AS U, SUM(is_other) AS O, chain_id FROM nucleotide GROUP BY chain_id;", conn)
+        df["total"] = pd.Series(df.A + df.C + df.G + df.U + df.O, dtype=np.float64)
+        df[['A','C','G','U','O']] = df[['A','C','G','U','O']].div(df.total, axis=0)
+        df = df.drop("total", axis=1)
+
+        # Set the values
+        sql_execute(conn, "UPDATE chain SET chain_freq_A = ?, chain_freq_C = ?, chain_freq_G = ?, chain_freq_U = ?, chain_freq_other = ? WHERE chain_id= ?;",
+                       many=True, data=list(df.to_records(index=False)), warn_every=10)
+    notify("Updated the database with per-chain base frequencies")
 
 if __name__ == "__main__":
 
-    #################################################################
-    #               LOAD ALL FILES
-    #################################################################
     os.makedirs("results/figures/wadley_plots/", exist_ok=True)
 
     print("Loading mappings list...")
-    mappings_list = pd.read_csv("results/mappings_list.csv", sep=',', index_col=0).to_dict(orient='list')
-    for k in mappings_list.keys():
-        mappings_list[k] = [ x for x in mappings_list[k] if str(x) != 'nan' ]
+    conn = sqlite3.connect("results/RNANet.db")
+    fam_list = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from family ORDER BY rfam_acc ASC;") ]
+    mappings_list = {}
+    for k in fam_list:
+        mappings_list[k] = [ x[0] for x in sql_ask_database(conn, f"SELECT chain_id from chain WHERE rfam_acc='{k}';") ]
+    conn.close()
+    
+    stats_pairs()
 
-    print("Loading datapoints from file...")
-    if path.isfile("data/rnapoints.dat"):
-        with open("data/rnapoints.dat", 'rb') as f:
-            rna_points = pickle.load(f)
-    else:
-        rna_points = []
-        filelist = [path_to_3D_data+"/datapoints/"+f for f in os.listdir(path_to_3D_data+"/datapoints") ]
-        p = Pool(initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),), processes=read_cpu_number())
-        pbar = tqdm(total=len(filelist), desc="RNA files", position=0, leave=False)
-        for i, rna in enumerate(p.imap_unordered(load_rna_frome_file, filelist)):
-            rna_points.append(rna)
-            pbar.update(1)
-        pbar.close()
-        p.close()
-        p.join()
-        with open("data/rnapoints.dat", "wb") as f:
-            pickle.dump(rna_points, f)
-    npoints = len(rna_points)
-    print(npoints, "RNA files loaded.")
-
-    #################################################################
-    #               Define threads for the tasks
-    #################################################################
+    # Define threads for the tasks
     threads = [
-        # th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 1}),
-        # th.Thread(target=reproduce_wadley_results, args=[rna_points], kwargs={'carbon': 4}),
-        th.Thread(target=partial(stats_len, mappings_list), args=[rna_points]),
-        # th.Thread(target=partial(stats_freq, mappings_list), args=[rna_points]),
-        # th.Thread(target=partial(stats_pairs, mappings_list), args=[rna_points]),
-        # th.Thread(target=seq_idty, args=[mappings_list])
+        # th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
+        # th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
+        # th.Thread(target=stats_len),
+        # th.Thread(target=stats_freq),
+        # th.Thread(target=seq_idty),
+        th.Thread(target=per_chain_stats)
     ]
-
+    
+    # Start the threads
     for t in threads:
         t.start()
 
+    # Wait for the threads to complete
     for t in threads:
         t.join()
 
