@@ -252,13 +252,22 @@ class Chain:
         while True in df.duplicated(['nt_resnum']).values:
             i = df.duplicated(['nt_resnum']).values.tolist().index(True)
             df.iloc[i:, 1] += 1
-            
+
         # Drop ligands detected as residues by DSSR, by detecting several markers
         df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
-        while (df.iloc[[-1]].nt_name.tolist()[0] not in ["A", "C", "G", "U"] and 
-              (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
-               or (df.iloc[[-1]].puckering=='').any()):
+        while (len(df.index_chain) and df.iloc[[-1]].nt_name.tolist()[0] not in ["A", "C", "G", "U"] and 
+            ((df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
+            or (df.iloc[[-1]].puckering=='').any())):
             df = df.head(-1) 
+
+        # Assert some nucleotides exist
+        try:
+            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
+        except IndexError:
+            warn(f"Error while parsing DSSR's annotation: No nucleotides are part of {self.chain_label}!", error=True)
+            self.delete_me = True
+            self.error_messages = f"Error while parsing DSSR's json output: No nucleotides from {self.chain_label}. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
+            return 1
 
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
         if df.iloc[0,0] != 1:
@@ -292,13 +301,6 @@ class Chain:
         # index_chain            1 |-------------|77 83|------------|  149
         # expected data point    1 |--------------------------------|  154
         #
-        try:
-            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
-        except IndexError:
-            warn(f"Error while parsing DSSR's annotation: No nucleotides are part of {self.chain_label}!", error=True)
-            self.delete_me = True
-            self.error_messages = f"Error while parsing DSSR's json output: No nucleotides from {self.chain_label}. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
-            return 1
 
         if l != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < l
             resnum_start = df.iloc[0,1]
@@ -851,7 +853,7 @@ class Pipeline:
                 print("RNANet 1.0 alpha ")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
-                assert float(arg) > 0.0 and float(arg) < 20.0 
+                assert float(arg) > 0.0 and float(arg) <= 20.0 
                 self.CRYSTAL_RES = float(arg)
             elif opt == "-s":
                 self.RUN_STATS = True
@@ -1770,14 +1772,15 @@ def work_build_chain(c, extract, khetatm, retrying=False):
         c.extract_3D_data()
 
     # Small check
-    with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
-        nnts = sql_ask_database(conn, f"SELECT COUNT(nt_id) FROM nucleotide WHERE chain_id={c.db_chain_id};", warn_every=10)[0][0]
-    if not(nnts):
-        warn(f"Nucleotides not inserted: {c.error_messages}")
-        c.delete_me = True
-        c.error_messages = "Nucleotides not inserted !"
-    else:
-        notify(f"Inserted {nnts} nucleotides to chain {c.chain_label}")
+    if not c.delete_me:
+        with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
+            nnts = sql_ask_database(conn, f"SELECT COUNT(nt_id) FROM nucleotide WHERE chain_id={c.db_chain_id};", warn_every=10)[0][0]
+        if not(nnts):
+            warn(f"Nucleotides not inserted: {c.error_messages}")
+            c.delete_me = True
+            c.error_messages = "Nucleotides not inserted !"
+        else:
+            notify(f"Inserted {nnts} nucleotides to chain {c.chain_label}")
 
     # extract the portion we want
     if extract and not c.delete_me:
@@ -2095,7 +2098,7 @@ if __name__ == "__main__":
 
     # compute an update compared to what is in the table "chain"
     #DEBUG: list everything
-    # pp.REUSE_ALL = True
+    pp.REUSE_ALL = True
     pp.list_available_mappings()
     
     # ===========================================================================
