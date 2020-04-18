@@ -256,7 +256,8 @@ class Chain:
         # Drop ligands detected as residues by DSSR, by detecting several markers
         df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
         while (df.iloc[[-1]].nt_name.tolist()[0] not in ["A", "C", "G", "U"] and 
-            (df.iloc[[-1]][["alpha","beta","gamma","delta","epsilon","zeta","v0","v1","v2","v3","v4"]].isna().values).all()):
+              (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
+               or (df.iloc[[-1]].puckering=='').any()):
             df = df.head(-1) 
 
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
@@ -415,11 +416,11 @@ class Chain:
                                         VALUES 
                                         (?, ?, ?, ?, ?, ?, ?, ?);""", 
                                         data=(str(self.pdb_id), str(self.pdb_chain_id), int(self.pdb_start), int(self.pdb_end), int(self.reversed), str(self.rfam_fam), int(self.inferred), int(self.delete_me)))
+                # get the chain id
+                self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}' AND rfam_acc='{self.rfam_fam}';")[0][0]
             else:
                 sql_execute(conn, "INSERT OR REPLACE INTO chain (structure_id, chain_name, issue) VALUES (?, ?, ?);", data=(str(self.pdb_id), int(self.pdb_chain_id), int(self.delete_me)))
-            
-            # get the chain id
-            self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}';")[0][0]
+                self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}' AND rfam_acc IS NULL;")[0][0]
             
             # Add the nucleotides
             sql_execute(conn, f"""
@@ -430,9 +431,8 @@ class Chain:
             paired, pair_type_LW, pair_type_DSSR, nb_interact)
             VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ;""", many=True, data=list(df.to_records(index=False)), warn_every=10
-            )
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
+            many=True, data=list(df.to_records(index=False)), warn_every=10)
 
         # Now load data from the database
         self.seq = "".join(df.nt_code)
