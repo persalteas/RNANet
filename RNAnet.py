@@ -202,7 +202,7 @@ class Chain:
 
         notify(status)
 
-    def extract_3D_data(self, conn):
+    def extract_3D_data(self):
         """ Maps DSSR annotations to the chain. """
 
         # Load the mmCIF annotations from file
@@ -407,20 +407,33 @@ class Chain:
             df['paired'] = newpairs
                 
         # Saving to database
-        sql_execute(conn, f"""
-        INSERT OR REPLACE INTO nucleotide 
-        (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
-        epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
-        v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
-        paired, pair_type_LW, pair_type_DSSR, nb_interact)
-        VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ;""", many=True, data=list(df.to_records(index=False))
-        )
-
-        notify(f"Saved {self.chain_label} annotations to database.")
+        with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
+            # Register the chain in table chain
+            if self.pdb_start is not None:
+                sql_execute(conn, f"""  INSERT OR REPLACE INTO chain 
+                                        (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
+                                        VALUES 
+                                        (?, ?, ?, ?, ?, ?, ?, ?);""", 
+                                        data=(str(self.pdb_id), str(self.pdb_chain_id), int(self.pdb_start), int(self.pdb_end), int(self.reversed), str(self.rfam_fam), int(self.inferred), int(self.delete_me)))
+            else:
+                sql_execute(conn, "INSERT OR REPLACE INTO chain (structure_id, chain_name, issue) VALUES (?, ?, ?);", data=(str(self.pdb_id), int(self.pdb_chain_id), int(self.delete_me)))
             
+            # get the chain id
+            self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}';")[0][0]
+            
+            # Add the nucleotides
+            sql_execute(conn, f"""
+            INSERT OR REPLACE INTO nucleotide 
+            (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+            epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+            v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
+            paired, pair_type_LW, pair_type_DSSR, nb_interact)
+            VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ;""", many=True, data=list(df.to_records(index=False)), warn_every=10
+            )
+
         # Now load data from the database
         self.seq = "".join(df.nt_code)
         self.seq_to_align = "".join(df.nt_align_code)
@@ -988,7 +1001,8 @@ class Pipeline:
         """ Extract the desired chain portions if asked,
         and extract their informations from the JSON files to the database.
         
-        REQUIRES the previous definition of self.update, so call list_available_mappings() before."""
+        REQUIRES the previous definition of self.update, so call list_available_mappings() before.
+        SETS self.loaded_chains"""
 
         # Prepare folders
         if self.EXTRACT_CHAINS:
@@ -1004,13 +1018,15 @@ class Pipeline:
         else:
             clist = self.update
         for c in clist:
+            if retry:
+                c.delete_me = False # give a second chance
             if (c.chain_label not in self.known_issues) or not self.USE_KNOWN_ISSUES:
                 joblist.append(Job(function=work_build_chain, how_many_in_parallel=int(coeff_ncores*ncores), 
                                     args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry]))
         try:
             results = execute_joblist(joblist)
         except:
-            print("Exiting")
+            print("Exiting", flush=True)
             exit(1)
 
         # If there were newly discovered problems, add this chain to the known issues
@@ -1023,7 +1039,7 @@ class Pipeline:
                     warn(f"Adding {c[1].chain_label} to known issues.")
                     ki.write(c[1].chain_label + '\n')
                     kir.write(c[1].chain_label + '\n' + c[1].error_messages + '\n\n')
-                sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
+                    sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
         ki.close()
         kir.close()
     
@@ -1215,7 +1231,7 @@ class Pipeline:
         r = sql_ask_database(conn, """SELECT structure_id FROM structure 
                                       LEFT JOIN chain ON structure.pdb_id = chain.structure_id 
                                       WHERE chain_id IS NULL;""")
-        if r != (None,):
+        if len(r) and r[0][0] is not None:
             warn("Structures without referenced chains have been detected")
             for x in r:
                 print(x)
@@ -1224,7 +1240,7 @@ class Pipeline:
         r = sql_ask_database(conn, """SELECT chain_id, structure_id FROM chain 
                                       LEFT JOIN structure ON chain.structure_id = structure.pdb_id
                                       WHERE pdb_id IS NULL;""")
-        if r != (None,):
+        if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
             for x in r:
                 print(x)
@@ -1236,7 +1252,7 @@ class Pipeline:
                                             FROM chain LEFT JOIN re_mapping
                                             ON chain.chain_id = re_mapping.chain_id
                                             WHERE remapping_id IS NULL GROUP BY rfam_acc;""")
-            if r != (None,):
+            if len(r) and r[0][0] is not None:
                 warn("Structures were not remapped:")
                 for x in r:
                     print(str(x[0]) + " chains of family " + x[1])
@@ -1248,7 +1264,7 @@ class Pipeline:
                                             LEFT JOIN align_column 
                                             ON re_mapping.index_ali=align_column.index_ali AND c.rfam_acc=align_column.rfam_acc
                                             WHERE column_id IS NULL;""")
-            if r != (None,):
+            if len(r) and r[0][0] is not None:
                 warn("Structures were not remapped:")
                 for x in r:
                     print(x)
@@ -1740,35 +1756,33 @@ def work_mmcif(pdb_id):
 
 @trace_unhandled_exceptions
 def work_build_chain(c, extract, khetatm, retrying=False):
-    """ Additionally adds all the desired information to a Chain object.
+    """Reads information from JSON and save it to database.
+    If asked, also extracts the 3D chains from their original structure files.
 
     """
     if not path.isfile(path_to_3D_data + "annotations/" + c.pdb_id + ".json"):
         warn(f"Could not find annotations for {c.chain_label}, ignoring it.", error=True)
         c.delete_me = True
         c.error_messages += f"Could not download and/or find annotations for {c.chain_label}."
+    
+    # extract the 3D descriptors
+    if not c.delete_me:
+        c.extract_3D_data()
 
-    # Register the chain, and get its chain_id
-    conn = sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0)
-    if c.pdb_start is not None:
-        sql_execute(conn, f"""  INSERT OR REPLACE INTO chain 
-                                (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
-                                VALUES 
-                                (?, ?, ?, ?, ?, ?, ?, ?);""", 
-                                data=(str(c.pdb_id), str(c.pdb_chain_id), int(c.pdb_start), int(c.pdb_end), int(c.reversed), str(c.rfam_fam), int(c.inferred), int(c.delete_me)))
+    # Small check
+    with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
+        nnts = sql_ask_database(conn, f"SELECT COUNT(nt_id) FROM nucleotide WHERE chain_id={c.db_chain_id};", warn_every=10)[0][0]
+    if not(nnts):
+        warn(f"Nucleotides not inserted: {c.error_messages}")
+        c.delete_me = True
+        c.error_messages = "Nucleotides not inserted !"
     else:
-        sql_execute(conn, "INSERT OR REPLACE INTO chain (structure_id, chain_name, issue) VALUES (?, ?, ?);", data=(str(c.pdb_id), int(c.pdb_chain_id), int(c.delete_me)))
-    c.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{c.pdb_id}' AND chain_name='{c.pdb_chain_id}';")[0][0]
+        notify(f"Inserted {nnts} nucleotides to chain {c.chain_label}")
 
     # extract the portion we want
     if extract and not c.delete_me:
         c.extract(khetatm)
 
-    # extract the 3D descriptors
-    if not c.delete_me:
-        c.extract_3D_data(conn)
-
-    conn.close()
     return c
 
 @trace_unhandled_exceptions
@@ -2080,6 +2094,8 @@ if __name__ == "__main__":
     print("> Storing results into", runDir + "/results/RNANet.db")
 
     # compute an update compared to what is in the table "chain"
+    #DEBUG: list everything
+    # pp.REUSE_ALL = True
     pp.list_available_mappings()
     
     # ===========================================================================
@@ -2088,6 +2104,7 @@ if __name__ == "__main__":
 
     # Download and annotate new RNA 3D chains (Chain objects in pp.update)
     pp.dl_and_annotate(coeff_ncores=0.75) 
+
     # At this point, the structure table is up to date
 
     pp.build_chains()
@@ -2114,7 +2131,7 @@ if __name__ == "__main__":
     # ===========================================================================
 
     pp.checkpoint_load_chains()
-    
+
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in pp.loaded_chains:
