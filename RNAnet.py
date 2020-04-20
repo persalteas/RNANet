@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, itertools, json, os, pickle, psutil, re, requests, signal, sqlalchemy, sqlite3, subprocess, sys, time, traceback, warnings
+import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, json, os, pickle, psutil, re, requests, signal, sqlalchemy, sqlite3, subprocess, sys, time, traceback, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -537,7 +537,6 @@ class Chain:
         self.seq_to_align = ''.join(c_seq_to_align)
         self.seq = ''.join(c_seq)
 
-
 class Job:
     """ This class contains information about a task to run later.
 
@@ -571,7 +570,6 @@ class Job:
         else:
             s = f"{self.priority_}({self.nthreads}) [{self.comp_time}]\t{self.label:25}{self.func_.__name__}(" + " ".join([str(a) for a in self.args_]) + ")"
         return s
-
 
 class Monitor:
     """ A job that simply watches the memory usage of another process. 
