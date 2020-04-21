@@ -175,7 +175,7 @@ def stats_len():
             cols.append("orange")
         else:
             cols.append("grey")
-        l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(nt_id) FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY chain_id;") ]
+        l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(index_chain) FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY chain_id;") ]
         lengths.append(l)
         notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
     conn.close()
@@ -245,32 +245,83 @@ def parallel_stats_pairs(f):
 
     REQUIRES tables chain, nucleotide up-to-date.""" 
 
-    with sqlite3.connect("results/RNANet.db") as conn:
-        # Get comma separated lists of basepairs per nucleotide
-        interactions = pd.read_sql(f"SELECT paired, pair_type_LW FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide WHERE nb_interact>0;", conn)
+    chain_id_list = mappings_list[f]
+    data = []
+    for cid in chain_id_list:
+        with sqlite3.connect("results/RNANet.db") as conn:
+            # Get comma separated lists of basepairs per nucleotide
+            interactions = pd.read_sql(f"SELECT nt_code as nt1, index_chain, paired, pair_type_LW FROM (SELECT chain_id FROM chain WHERE chain_id='{cid}') NATURAL JOIN nucleotide;", conn)
 
-    # expand the comma-separated lists in real lists
-    expanded_list = pd.concat([ pd.DataFrame({ 'paired':row['paired'].split(','), 'pair_type_LW':row['pair_type_LW'].split(',') }) 
-                                for _, row in interactions.iterrows() ]).reset_index(drop=True)
-    # keep only intra-chain interactions
-    expanded_list = expanded_list[ expanded_list.paired != '0' ].pair_type_LW
+        # expand the comma-separated lists in real lists
+        expanded_list = pd.concat([ pd.DataFrame({  'nt1':[ row["nt1"] for x in row["paired"].split(',') ],
+                                                    'index_chain':[ row['index_chain'] for x in row["paired"].split(',') ],
+                                                    'paired':row['paired'].split(','), 
+                                                    'pair_type_LW':row['pair_type_LW'].split(',') 
+                                                }) 
+                                    for _, row in interactions.iterrows() 
+                                ]).reset_index(drop=True)
+
+        # Add second nucleotide
+        nt2 = []
+        for _, row in expanded_list.iterrows():
+            if row.paired in ['', '0']:
+                nt2.append('')
+            else:
+                try:
+                    n = expanded_list[expanded_list.index_chain == int(row.paired)].nt1.tolist()[0]
+                    nt2.append(n)
+                except IndexError:
+                    print(cid, flush=True)
+        try:
+            expanded_list["nt2"] = nt2
+        except ValueError:
+            print(cid, flush=True)
+            print(expanded_list, flush=True)
+            return 0,0
+
+        # keep only intra-chain interactions
+        expanded_list = expanded_list[ ~expanded_list.paired.isin(['0','']) ]
+        expanded_list["nts"] = expanded_list["nt1"] + expanded_list["nt2"]
+        
+        # Get basepair type
+        expanded_list["basepair"] = np.where(expanded_list.nts.isin(["AU","UA"]), "AU",
+                                        np.where(expanded_list.nts.isin(["GC","CG"]), "GC",
+                                            np.where(expanded_list.nts.isin(["GU","UG"]), "Wobble","Other")
+                                        )
+                                    )
+        # checks
+        # ct = pd.crosstab(expanded_list.pair_type_LW, expanded_list.basepair)
+        # ct = ct.loc[[ x for x in ["cWW","cHH","cSS","tWW","tHH","tSS"] if x in ct.index ]]
+        # for _, symmetric_type in ct.iterrows():
+        #     for x in symmetric_type:
+        #         if x%2:
+        #             print("Odd number found for", symmetric_type.name, "in chain", cid, flush=True)
+        #             print(expanded_list, flush=True)
+        #             exit()
+
+        expanded_list = expanded_list[["basepair", "pair_type_LW"]]
+        data.append(expanded_list)
+
+    # merge all the dataframes from all chains of the family
+    expanded_list = pd.concat(data)
 
     # Count each pair type
-    vcnts = expanded_list.value_counts()
+    vcnts = expanded_list.pair_type_LW.value_counts()
 
     # Add these new counts to the family's counter
     cnt = Counter()
     cnt.update(dict(vcnts))
 
     # Create an output DataFrame
-    return pd.DataFrame([[ x for x in cnt.values() ]], columns=list(cnt), index=[f])
+    f_df = pd.DataFrame([[ x for x in cnt.values() ]], columns=list(cnt), index=[f])
+    return expanded_list, f_df
 
 def stats_pairs():
     """Counts occurrences of intra-chain base-pair types in RNA families
 
     Creates a temporary results file in data/pair_counts.csv, and a results file in results/pairings.csv.
     REQUIRES tables chain, nucleotide up-to-date.""" 
-
+    
     def line_format(family_data):
         return family_data.apply(partial(format_percentage, sum(family_data)))
 
@@ -279,9 +330,23 @@ def stats_pairs():
         try:
             fam_pbar = tqdm(total=len(fam_list), desc="Pair-types in families", position=0, leave=True) 
             results = []
-            for i, fam_df in enumerate(p.imap_unordered(parallel_stats_pairs, fam_list)):
+            allpairs = []
+            for i, _ in enumerate(p.imap_unordered(parallel_stats_pairs, fam_list)):
+                newpairs, fam_df = _
                 fam_pbar.update(1)
                 results.append(fam_df)
+                allpairs.append(newpairs)
+
+                # Checks
+                vlcnts= newpairs.pair_type_LW.value_counts()
+                identical = [fam_df[i][0] == newpairs.pair_type_LW.value_counts().at[i] for i in fam_df.columns]
+                if False in identical:
+                    print(fam_df)
+                    print(vlcnts)
+                    print("Dataframes differ for",fam_df.index[0], flush=True)
+                for x in ["cWW","cHH","cSS","tWW","tHH","tSS"]:
+                    if x in vlcnts.index and vlcnts[x] % 2:
+                        print("Trouvé un nombre impair de",x,"dans",fam_df.index[0], flush=True)
             fam_pbar.close()
             p.close()
             p.join()
@@ -292,24 +357,36 @@ def stats_pairs():
             p.join()
             exit(1)
 
+        all_pairs = pd.concat(allpairs)
         df = pd.concat(results).fillna(0)
+        vlcnts= all_pairs.pair_type_LW.value_counts()
+        for x in ["cWW","cHH","cSS","tWW","tHH","tSS"]:
+            if x in vlcnts.index and vlcnts[x] % 2:
+                print("Trouvé un nombre impair de",x,"après le merge !", flush=True)
         df.to_csv("data/pair_counts.csv")
+        all_pairs.to_csv("data/all_pairs.csv")
     else:
         df = pd.read_csv("data/pair_counts.csv", index_col=0)
+        all_pairs = pd.read_csv("data/all_pairs.csv", index_col=0)
 
-    print(df)
-    # Remove not very well defined pair types (not in the 12 LW types)
+    crosstab = pd.crosstab(all_pairs.pair_type_LW, all_pairs.basepair)
     col_list = [ x for x in df.columns if '.' in x ]
+
+    # Remove not very well defined pair types (not in the 12 LW types)
     df['other'] = df[col_list].sum(axis=1)
     df.drop(col_list, axis=1, inplace=True)
-    print(df)
-
+    crosstab = crosstab.append(crosstab.loc[col_list].sum(axis=0).rename("Other"))
+    
     # drop duplicate types
     # The twelve Leontis-Westhof types are
     # cWW cWH cWS cHH cHS cSS (do not count cHW cSW and cSH, they are the same as their opposites)
     # tWW tWH tWS tHH tHS tSS (do not count tHW tSW and tSH, they are the same as their opposites)
-    df.drop([ "cHW", "tHW", "cSW", "tSW", "cHS", "tHS"], axis=1)
-    df.loc[ ["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "other"] ] /= 2.0
+    df.drop([ x for x in [ "cHW", "tHW", "cSW", "tSW", "cHS", "tHS"] if x in df.columns], axis=1)
+    crosstab = crosstab.loc[[ x for x in ["cWW","cWH","cWS","cHH","cHS","cSS","tWW","tWH","tWS","tHH","tHS","tSS","Other"] if x in crosstab.index]]
+    df.loc[:,[x for x in ["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "other"] if x in df.columns] ] /= 2
+    # crosstab.loc[["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "Other"]] /= 2
+    print(crosstab)
+    print(df)
 
     # Compute total row
     total_series = df.sum(numeric_only=True).rename("TOTAL")
@@ -326,7 +403,6 @@ def stats_pairs():
 
     # Plot barplot of overall types
     total_series.sort_values(ascending=False, inplace=True)
-    total_series.apply(lambda x: x/2.0) # each interaction was counted twice because one time per extremity
     ax = total_series.plot(figsize=(5,3), kind='bar', log=True, ylim=(1e4,5000000) )
     ax.set_ylabel("Number of observations")
     plt.subplots_adjust(bottom=0.2, right=0.99)
@@ -445,11 +521,11 @@ if __name__ == "__main__":
 
     # Define threads for the tasks
     threads = [
-        # th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
-        # th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
-        # th.Thread(target=stats_len),
-        # th.Thread(target=stats_freq),
-        # th.Thread(target=seq_idty),
+        th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
+        th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
+        th.Thread(target=stats_len),
+        th.Thread(target=stats_freq),
+        th.Thread(target=seq_idty),
         th.Thread(target=per_chain_stats)
     ]
     
