@@ -26,11 +26,13 @@ from collections import Counter
 from RNAnet import read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker
 
 # This sets the paths
-path_to_3D_data = "/home/lbecquey/Data/RNA/3D/"
-path_to_seq_data = "/home/lbecquey/Data/RNA/sequences/"
 if len(sys.argv) > 1:
     path_to_3D_data = path.abspath(sys.argv[1])
     path_to_seq_data = path.abspath(sys.argv[2])
+else:
+    print("Please set paths to 3D data using command line arguments:")
+    print("./statistics.py /path/to/3D/data/ /path/to/sequence/data/")
+    exit()
 
 LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
 SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
@@ -289,18 +291,31 @@ def parallel_stats_pairs(f):
                                             np.where(expanded_list.nts.isin(["GU","UG"]), "Wobble","Other")
                                         )
                                     )
-        # checks
-        # ct = pd.crosstab(expanded_list.pair_type_LW, expanded_list.basepair)
-        # ct = ct.loc[[ x for x in ["cWW","cHH","cSS","tWW","tHH","tSS"] if x in ct.index ]]
-        # for _, symmetric_type in ct.iterrows():
-        #     for x in symmetric_type:
-        #         if x%2:
-        #             print("Odd number found for", symmetric_type.name, "in chain", cid, flush=True)
-        #             print(expanded_list, flush=True)
-        #             exit()
-
         expanded_list = expanded_list[["basepair", "pair_type_LW"]]
+
+        # Update the database
+        vlcnts = expanded_list.pair_type_LW.value_counts()
+        sqldata = ( vlcnts.at["cWW"]/2 if "cWW" in vlcnts.index else 0, 
+                    vlcnts.at["cWH"] if "cWH" in vlcnts.index else 0, 
+                    vlcnts.at["cWS"] if "cWS" in vlcnts.index else 0, 
+                    vlcnts.at["cHH"]/2 if "cHH" in vlcnts.index else 0, 
+                    vlcnts.at["cHS"] if "cHS" in vlcnts.index else 0, 
+                    vlcnts.at["cSS"]/2 if "cSS" in vlcnts.index else 0, 
+                    vlcnts.at["tWW"]/2 if "tWW" in vlcnts.index else 0, 
+                    vlcnts.at["tWH"] if "tWH" in vlcnts.index else 0, 
+                    vlcnts.at["tWS"] if "tWS" in vlcnts.index else 0, 
+                    vlcnts.at["tHH"]/2 if "tHH" in vlcnts.index else 0, 
+                    vlcnts.at["tHS"] if "tHS" in vlcnts.index else 0, 
+                    vlcnts.at["tSS"]/2 if "tSS" in vlcnts.index else 0, 
+                    int(sum(vlcnts.loc[[ str(x) for x in vlcnts.index if "." in str(x)]])/2), 
+                    cid)
+        with sqlite3.connect("results/RNANet.db") as conn:
+            sql_execute(conn, """UPDATE chain SET pair_count_cWW = ?, pair_count_cWH = ?, pair_count_cWS = ?, pair_count_cHH = ?,
+                                    pair_count_cHS = ?, pair_count_cSS = ?, pair_count_tWW = ?, pair_count_tWH = ?, pair_count_tWS = ?, 
+                                    pair_count_tHH = ?, pair_count_tHS = ?, pair_count_tSS = ?, pair_count_other = ? WHERE chain_id = ?;""", data=sqldata)
+
         data.append(expanded_list)
+
 
     # merge all the dataframes from all chains of the family
     expanded_list = pd.concat(data)
@@ -336,17 +351,6 @@ def stats_pairs():
                 fam_pbar.update(1)
                 results.append(fam_df)
                 allpairs.append(newpairs)
-
-                # Checks
-                vlcnts= newpairs.pair_type_LW.value_counts()
-                identical = [fam_df[i][0] == newpairs.pair_type_LW.value_counts().at[i] for i in fam_df.columns]
-                if False in identical:
-                    print(fam_df)
-                    print(vlcnts)
-                    print("Dataframes differ for",fam_df.index[0], flush=True)
-                for x in ["cWW","cHH","cSS","tWW","tHH","tSS"]:
-                    if x in vlcnts.index and vlcnts[x] % 2:
-                        print("Trouvé un nombre impair de",x,"dans",fam_df.index[0], flush=True)
             fam_pbar.close()
             p.close()
             p.join()
@@ -359,10 +363,6 @@ def stats_pairs():
 
         all_pairs = pd.concat(allpairs)
         df = pd.concat(results).fillna(0)
-        vlcnts= all_pairs.pair_type_LW.value_counts()
-        for x in ["cWW","cHH","cSS","tWW","tHH","tSS"]:
-            if x in vlcnts.index and vlcnts[x] % 2:
-                print("Trouvé un nombre impair de",x,"après le merge !", flush=True)
         df.to_csv("data/pair_counts.csv")
         all_pairs.to_csv("data/all_pairs.csv")
     else:
@@ -375,18 +375,16 @@ def stats_pairs():
     # Remove not very well defined pair types (not in the 12 LW types)
     df['other'] = df[col_list].sum(axis=1)
     df.drop(col_list, axis=1, inplace=True)
-    crosstab = crosstab.append(crosstab.loc[col_list].sum(axis=0).rename("Other"))
+    crosstab = crosstab.append(crosstab.loc[col_list].sum(axis=0).rename("non-LW"))
     
     # drop duplicate types
     # The twelve Leontis-Westhof types are
     # cWW cWH cWS cHH cHS cSS (do not count cHW cSW and cSH, they are the same as their opposites)
     # tWW tWH tWS tHH tHS tSS (do not count tHW tSW and tSH, they are the same as their opposites)
-    df.drop([ x for x in [ "cHW", "tHW", "cSW", "tSW", "cHS", "tHS"] if x in df.columns], axis=1)
-    crosstab = crosstab.loc[[ x for x in ["cWW","cWH","cWS","cHH","cHS","cSS","tWW","tWH","tWS","tHH","tHS","tSS","Other"] if x in crosstab.index]]
+    df = df.drop([ x for x in [ "cHW", "tHW", "cSW", "tSW", "cHS", "tHS"] if x in df.columns], axis=1)
+    crosstab = crosstab.loc[[ x for x in ["cWW","cWH","cWS","cHH","cHS","cSS","tWW","tWH","tWS","tHH","tHS","tSS","non-LW"] if x in crosstab.index]]
     df.loc[:,[x for x in ["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "other"] if x in df.columns] ] /= 2
-    # crosstab.loc[["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "Other"]] /= 2
-    print(crosstab)
-    print(df)
+    crosstab.loc[["cWW", "tWW", "cHH", "tHH", "cSS", "tSS", "non-LW"]] /= 2
 
     # Compute total row
     total_series = df.sum(numeric_only=True).rename("TOTAL")
@@ -397,15 +395,16 @@ def stats_pairs():
 
     # reorder columns
     df.sort_values("TOTAL", axis=1, inplace=True, ascending=False)
+    crosstab = crosstab[["AU", "GC", "Wobble", "Other"]]
 
     # Save to CSV
-    df.to_csv("results/pairings.csv")
+    df.to_csv("results/pair_types.csv")
 
     # Plot barplot of overall types
-    total_series.sort_values(ascending=False, inplace=True)
-    ax = total_series.plot(figsize=(5,3), kind='bar', log=True, ylim=(1e4,5000000) )
-    ax.set_ylabel("Number of observations")
-    plt.subplots_adjust(bottom=0.2, right=0.99)
+    ax = crosstab.plot(figsize=(8,5), kind='bar', stacked=True, log=False, fontsize=13)
+    ax.set_ylabel("Number of observations (millions)", fontsize=13)
+    ax.set_xlabel(None)
+    plt.subplots_adjust(left=0.1, bottom=0.16, top=0.95, right=0.99)
     plt.savefig("results/figures/pairings.png")
 
     notify("Computed nucleotide statistics and saved CSV and PNG file.")
@@ -416,7 +415,7 @@ def to_dist_matrix(f):
         return 0
 
     dm = DistanceCalculator('identity')
-    with open(path_to_seq_data+"realigned/"+f+"++.afa") as al_file:
+    with open(path_to_seq_data+"/realigned/"+f+"++.afa") as al_file:
         al = AlignIO.read(al_file, "fasta")[-len(mappings_list[f]):]
     idty = dm.get_distance(al).matrix # list of lists
     del al
@@ -457,7 +456,7 @@ def seq_idty():
     for f, D in zip(famlist, fam_arrays):
         if not len(D): continue
         a = 1.0 - np.average(D + D.T) # Get symmetric matrix instead of lower triangle + convert from distance matrix to identity matrix
-        conn.execute(f"UPDATE family SET idty_percent = {float(a)} WHERE rfam_acc = '{f}';")
+        conn.execute(f"UPDATE family SET idty_percent = {round(float(a),2)} WHERE rfam_acc = '{f}';")
     conn.commit()
     conn.close()
 

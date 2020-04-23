@@ -1179,7 +1179,7 @@ class Pipeline:
             os.makedirs(runDir + "/results/archive/")
 
         # Save to by-chain CSV files
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=1, maxtasksperchild=5)
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True) 
             for i, _ in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
@@ -1208,7 +1208,7 @@ class Pipeline:
 
         # Save additional informations
         conn = sqlite3.connect(runDir+"/results/RNANet.db")
-        pd.read_sql_query("SELECT rfam_acc, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family", 
+        pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
                           conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
         pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, reversed, date, exp_method, resolution, issue FROM structure 
                             JOIN chain ON structure.pdb_id = chain.structure_id
@@ -1273,6 +1273,7 @@ class Pipeline:
                     print(x)
 
         conn.close()
+
 
 def read_cpu_number():
     # As one shall not use os.cpu_count() on LXC containers,
@@ -2050,6 +2051,7 @@ def work_pssm(f, fill_gaps):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
 
+@trace_unhandled_exceptions
 def work_save(c, homology=True):
     conn = sqlite3.connect(runDir + "/results/RNANet.db", timeout=15.0)
     if homology:
@@ -2096,38 +2098,36 @@ if __name__ == "__main__":
         sql_define_tables(conn)
     print("> Storing results into", runDir + "/results/RNANet.db")
 
-    # # compute an update compared to what is in the table "chain"
-    # #DEBUG: list everything
-    # pp.REUSE_ALL = True
-    # pp.list_available_mappings()
+    # compute an update compared to what is in the table "chain"
+    pp.list_available_mappings()
 
-    # # ===========================================================================
-    # # 3D information
-    # # ===========================================================================
+    # ===========================================================================
+    # 3D information
+    # ===========================================================================
 
-    # # Download and annotate new RNA 3D chains (Chain objects in pp.update)
-    # pp.dl_and_annotate(coeff_ncores=0.75) 
+    # Download and annotate new RNA 3D chains (Chain objects in pp.update)
+    pp.dl_and_annotate(coeff_ncores=0.5) 
 
-    # # At this point, the structure table is up to date
+    # At this point, the structure table is up to date
 
-    # pp.build_chains(coeff_ncores=2.0)
-    # if len(pp.to_retry):
-    #     # Redownload and re-annotate 
-    #     print("> Retrying to annotate some structures which just failed.", flush=True)
-    #     pp.dl_and_annotate(retry=True, coeff_ncores=0.5)  #
-    #     pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
-    # print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} errors).")
-    # pp.checkpoint_save_chains()
+    pp.build_chains(coeff_ncores=2.0)
+    if len(pp.to_retry):
+        # Redownload and re-annotate 
+        print("> Retrying to annotate some structures which just failed.", flush=True)
+        pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
+        pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
+    print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} errors).")
+    pp.checkpoint_save_chains()
 
-    # if not pp.HOMOLOGY:
-    #     # Save chains to file
-    #     for c in pp.loaded_chains:
-    #         work_save(c, homology=False)
-    #     print("Completed.")
-    #     exit()
+    if not pp.HOMOLOGY:
+        # Save chains to file
+        for c in pp.loaded_chains:
+            work_save(c, homology=False)
+        print("Completed.")
+        exit()
     
-    # # At this point, structure, chain and nucleotide tables of the database are up to date.
-    # # (Modulo some statistics computed by statistics.py)
+    # At this point, structure, chain and nucleotide tables of the database are up to date.
+    # (Modulo some statistics computed by statistics.py)
 
     # ===========================================================================
     # Homology information

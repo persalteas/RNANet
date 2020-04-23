@@ -3,7 +3,7 @@ nohup.out
 log_of_the_run.sh
 
 # results
-results/figures/wadley_plots/
+results/
 
 # temporary results files
 data/
