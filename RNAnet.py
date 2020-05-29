@@ -1203,8 +1203,8 @@ class Pipeline:
 
             # Run statistics files
             os.chdir(runDir)
-            subprocess.run(["python3", "regression.py"])
-            subprocess.run(["python3", "statistics.py", path_to_3D_data, path_to_seq_data])
+            subprocess.run(["python3.8", "regression.py"])
+            subprocess.run(["python3.8", "statistics.py", path_to_3D_data, path_to_seq_data])
 
         # Save additional informations
         conn = sqlite3.connect(runDir+"/results/RNANet.db")
@@ -1309,8 +1309,11 @@ def warn(message, error=False):
     # Cut if too long
     if len(message)>66:
         x = message.find(' ', 50, 66)
-        warn(message[:x], error=error)
-        warn(message[x+1:], error=error)
+        if x != -1:
+            warn(message[:x], error=error)
+            warn(message[x+1:], error=error)
+        else:
+            warn(message[:x], error=error)
         return
 
     if error:
@@ -2011,9 +2014,10 @@ def work_pssm(f, fill_gaps):
             re_mappings += new_mappings
 
         except ValueError:
-            with open(runDir + "/errors.txt", "a") as errf:
-                errf.write(f"Chain {s.id} not found in list of chains to process. ignoring.\n")
-
+            # with open(runDir + "/errors.txt", "a") as errf:
+            #     errf.write(f"Chain {s.id} not found in list of chains to process. ignoring.\n")
+            pass
+        
         pbar.update(1)
     pbar.close()
 
