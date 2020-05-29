@@ -87,6 +87,7 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
         kernel_c2 = st.gaussian_kde(values_c2)
         f_c2 = np.reshape(kernel_c2(positions).T, xx.shape)
 
+
         # Uncomment to save the data to an archive for later use without the need to recompute
         np.savez(f"data/wadley_kernel_{angle}.npz",
                   c3_endo_e=c3_endo_etas, c3_endo_t=c3_endo_thetas,
@@ -516,16 +517,16 @@ if __name__ == "__main__":
         mappings_list[k] = [ x[0] for x in sql_ask_database(conn, f"SELECT chain_id from chain WHERE rfam_acc='{k}';") ]
     conn.close()
     
-    stats_pairs()
+    # stats_pairs()
 
     # Define threads for the tasks
     threads = [
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
-        th.Thread(target=stats_len),
-        th.Thread(target=stats_freq),
-        th.Thread(target=seq_idty),
-        th.Thread(target=per_chain_stats)
+        # th.Thread(target=stats_len),
+        # th.Thread(target=stats_freq),
+        # th.Thread(target=seq_idty),
+        # th.Thread(target=per_chain_stats)
     ]
     
     # Start the threads

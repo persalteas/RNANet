@@ -540,6 +540,7 @@ class Chain:
         self.seq_to_align = ''.join(c_seq_to_align)
         self.seq = ''.join(c_seq)
 
+
 class Job:
     """ This class contains information about a task to run later.
 
@@ -573,6 +574,7 @@ class Job:
         else:
             s = f"{self.priority_}({self.nthreads}) [{self.comp_time}]\t{self.label:25}{self.func_.__name__}(" + " ".join([str(a) for a in self.args_]) + ")"
         return s
+
 
 class Monitor:
     """ A job that simply watches the memory usage of another process. 
@@ -1681,9 +1683,15 @@ def work_infer_mappings(update_only, allmappings, codelist):
             for rfam in families:
                 # if a known mapping of this chain on this family exists, apply it
                 m = known_mappings.loc[ (known_mappings.pdb_id + "|1|" + known_mappings.chain == c[:4].lower()+c[4:]) & (known_mappings['rfam_acc'] == rfam ) ]
-                if len(m):
+                if len(m) and len(m) < 2:
                     pdb_start = int(m.pdb_start)
                     pdb_end = int(m.pdb_end)
+                    inferred = False
+                elif len(m): 
+                    # two different parts of the same chain are mapped to the same family... (ex: 6ek0-L5)
+                    # ==> map the whole chain to that family, not the parts
+                    pdb_start = int(m.pdb_start.min())
+                    pdb_end = int(m.pdb_end.max())
                     inferred = False
                 else: # otherwise, use the inferred mapping
                     pdb_start = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_start)
@@ -2114,7 +2122,7 @@ if __name__ == "__main__":
 
     # At this point, the structure table is up to date
 
-    pp.build_chains(coeff_ncores=2.0)
+    pp.build_chains(coeff_ncores=1.0)
     if len(pp.to_retry):
         # Redownload and re-annotate 
         print("> Retrying to annotate some structures which just failed.", flush=True)
