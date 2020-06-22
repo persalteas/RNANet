@@ -1,7 +1,7 @@
 #!/usr/bin/python3.8
 import numpy as np
 import pandas as pd
-import concurrent.futures, Bio.PDB.StructureBuilder, getopt, gzip, io, json, os, pickle, psutil, re, requests, signal, sqlalchemy, sqlite3, subprocess, sys, time, traceback, warnings
+import concurrent.futures, getopt, gzip, io, json, os, pickle, psutil, re, requests, signal, sqlalchemy, sqlite3, subprocess, sys, time, traceback, warnings
 from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
@@ -218,9 +218,9 @@ class Chain:
                 
         # Print eventual warnings given by DSSR, and abort if there are some
         if "warning" in json_object.keys():
-            warn(f"Ignoring {self.chain_label} ({json_object['warning']})")
+            warn(f"found DSSR warning in annotation {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}.")
             self.delete_me = True
-            self.error_messages = f"DSSR warning for {self.chain_label}: {json_object['warning']}"
+            self.error_messages = f"DSSR warning {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}."
             return 1
 
         try:
@@ -228,6 +228,11 @@ class Chain:
             nts = json_object["nts"]                         # sub-json-object
             df = pd.DataFrame(nts)                           # conversion to dataframe
             df = df[ df.chain_name == self.pdb_chain_id ]    # keeping only this chain's nucleotides
+            if df.empty:
+                warn(f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+                self.delete_me = True
+                self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
+                return 1
 
             # remove low pertinence or undocumented descriptors
             cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
@@ -242,7 +247,7 @@ class Chain:
             df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
         except KeyError as e:
-            warn(f"Error while parsing DSSR's {self.chain_label} json output:{e}", error=True)
+            warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
             self.delete_me = True
             self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
             return 1
@@ -265,9 +270,9 @@ class Chain:
         try:
             l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
         except IndexError:
-            warn(f"Error while parsing DSSR's annotation: No nucleotides are part of {self.chain_label}!", error=True)
+            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
             self.delete_me = True
-            self.error_messages = f"Error while parsing DSSR's json output: No nucleotides from {self.chain_label}. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
+            self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
             return 1
 
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
@@ -846,7 +851,7 @@ class Pipeline:
                         "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
                 print()
                 print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them")
-                print("--update-homologous\t\tRe-download Rfam sequences and SILVA arb databases, and realign all families")
+                print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
                 print()
                 print("Typical usage:")
@@ -893,6 +898,9 @@ class Pipeline:
                                 runDir + "/known_issues_reasons.txt", 
                                 runDir + "/results/RNANet.db"])
             elif opt == "--update-homologous":
+                if "tobedefinedbyoptions" == path_to_seq_data:
+                    warn("Please provide --seq-folder before --update-homologous in the list of options.", error=True)
+                    exit(1)
                 warn("Deleting previous sequence files and recomputing alignments.")
                 subprocess.run(["rm", "-rf", 
                                 path_to_seq_data + "realigned",
@@ -1136,7 +1144,7 @@ class Pipeline:
                                  WHERE rfam_acc = ?;""", many=True, data=data)
     
     def remap(self):
-        """Compute nucleotide frequencies of the previous alignments and save them in the database
+        """Compute nucleotide frequencies of some alignments and save them in the database
         
         REQUIRES self.fam_list to be defined"""
 
@@ -1548,6 +1556,9 @@ def execute_joblist(fulljoblist):
     # Sort jobs in a tree structure, first by priority, then by CPU numbers
     jobs = {}
     jobcount = len(fulljoblist)
+    if not jobcount:
+        warn("nothing to do !")
+        return []
     for job in fulljoblist:
         if job.priority_ not in jobs.keys():
             jobs[job.priority_] = {}
@@ -1720,10 +1731,11 @@ def work_mmcif(pdb_id):
     url = 'http://files.rcsb.org/download/%s.cif' % (pdb_id)
     final_filepath = path_to_3D_data+"RNAcifs/"+pdb_id+".cif"
 
-    # Attempt to download it
+    # Attempt to download it if not present
     try:
-        _urlcleanup()
-        _urlretrieve(url, final_filepath)
+        if not path.isfile(final_filepath):
+            _urlcleanup()
+            _urlretrieve(url, final_filepath)
     except:
         warn(f"Unable to download {pdb_id}.cif. Ignoring it.", error=True)
         return
@@ -1741,11 +1753,12 @@ def work_mmcif(pdb_id):
     elif "_em_3d_reconstruction.resolution" in mmCif_info.keys() and mmCif_info["_em_3d_reconstruction.resolution"][0] not in ['.', '?']:
         reso = float(mmCif_info["_em_3d_reconstruction.resolution"][0])
     else:
-        warn(f"Wtf, structure {pdb_id} has no resolution ? Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
+        warn(f"Wtf, structure {pdb_id} has no resolution ?")
+        warn(f"Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
         reso = 0.0
     
     # Save into the database
-    with sqlite3.connect(runDir + "/results/RNANet.db")as conn:
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         sql_execute(conn, """INSERT OR REPLACE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
                              VALUES (?, ?, DATE(?), ?, ?);""", data = (pdb_id, 1, date, exp_meth, reso))
     
@@ -2157,15 +2170,16 @@ if __name__ == "__main__":
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences:")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
     
-    pp.prepare_sequences()
-    pp.realign()
+    if len(pp.fam_list):
+        pp.prepare_sequences()
+        pp.realign()
 
-    # At this point, the family table is up to date    
+        # At this point, the family table is up to date    
 
-    thr_idx_mgr = Manager()
-    idxQueue = thr_idx_mgr.Queue()
+        thr_idx_mgr = Manager()
+        idxQueue = thr_idx_mgr.Queue()
 
-    pp.remap()
+        pp.remap()
 
     # At this point, the align_column and re_mapping tables are up-to-date.
 
@@ -2179,4 +2193,4 @@ if __name__ == "__main__":
     print("Completed.")  # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
 
     # # so i can sleep for the end of the night
-    # subprocess.run(["shutdown","now"])
+    # subprocess.run(["poweroff"])
