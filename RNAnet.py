@@ -516,7 +516,7 @@ class Chain:
         """ Replace gapped positions by the consensus sequence. 
         
         REQUIRES align_column and re_mapping up to date
-        SETS nucleotide (nt_align_code)"""
+        """
 
         homology_data = sql_ask_database(conn, f"""SELECT freq_A, freq_C, freq_G, freq_U, freq_other FROM
                                                     (SELECT chain_id, rfam_acc FROM chain WHERE chain_id={self.db_chain_id})
@@ -526,24 +526,25 @@ class Chain:
         if homology_data is None or not len(homology_data):
             with open(runDir + "/errors.txt", "a") as errf:
                 errf.write(f"No homology data found in the database for {self.chain_label} ! Not replacing gaps.\n")
-            return
+            return []
         elif len(homology_data) !=  self.full_length:
             with open(runDir + "/errors.txt", "a") as errf:
                 errf.write(f"Found {len(homology_data)} nucleotides for {self.chain_label} of length {self.full_length} ! Not replacing gaps.\n")
-            return
+            return []
         c_seq_to_align = list(self.seq_to_align)
         c_seq = list(self.seq)
         letters = ['A', 'C', 'G', 'U', 'N']
+        gaps = []
         for i in range(self.full_length):
             if c_seq_to_align[i] == '-':      # (then c_seq[i] also is)
                 freq = homology_data[i]
                 l = letters[freq.index(max(freq))]
                 c_seq_to_align[i] = l
                 c_seq[i] = l
-                sql_execute(conn, f"""UPDATE nucleotide SET nt_align_code = '{l}', is_{l if l in "ACGU" else "other"} = 1
-                                      WHERE chain_id = {self.db_chain_id} AND index_chain = {i+1};""")
+                gaps.append((l, l=='A', l=='C', l=='G', l=='U', l=='N', self.db_chain_id, i+1 ))
         self.seq_to_align = ''.join(c_seq_to_align)
         self.seq = ''.join(c_seq)
+        return gaps
 
 
 class Job:
@@ -1148,7 +1149,8 @@ class Pipeline:
         
         REQUIRES self.fam_list to be defined"""
 
-        print("Computing nucleotide frequencies in alignments...")
+        print("Computing nucleotide frequencies in alignments...\nThis can be very long on slow storage devices (Hard-drive...)")
+        print("Check your CPU and disk I/O activity before deciding if the job failed.")
         nworkers =max(min(ncores, len(self.fam_list)), 1)
 
         # Prepare the architecture of a shiny multi-progress-bars design
@@ -1987,6 +1989,7 @@ def work_pssm(f, fill_gaps):
     
     Also saves every chain of the family to file.
     Uses only 1 core, so this function can be called in parallel.
+    
     """
 
     # Get a worker number to position the progress bar
@@ -2062,16 +2065,29 @@ def work_pssm(f, fill_gaps):
 
     # Replace gaps by consensus 
     if fill_gaps:
+        pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Replace {f} gaps", leave=False)
+        pbar.update(0)
+        gaps = []
         for s in align:
             if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
                 continue
             
             try:
-                idx = chains_ids.index(s.id)
-                list_of_chains[idx].replace_gaps(conn)
+                # get the right 3D chain:
+                if '|' in s.id: 
+                    idx = chains_ids.index(s.id.split('|')[1])
+                else:
+                    idx = chains_ids.index(s.id)
+
+                gaps += list_of_chains[idx].replace_gaps(conn)
             except ValueError:
                 pass # We already printed a warning just above
-
+            pbar.update(1)
+        pbar.close()
+        sql_execute(conn, f"""UPDATE nucleotide SET nt_align_code = ?, 
+                              is_A = ?, is_C = ?, is_G = ?, is_U = ?, is_other = ?
+                              WHERE chain_id = ? AND index_chain = ?;""", many=True, data = gaps)
+    
     conn.close()
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
@@ -2158,7 +2174,7 @@ if __name__ == "__main__":
     # Homology information
     # ===========================================================================
 
-    pp.checkpoint_load_chains()
+    pp.checkpoint_load_chains()  # If your job failed, you can comment all the "3D information" part and start from here.
 
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
