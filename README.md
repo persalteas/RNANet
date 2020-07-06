@@ -49,6 +49,19 @@ Other folders are created and not deleted, which you might want to conserve to a
 * `path-to-3D-folder-you-passed-in-option/annotations/` contains the raw JSON annotation files of the previous mmCIF structures. You may find additional information into them which is not properly supported by RNANet yet.
 
 # How to run
+
+## Required computational resources
+- CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
+- GPU: not required
+- RAM: 16 GB with a large swap partition is okay. 32 GB is recommended (usage peaks at ~27 GB)
+- Storage: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. Go for a 100GB partition and you are good to go. The computation speed is really decreased if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe SSD) because of permanent I/O with the SQlite database.
+- Network : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but maybe you company/university closes ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
+
+To give you an estimation, our last full run took exactly 12h, excluding the time to download the MMCIF files containing RNA (around 25GB to download) and the time to compute statistics.
+Measured the 23rd of June 2020 on a 16-core AMD Ryzen 7 3700X CPU @3.60GHz, plus 32 Go RAM, and a 7200rpm Hard drive. Total CPU time spent: 135 hours (user+kernel modes), corresponding to 12h (actual time spent with the 16-core CPU). 
+
+Update runs are much quicker, around 3 hours. It depends mostly on what RNA families are concerned by the update.
+
 ## Dependencies
 You need to install:
 - DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/). 
@@ -91,6 +104,8 @@ The detailed list of options is below:
 ## Post-computation task: estimate quality
 The file statistics.py is supposed to give a summary on the produced dataset. See the results/ folder. It can be run automatically after RNANet if you pass the `-s` option.
 
+
+
 # How to further filter the dataset
 You may want to build your own sub-dataset by querying the results/RNANet.db file. Here are quick examples using Python3 and its sqlite3 package.
 
@@ -108,6 +123,7 @@ Step 1 : We first get a list of chains that are below our favorite resolution th
 with sqlite3.connect("results/RNANet.db) as connection:
     chain_list = pd.read_sql("""SELECT chain_id, structure_id, chain_name
                                 FROM chain JOIN structure 
+                                ON chain.structure_id = structure.pdb_id
                                 WHERE resolution < 4.0 
                                 ORDER BY structure_id ASC;""",
                             con=connection)
@@ -146,6 +162,7 @@ We will simply modify the Step 1 above:
 with sqlite3.connect("results/RNANet.db) as connection:
     chain_list = pd.read_sql("""SELECT chain_id, structure_id, chain_name
                                 FROM chain JOIN structure 
+                                ON chain.structure_id = structure.pdb_id
                                 WHERE date < "2018-06-01" 
                                 ORDER BY structure_id ASC;""",
                             con=connection)
@@ -160,6 +177,7 @@ If you want just one example of each RNA 3D chain, use in Step 1:
 with sqlite3.connect("results/RNANet.db) as connection:
     chain_list = pd.read_sql("""SELECT UNIQUE chain_id, structure_id, chain_name
                                 FROM chain JOIN structure
+                                ON chain.structure_id = structure.pdb_id
                                 ORDER BY structure_id ASC;""",
                             con=connection)
 ```

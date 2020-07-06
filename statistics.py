@@ -168,6 +168,8 @@ def stats_len():
     lengths = []
     conn = sqlite3.connect("results/RNANet.db")
     for i,f in enumerate(fam_list):
+
+        # Define a color for that family in the plot
         if f in LSU_set:
             cols.append("red") # LSU
         elif f in SSU_set:
@@ -178,11 +180,15 @@ def stats_len():
             cols.append("orange")
         else:
             cols.append("grey")
+
+        # Get the lengths of chains
         l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(index_chain) FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY chain_id;") ]
         lengths.append(l)
+
         notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
     conn.close()
 
+    # Plot the figure
     fig = plt.figure(figsize=(10,3))
     ax = fig.gca()
     ax.hist(lengths, bins=100, stacked=True, log=True, color=cols, label=fam_list)
@@ -191,6 +197,8 @@ def stats_len():
     ax.set_xlim(left=-150)
     ax.tick_params(axis='both', which='both', labelsize=8)
     fig.tight_layout()
+
+    # Draw the legend
     fig.subplots_adjust(right=0.78)
     filtered_handles = [mpatches.Patch(color='red'), mpatches.Patch(color='white'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
                         mpatches.Patch(color='blue'), mpatches.Patch(color='white'), mpatches.Patch(color='white'),
@@ -204,6 +212,8 @@ def stats_len():
                        'Other']
     ax.legend(filtered_handles, filtered_labels, loc='right', 
                 ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.5))
+
+    # Save the figure
     fig.savefig("results/figures/lengths.png")
     notify("Computed sequence length statistics and saved the figure.")
 
@@ -224,10 +234,12 @@ def stats_freq():
 
     Outputs results/frequencies.csv
     REQUIRES tables chain, nucleotide up to date."""
+    # Initialize a Counter object for each family
     freqs = {}
     for f in fam_list:
         freqs[f] = Counter()
 
+    # List all nt_names happening within a RNA family and store the counts in the Counter
     conn = sqlite3.connect("results/RNANet.db")
     for i,f in enumerate(fam_list):
         counts = dict(sql_ask_database(conn, f"SELECT nt_name, COUNT(nt_name) FROM (SELECT chain_id from chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY nt_name;"))
@@ -235,6 +247,7 @@ def stats_freq():
         notify(f"[{i+1}/{len(fam_list)}] Computed {f} nucleotide frequencies.")
     conn.close()
     
+    # Create a pandas DataFrame, and save it to CSV.
     df = pd.DataFrame()
     for f in fam_list:
         tot = sum(freqs[f].values())
@@ -347,8 +360,8 @@ def stats_pairs():
             fam_pbar = tqdm(total=len(fam_list), desc="Pair-types in families", position=0, leave=True) 
             results = []
             allpairs = []
-            for i, _ in enumerate(p.imap_unordered(parallel_stats_pairs, fam_list)):
-                newpairs, fam_df = _
+            for _, newp_famdf in enumerate(p.imap_unordered(parallel_stats_pairs, fam_list)):
+                newpairs, fam_df = newp_famdf
                 fam_pbar.update(1)
                 results.append(fam_df)
                 allpairs.append(newpairs)
@@ -432,13 +445,14 @@ def seq_idty():
     Creates temporary results files in data/*.npy
     REQUIRES tables chain, family un to date."""
 
+    # List the families for which we will compute sequence identity matrices
     conn = sqlite3.connect("results/RNANet.db")
     famlist = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains > 1 ORDER BY rfam_acc ASC;") ]
     ignored = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains < 2 ORDER BY rfam_acc ASC;") ]
     if len(ignored):
         print("Idty matrices: Ignoring families with only one chain:", " ".join(ignored)+'\n')
 
-    # compute distance matrices
+    # compute distance matrices (or ignore if data/RF0****.npy exists)
     p = Pool(processes=8)
     p.map(to_dist_matrix, famlist)
     p.close()
@@ -502,7 +516,7 @@ def per_chain_stats():
 
         # Set the values
         sql_execute(conn, "UPDATE chain SET chain_freq_A = ?, chain_freq_C = ?, chain_freq_G = ?, chain_freq_U = ?, chain_freq_other = ? WHERE chain_id= ?;",
-                       many=True, data=list(df.to_records(index=False)), warn_every=10)
+                          many=True, data=list(df.to_records(index=False)), warn_every=10)
     notify("Updated the database with per-chain base frequencies")
 
 if __name__ == "__main__":

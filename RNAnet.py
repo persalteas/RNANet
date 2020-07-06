@@ -6,14 +6,15 @@ from Bio import AlignIO, SeqIO
 from Bio.PDB import MMCIFParser
 from Bio.PDB.mmcifio import MMCIFIO
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict 
-from Bio.PDB.PDBExceptions import PDBConstructionWarning
+from Bio.PDB.PDBExceptions import PDBConstructionWarning, BiopythonWarning
+from Bio.PDB.Dice import ChainSelector
 from Bio._py3k import urlretrieve as _urlretrieve
 from Bio._py3k import urlcleanup as _urlcleanup
 from Bio.Alphabet import generic_rna
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment, AlignInfo
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import partial, wraps
 from os import path, makedirs
 from multiprocessing import Pool, Manager, set_start_method
@@ -40,6 +41,7 @@ errsymb = '\U0000274C'
 
 LSU_set = {"RF00002", "RF02540", "RF02541", "RF02543", "RF02546"}   # From Rfam CLAN 00112
 SSU_set = {"RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"}  # From Rfam CLAN 00111
+no_nts_set = set()
 
 class NtPortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -170,29 +172,40 @@ class Chain:
         with warnings.catch_warnings():
             # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
             warnings.simplefilter('ignore', PDBConstructionWarning)  
+            warnings.simplefilter('ignore', BiopythonWarning)  
 
             # Load the whole mmCIF into a Biopython structure object:
             mmcif_parser = MMCIFParser()
             s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
+            
 
             # Extract the desired chain
             c = s[model_idx][self.pdb_chain_id]
 
             if (self.pdb_end - self.pdb_start):
-                # Pay attention to residue numbering
-                first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
+                # # Pay attention to residue numbering 
+                # first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
+                # if self.pdb_start < self.pdb_end:                             
+                #     start = self.pdb_start + first_number - 1       # shift our start_position by 'first_number'
+                #     end = self.pdb_end + first_number - 1           # same for the end position
+                # else:
+                #     self.reversed = True                            # the 3D chain is numbered backwards compared to the Rfam family
+                #     end = self.pdb_start + first_number - 1
+                #     start = self.pdb_end + first_number - 1
+
                 if self.pdb_start < self.pdb_end:                             
-                    start = self.pdb_start + first_number - 1       # shift our start_position by 'first_number'
-                    end = self.pdb_end + first_number - 1           # same for the end position
+                    start = self.pdb_start        # shift our start_position by 'first_number'
+                    end = self.pdb_end            # same for the end position
                 else:
-                    self.reversed = True                            # the 3D chain is numbered backwards compared to the Rfam family
-                    end = self.pdb_start + first_number - 1
-                    start = self.pdb_end + first_number - 1
+                    self.reversed = True          # the 3D chain is numbered backwards compared to the Rfam family
+                    end = self.pdb_start
+                    start = self.pdb_end
             else:
                 start = c.child_list[0].get_id()[1]  # the chain's first residue is numbered 'first_number'
                 end = c.child_list[-1].get_id()[1]   # the chain's last residue number
             
             # Define a selection
+            # sel = ChainSelector(self.pdb_chain_id, start, end, model_id = model_idx)
             sel = NtPortionSelector(model_idx, self.pdb_chain_id, start, end, khetatm)
 
             # Save that selection on the mmCIF object s to file
@@ -205,7 +218,9 @@ class Chain:
     def extract_3D_data(self):
         """ Maps DSSR annotations to the chain. """
 
+        ############################################
         # Load the mmCIF annotations from file
+        ############################################
         try:
             with open(path_to_3D_data + "annotations/" + self.pdb_id + ".json", 'r') as json_file:
                 json_object = json.load(json_file)
@@ -219,38 +234,52 @@ class Chain:
         # Print eventual warnings given by DSSR, and abort if there are some
         if "warning" in json_object.keys():
             warn(f"found DSSR warning in annotation {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}.")
+            if "no nucleotides" in json_object['warning']:
+                no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"DSSR warning {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}."
             return 1
 
+        ############################################
+        # Create the data-frame
+        ############################################
         try:
-            # Prepare a data structure (Pandas DataFrame) for the nucleotides
+            # Create the Pandas DataFrame for the nucleotides of the right chain
             nts = json_object["nts"]                         # sub-json-object
             df = pd.DataFrame(nts)                           # conversion to dataframe
             df = df[ df.chain_name == self.pdb_chain_id ]    # keeping only this chain's nucleotides
+
+            # Assert nucleotides of the chain are found
             if df.empty:
                 warn(f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+                no_nts_set.add(self.pdb_id)
                 self.delete_me = True
                 self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
                 return 1
 
-            # remove low pertinence or undocumented descriptors
+            # Remove low pertinence or undocumented descriptors, convert angles values
             cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
                 "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
                 "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering" ]
             df = df[cols_we_keep]
-
-            # Convert angles to radians
-            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
+            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4', # Conversion to radians
                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] *= np.pi/180.0
-            # mapping [-pi, pi] into [0, 2pi]
-            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4',
+            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4', # mapping [-pi, pi] into [0, 2pi]
                         'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
+
         except KeyError as e:
             warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
             self.delete_me = True
             self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
             return 1
+
+        # Remove nucleotides of the chain that are outside the Rfam mapping, if any
+        if self.pdb_start and self.pdb_end:
+            df = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
+
+        #############################################
+        # Solve some common issues and drop ligands
+        #############################################
 
         # Shift numbering when duplicate residue numbers are found.
         # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
@@ -266,11 +295,12 @@ class Chain:
             or (len(df.index_chain) >= 2 and df.iloc[[-1]].nt_resnum.iloc[0] > 50 + df.iloc[[-2]].nt_resnum.iloc[0])):
             df = df.head(-1) 
 
-        # Assert some nucleotides exist
+        # Assert some nucleotides still exist
         try:
             l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
         except IndexError:
             warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+            no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
             return 1
@@ -281,14 +311,15 @@ class Chain:
             df.iloc[:, 0] -= st
         df = df.drop(df[df.index_chain < 0].index)  # drop eventual ones with index_chain < the first residue (usually, ligands)
 
-        # Add a sequence column just for the alignments
-        df['nt_align_code'] = [ str(x).upper()
-                                        .replace('NAN', '-')      # Unresolved nucleotides are gaps
-                                        .replace('?', '-')        # Unidentified residues, let's delete them
-                                        .replace('T', 'U')        # 5MU are modified to t, which gives T
-                                        .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
-                                for x in df['nt_code'] ]
-
+        # Re-Assert some nucleotides still exist
+        try:
+            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
+        except IndexError:
+            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+            no_nts_set.add(self.pdb_id)
+            self.delete_me = True
+            self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
+            return 1
 
         # Add eventual missing rows because of unsolved residues in the chain.
         # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
@@ -304,7 +335,7 @@ class Chain:
         # portion solved in 3D  1 |--------------|79 85|------------| 156
         # Rfam mapping           3 |------------------------------------------ ... -------| 3353 (yes larger, 'cause it could be inferred)
         # nt resnum              3 |--------------------------------|  156
-        # index_chain            1 |-------------|77 83|------------|  149
+        # index_chain            1 |-------------|77 83|------------|  149 (before correction)
         # expected data point    1 |--------------------------------|  154
         #
 
@@ -314,14 +345,25 @@ class Chain:
             for i in sorted(diff):
                 # Add a row at position i
                 df = pd.concat([    df.iloc[:i], 
-                                    pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, 
-                                                    "nt_code":'-', "nt_name":'-', 'nt_align_code':'-'}, index=[i]), 
-                                    df.iloc[i:]
-                                ])
+                                    pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, "nt_code":'-', "nt_name":'-'}, index=[i]), 
+                                    df.iloc[i:]       ])
                 # Increase the index_chain of all following lines
                 df.iloc[i+1:, 0] += 1
             df = df.reset_index(drop=True)
         self.full_length = len(df.index_chain)
+
+        # Add a sequence column just for the alignments
+        df['nt_align_code'] = [ str(x).upper()
+                                    .replace('NAN', '-')      # Unresolved nucleotides are gaps
+                                    .replace('?', '-')        # Unidentified residues, let's delete them
+                                    .replace('T', 'U')        # 5MU are modified to t, which gives T
+                                    .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
+                                for x in df['nt_code'] ]
+
+
+        #######################################
+        # Compute new features
+        #######################################
 
         # One-hot encoding sequence
         df["is_A"] = [ 1 if x=="A" else 0 for x in df["nt_code"] ]
@@ -415,7 +457,13 @@ class Chain:
                         newpairs.append(v)
             df['paired'] = newpairs
                 
-        # Saving to database
+        self.seq = "".join(df.nt_code)
+        self.seq_to_align = "".join(df.nt_align_code)
+        self.length = len([ x for x in self.seq_to_align if x != "-" ])
+
+        ####################################
+        # Save everything to database
+        ####################################
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
             if self.pdb_start is not None:
@@ -444,11 +492,7 @@ class Chain:
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
             many=True, data=list(df.to_records(index=False)), warn_every=10)
 
-        # Now load data from the database
-        self.seq = "".join(df.nt_code)
-        self.seq_to_align = "".join(df.nt_align_code)
-        self.length = len([ x for x in self.seq_to_align if x != "-" ])
-
+        
         # Remove too short chains
         if self.length < 5:
             warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
@@ -811,7 +855,7 @@ class Pipeline:
         global path_to_seq_data
 
         try:
-            opts, args = getopt.getopt( sys.argv[1:], "r:hs", 
+            opts, _ = getopt.getopt( sys.argv[1:], "r:hs", 
                                     [   "help", "resolution=", "keep-hetatm=", "from-scratch",
                                         "fill-gaps=", "3d-folder=", "seq-folder=",
                                         "no-homology", "ignore-issues", "extract",
@@ -822,7 +866,7 @@ class Pipeline:
 
         for opt, arg in opts:
 
-            if opt in ["--from-scratch", "--update-mmcifs", "--update-homolgous"] and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
+            if opt in ["--from-scratch", "--update-mmcifs", "--update-homologous"] and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
                 print("Please provide --3d-folder and --seq-folder first, so that we know what to delete and update.")
                 exit()
 
@@ -890,7 +934,7 @@ class Pipeline:
                 warn("Deleting previous database and recomputing from scratch.")
                 subprocess.run(["rm", "-rf", 
                                 path_to_3D_data + "annotations",
-                                path_to_3D_data + "RNAcifs",
+                                # path_to_3D_data + "RNAcifs",  # DEBUG : keep the cifs !
                                 path_to_3D_data + "rna_mapped_to_Rfam",
                                 path_to_3D_data + "rnaonly",
                                 path_to_seq_data + "realigned",
@@ -899,9 +943,6 @@ class Pipeline:
                                 runDir + "/known_issues_reasons.txt", 
                                 runDir + "/results/RNANet.db"])
             elif opt == "--update-homologous":
-                if "tobedefinedbyoptions" == path_to_seq_data:
-                    warn("Please provide --seq-folder before --update-homologous in the list of options.", error=True)
-                    exit(1)
                 warn("Deleting previous sequence files and recomputing alignments.")
                 subprocess.run(["rm", "-rf", 
                                 path_to_seq_data + "realigned",
@@ -942,8 +983,9 @@ class Pipeline:
             print("> Building list of structures...", flush=True)
             p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores)
             try:
+
                 pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, bar_format="{percentage:3.0f}%|{bar}|")
-                for i, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list)): 
+                for _, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list)): 
                     self.update += newchains
                     pbar.update(1) # Everytime the iteration finishes, update the global progress bar
 
@@ -1053,7 +1095,8 @@ class Pipeline:
                     warn(f"Adding {c[1].chain_label} to known issues.")
                     ki.write(c[1].chain_label + '\n')
                     kir.write(c[1].chain_label + '\n' + c[1].error_messages + '\n\n')
-                    sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
+                    with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
+                        sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
         ki.close()
         kir.close()
     
@@ -1194,7 +1237,7 @@ class Pipeline:
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True) 
-            for i, _ in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
+            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
                 pbar.update(1) 
             pbar.close()
             p.close()
@@ -2158,6 +2201,8 @@ if __name__ == "__main__":
         pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
         pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
     print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} errors).")
+    if len(no_nts_set):
+        print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
     pp.checkpoint_save_chains()
 
     if not pp.HOMOLOGY:
@@ -2165,7 +2210,7 @@ if __name__ == "__main__":
         for c in pp.loaded_chains:
             work_save(c, homology=False)
         print("Completed.")
-        exit()
+        exit(0)
     
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
