@@ -1286,46 +1286,37 @@ class Pipeline:
         conn = sqlite3.connect(runDir + "/results/RNANet.db")
 
         # Assert every structure is used
-        r = sql_ask_database(conn, """SELECT structure_id FROM structure 
-                                      LEFT JOIN chain ON structure.pdb_id = chain.structure_id 
-                                      WHERE chain_id IS NULL;""")
+        r = sql_ask_database(conn, """SELECT DISTINCT pdb_id FROM structure WHERE pdb_id NOT IN (SELECT DISTINCT structure_id FROM chain);""")
         if len(r) and r[0][0] is not None:
-            warn("Structures without referenced chains have been detected")
-            for x in r:
-                print(x)
+            warn("Structures without referenced chains have been detected. This happens if we have known issues, for example.")
+            print(" ".join([x[0] for x in r]))
 
         # Assert every chain is attached to a structure
-        r = sql_ask_database(conn, """SELECT chain_id, structure_id FROM chain 
-                                      LEFT JOIN structure ON chain.structure_id = structure.pdb_id
-                                      WHERE pdb_id IS NULL;""")
+        r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure);""")
         if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
-            for x in r:
-                print(x)
-
+            print(" ".join([x[1]+'-'+x[0] for x in r]))
         
         if self.HOMOLOGY:
             # check if chains have been re_mapped:
-            r = sql_ask_database(conn, """SELECT COUNT(chain.chain_id) as Count, rfam_acc
-                                            FROM chain LEFT JOIN re_mapping
-                                            ON chain.chain_id = re_mapping.chain_id
-                                            WHERE index_ali IS NULL GROUP BY rfam_acc;""")
+            r = sql_ask_database(conn, """SELECT COUNT(DISTINCT chain_id) AS Count, rfam_acc FROM chain 
+                                          WHERE chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
+                                          GROUP BY rfam_acc;""")
             if len(r) and r[0][0] is not None:
-                warn("Structures were not remapped:")
+                warn("Chains were not remapped (This happens if we have known issues for example):")
                 for x in r:
                     print(str(x[0]) + " chains of family " + x[1])
 
-            # check if some columns are missing in the remappings:
-            r = sql_ask_database(conn, """SELECT c.chain_id, c.structure_id, c.chain_name, c.rfam_acc, re_mapping.index_chain, re_mapping.index_ali 
-                                            FROM chain as c
-                                            NATURAL JOIN re_mapping
-                                            LEFT JOIN align_column 
-                                            ON re_mapping.index_ali=align_column.index_ali AND c.rfam_acc=align_column.rfam_acc
-                                            WHERE freq_A IS NULL;""")
-            if len(r) and r[0][0] is not None:
-                warn("Structures were not remapped:")
-                for x in r:
-                    print(x)
+            # # TODO : Optimize this (too slow)
+            # # check if some columns are missing in the remappings:
+            # r = sql_ask_database(conn, """SELECT c.chain_id, c.structure_id, c.chain_name, c.rfam_acc, r.index_chain, r.index_ali 
+            #                                 FROM chain as c
+            #                                 NATURAL JOIN re_mapping as r
+            #                                 WHERE index_ali NOT IN (SELECT index_ali FROM align_column WHERE rfam_acc = c.rfam_acc);""")
+            # if len(r) and r[0][0] is not None:
+            #     warn("Missing positions in the re-mapping:")
+            #     for x in r:
+            #         print(x)
 
         conn.close()
 
@@ -1806,7 +1797,7 @@ def work_mmcif(pdb_id):
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         sql_execute(conn, """INSERT OR REPLACE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
                              VALUES (?, ?, DATE(?), ?, ?);""", data = (pdb_id, 1, date, exp_meth, reso))
-    
+
     # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
     output = subprocess.run(["x3dna-dssr", f"-i={final_filepath}", "--json", "--auxfile=no"], 
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1964,11 +1955,12 @@ def work_realign(rfam_acc):
             notify("Aligned new sequences together")
 
             # And we merge the two alignments
-            p2= subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.stk", "--rna",
+            p2= subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", "--rna",
                                 path_to_seq_data + f"realigned/{rfam_acc}++.stk", 
                                 path_to_seq_data + f"realigned/{rfam_acc}_new.stk" ], 
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
+            subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
             notify("Merged alignments into one")
 
             # remove the partial files
