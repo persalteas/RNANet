@@ -68,27 +68,30 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
 
     
     if not path.isfile(f"data/wadley_kernel_{angle}.npz"):
-        conn = sqlite3.connect("results/RNANet.db")
-        df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE puckering="C2'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
-        c2_endo_etas = df[angle].values.tolist()
-        c2_endo_thetas = df["th"+angle].values.tolist()
-        df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE form = '.' AND puckering="C3'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
-        c3_endo_etas = df[angle].values.tolist()
-        c3_endo_thetas = df["th"+angle].values.tolist()
-        conn.close()
+        # Extract the angle values of c2'-endo and c3'-endo nucleotides
+        with sqlite3.connect("results/RNANet.db") as conn:
+            df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE puckering="C2'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+            c2_endo_etas = df[angle].values.tolist()
+            c2_endo_thetas = df["th"+angle].values.tolist()
+            df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE form = '.' AND puckering="C3'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+            c3_endo_etas = df[angle].values.tolist()
+            c3_endo_thetas = df["th"+angle].values.tolist()
+        
+        # Create arrays with (x,y) coordinates of the points
+        values_c3 = np.vstack([c3_endo_etas, c3_endo_thetas])
+        values_c2 = np.vstack([c2_endo_etas, c2_endo_thetas])
 
+        # Approximate the density by a gaussian kernel
+        kernel_c3 = st.gaussian_kde(values_c3)
+        kernel_c2 = st.gaussian_kde(values_c2)
+
+        # Create 100x100 regular (x,y,z) values for the plot
         xx, yy = np.mgrid[0:2*np.pi:100j, 0:2*np.pi:100j]
         positions = np.vstack([xx.ravel(), yy.ravel()])
-
-        values_c3 = np.vstack([c3_endo_etas, c3_endo_thetas])
-        kernel_c3 = st.gaussian_kde(values_c3)
         f_c3 = np.reshape(kernel_c3(positions).T, xx.shape)
-        values_c2 = np.vstack([c2_endo_etas, c2_endo_thetas])
-        kernel_c2 = st.gaussian_kde(values_c2)
         f_c2 = np.reshape(kernel_c2(positions).T, xx.shape)
 
-
-        # Uncomment to save the data to an archive for later use without the need to recompute
+        # Save the data to an archive for later use without the need to recompute
         np.savez(f"data/wadley_kernel_{angle}.npz",
                   c3_endo_e=c3_endo_etas, c3_endo_t=c3_endo_thetas,
                   c2_endo_e=c2_endo_etas, c2_endo_t=c2_endo_thetas,
@@ -106,8 +109,10 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
     notify(f"Kernel computed for {angle}/th{angle} (or loaded from file).")
 
     # exact counts:
-    hist_c2, xedges, yedges = np.histogram2d(c2_endo_etas, c2_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
-    hist_c3, xedges, yedges = np.histogram2d(c3_endo_etas, c3_endo_thetas, bins=int(2*np.pi/0.1), range=[[0, 2*np.pi], [0, 2*np.pi]])
+    hist_c2, xedges, yedges = np.histogram2d(c2_endo_etas, c2_endo_thetas, bins=int(2*np.pi/0.1), 
+                                             range=[[0, 2*np.pi], [0, 2*np.pi]])
+    hist_c3, xedges, yedges = np.histogram2d(c3_endo_etas, c3_endo_thetas, bins=int(2*np.pi/0.1), 
+                                             range=[[0, 2*np.pi], [0, 2*np.pi]])
     cmap = cm.get_cmap("jet")
     color_values = cmap(hist_c3.ravel()/hist_c3.max())
 
@@ -450,7 +455,7 @@ def seq_idty():
     famlist = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains > 1 ORDER BY rfam_acc ASC;") ]
     ignored = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains < 2 ORDER BY rfam_acc ASC;") ]
     if len(ignored):
-        print("Idty matrices: Ignoring families with only one chain:", " ".join(ignored)+'\n')
+        print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
 
     # compute distance matrices (or ignore if data/RF0****.npy exists)
     p = Pool(processes=8)
@@ -476,7 +481,7 @@ def seq_idty():
     conn.close()
 
     # Plots plots plots
-    fig, axs = plt.subplots(5,13, figsize=(15,9))
+    fig, axs = plt.subplots(4,17, figsize=(17,5.75))
     axs = axs.ravel()
     [axi.set_axis_off() for axi in axs]
     im = "" # Just to declare the variable, it will be set in the loop
@@ -495,7 +500,7 @@ def seq_idty():
             D = D[idx1,:]
             D = D[:,idx1[::-1]]
         im = ax.matshow(1.0 - D, vmin=0, vmax=1, origin='lower') # convert to identity matrix 1 - D from distance matrix D
-        ax.set_title(f + "\n(" + str(len(mappings_list[f]))+ " chains)")
+        ax.set_title(f + "\n(" + str(len(mappings_list[f]))+ " chains)", fontsize=10)
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.1, hspace=0.3)
     fig.colorbar(im, ax=axs[-1], shrink=0.8)
@@ -537,10 +542,10 @@ if __name__ == "__main__":
     threads = [
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
-        # th.Thread(target=stats_len),
-        # th.Thread(target=stats_freq),
-        # th.Thread(target=seq_idty),
-        # th.Thread(target=per_chain_stats)
+        # th.Thread(target=stats_len),            # computes figures
+        # th.Thread(target=stats_freq),           # Updates the database
+        # th.Thread(target=seq_idty),           # produces .npy files and seq idty figures
+        # th.Thread(target=per_chain_stats)       # Updates the database
     ]
     
     # Start the threads

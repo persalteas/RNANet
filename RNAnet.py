@@ -155,7 +155,7 @@ class Chain:
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         
-        if (self.pdb_end - self.pdb_start):
+        if self.pdb_start is not None and (self.pdb_end - self.pdb_start):
             status = f"Extract {self.pdb_start}-{self.pdb_end} atoms from {self.pdb_id}-{self.pdb_chain_id}"
             self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
         else:
@@ -182,7 +182,7 @@ class Chain:
             # Extract the desired chain
             c = s[model_idx][self.pdb_chain_id]
 
-            if (self.pdb_end - self.pdb_start):
+            if self.pdb_start is not None and (self.pdb_end - self.pdb_start):
                 # # Pay attention to residue numbering 
                 # first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
                 # if self.pdb_start < self.pdb_end:                             
@@ -309,6 +309,28 @@ class Chain:
         if df.iloc[0,0] != 1:
             st = df.iloc[0,0] -1
             df.iloc[:, 0] -= st
+
+            
+        # Find missing index_chain values because of resolved nucleotides that have a strange nt_resnum value
+        # e.g. 4v49-AA, position 5'- 1003 -> 2003 -> 1004 - 3'
+        diff = set(range(df.shape[0])).difference(df['index_chain'] - 1)
+        for i in sorted(diff):
+            # check if a nucleotide numbered +1000 exists
+            looked_for = df[df.index_chain == i].nt_resnum.values[0]
+            found = None
+            for nt in nts:
+                if nt['chain_name'] != self.pdb_chain_id:
+                    continue
+                if nt['index_chain'] == i + 1 :
+                    found = nt
+                    break
+            if found:
+                df_row = pd.DataFrame([found], index=[i])[df.columns.values]
+                df_row.iloc[0,1] = df.iloc[i,1]
+                df = pd.concat([ df.iloc[:i], df_row, df.iloc[i:] ])
+                df.iloc[i+1:, 1] += 1
+            else:
+                warn(f"Missing index_chain {i} in {self.chain_label} !")
         df = df.drop(df[df.index_chain < 0].index)  # drop eventual ones with index_chain < the first residue (usually, ligands)
 
         # Re-Assert some nucleotides still exist
@@ -352,6 +374,10 @@ class Chain:
             df = df.reset_index(drop=True)
         self.full_length = len(df.index_chain)
 
+        #######################################
+        # Compute new features
+        #######################################
+
         # Add a sequence column just for the alignments
         df['nt_align_code'] = [ str(x).upper()
                                     .replace('NAN', '-')      # Unresolved nucleotides are gaps
@@ -359,11 +385,6 @@ class Chain:
                                     .replace('T', 'U')        # 5MU are modified to t, which gives T
                                     .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
                                 for x in df['nt_code'] ]
-
-
-        #######################################
-        # Compute new features
-        #######################################
 
         # One-hot encoding sequence
         df["is_A"] = [ 1 if x=="A" else 0 for x in df["nt_code"] ]
@@ -464,6 +485,7 @@ class Chain:
         ####################################
         # Save everything to database
         ####################################
+
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
             if self.pdb_start is not None:
@@ -472,13 +494,28 @@ class Chain:
                                         VALUES 
                                         (?, ?, ?, ?, ?, ?, ?, ?)
                                         ON CONFLICT(structure_id, chain_name, rfam_acc) DO
-                                        UPDATE SET pdb_start=excluded.pdb_start, pdb_end=excluded.pdb_end, reversed=excluded.reversed, inferred=excluded.inferred, issue=excluded.issue;""", 
-                                        data=(str(self.pdb_id), str(self.pdb_chain_id), int(self.pdb_start), int(self.pdb_end), int(self.reversed), str(self.rfam_fam), int(self.inferred), int(self.delete_me)))
+                                        UPDATE SET  pdb_start=excluded.pdb_start, 
+                                                    pdb_end=excluded.pdb_end, 
+                                                    reversed=excluded.reversed, 
+                                                    inferred=excluded.inferred, 
+                                                    issue=excluded.issue;""", 
+                                        data=(str(self.pdb_id), str(self.pdb_chain_id), 
+                                              int(self.pdb_start), int(self.pdb_end), 
+                                              int(self.reversed), str(self.rfam_fam), 
+                                              int(self.inferred), int(self.delete_me)))
                 # get the chain id
-                self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}' AND rfam_acc='{self.rfam_fam}';")[0][0]
+                self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
+                                                    WHERE structure_id='{self.pdb_id}' 
+                                                    AND chain_name='{self.pdb_chain_id}' 
+                                                    AND rfam_acc='{self.rfam_fam}';""")[0][0]
             else:
-                sql_execute(conn, "INSERT INTO chain (structure_id, chain_name, issue) VALUES (?, ?, ?) ON CONFLICT(structure_id, chain_name) DO UPDATE SET issue=excluded.issue;", data=(str(self.pdb_id), int(self.pdb_chain_id), int(self.delete_me)))
-                self.db_chain_id = sql_ask_database(conn, f"SELECT (chain_id) FROM chain WHERE structure_id='{self.pdb_id}' AND chain_name='{self.pdb_chain_id}' AND rfam_acc IS NULL;")[0][0]
+                sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, issue) VALUES (?, ?, NULL, ?) 
+                                   ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue;""", 
+                            data=(str(self.pdb_id), str(self.pdb_chain_id), int(self.delete_me)))
+                self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
+                                                    WHERE structure_id='{self.pdb_id}' 
+                                                    AND chain_name='{self.pdb_chain_id}' 
+                                                    AND rfam_acc IS NULL;""")[0][0]
             
             # Add the nucleotides
             sql_execute(conn, f"""
@@ -492,7 +529,6 @@ class Chain:
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
             many=True, data=list(df.to_records(index=False)), warn_every=10)
 
-        
         # Remove too short chains
         if self.length < 5:
             warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
@@ -1064,7 +1100,7 @@ class Pipeline:
         if self.EXTRACT_CHAINS:
             if self.HOMOLOGY and not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
                 os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
-            if not self.HOMOLOGY and not path.isdir(path_to_3D_data + "rna_only"):
+            if (not self.HOMOLOGY) and not path.isdir(path_to_3D_data + "rna_only"):
                 os.makedirs(path_to_3D_data + "rna_only") # extract chains of pure RNA
 
         # define and run jobs
@@ -1295,7 +1331,7 @@ class Pipeline:
         r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure);""")
         if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
-            print(" ".join([x[1]+'-'+x[0] for x in r]))
+            print(" ".join([str(x[1])+'-'+str(x[0]) for x in r]))
         
         if self.HOMOLOGY:
             # check if chains have been re_mapped:
@@ -2187,6 +2223,7 @@ if __name__ == "__main__":
     # At this point, the structure table is up to date
 
     pp.build_chains(coeff_ncores=1.0)
+
     if len(pp.to_retry):
         # Redownload and re-annotate 
         print("> Retrying to annotate some structures which just failed.", flush=True)
@@ -2226,6 +2263,7 @@ if __name__ == "__main__":
     if len(pp.fam_list):
         pp.prepare_sequences()
         pp.realign()
+
 
         # At this point, the family table is up to date    
 
