@@ -275,7 +275,10 @@ class Chain:
 
         # Remove nucleotides of the chain that are outside the Rfam mapping, if any
         if self.pdb_start and self.pdb_end:
-            df = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
+            if self.pdb_start < self.pdb_end:
+                df = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
+            else:
+                df = df.drop(df[(df.nt_resnum < self.pdb_end) | (df.nt_resnum > self.pdb_start)].index)
 
         #############################################
         # Solve some common issues and drop ligands
