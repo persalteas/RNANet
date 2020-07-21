@@ -887,6 +887,7 @@ class Pipeline:
         self.RUN_STATS = False
         self.EXTRACT_CHAINS = False
         self.REUSE_ALL = False
+        self.SELECT_ONLY = None
 
     def process_options(self):
         """Sets the paths and options of the pipeline"""
@@ -897,7 +898,7 @@ class Pipeline:
             opts, _ = getopt.getopt( sys.argv[1:], "r:hs", 
                                     [   "help", "resolution=", "keep-hetatm=", "from-scratch",
                                         "fill-gaps=", "3d-folder=", "seq-folder=",
-                                        "no-homology", "ignore-issues", "extract",
+                                        "no-homology", "ignore-issues", "extract", "only=", "all",
                                         "update-homologous" ])
         except getopt.GetoptError as err:
             print(err)
@@ -934,6 +935,8 @@ class Pipeline:
                 print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
                         "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
                 print()
+                print("--all\t\t\t\tBuild chains even if they already are in the database.")
+                print("--only\t\t\t\tAsk to process a specific chain label only")
                 print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them")
                 print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
@@ -969,6 +972,10 @@ class Pipeline:
                 print("> Storing sequences into", path_to_seq_data)
             elif opt == "--ignore-issues":
                 self.USE_KNOWN_ISSUES = False
+            elif opt == "--only":
+                self.USE_KNOWN_ISSUES = False
+                self.REUSE_ALL = True
+                self.SELECT_ONLY = arg
             elif opt == "--from-scratch":
                 warn("Deleting previous database and recomputing from scratch.")
                 subprocess.run(["rm", "-rf", 
@@ -987,6 +994,9 @@ class Pipeline:
                                 path_to_seq_data + "realigned",
                                 path_to_seq_data + "rfam_sequences"])
                 self.REUSE_ALL = True
+            elif opt == "--all":
+                self.REUSE_ALL = True
+                self.USE_KNOWN_ISSUES = False
             elif opt == "--extract":
                 self.EXTRACT_CHAINS = True
     
@@ -1053,6 +1063,9 @@ class Pipeline:
                     if not len(res): # the chain is NOT yet in the database, or this is a known issue
                         self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
             conn.close()
+
+        if self.SELECT_ONLY is not None:
+            self.update = [ c for c in self.update if c.chain_label == self.SELECT_ONLY ]
 
         self.n_chains = len(self.update)
         print(str(self.n_chains) + " RNA chains of interest.")
@@ -1325,13 +1338,13 @@ class Pipeline:
         conn = sqlite3.connect(runDir + "/results/RNANet.db")
 
         # Assert every structure is used
-        r = sql_ask_database(conn, """SELECT DISTINCT pdb_id FROM structure WHERE pdb_id NOT IN (SELECT DISTINCT structure_id FROM chain);""")
+        r = sql_ask_database(conn, """SELECT DISTINCT pdb_id FROM structure WHERE pdb_id NOT IN (SELECT DISTINCT structure_id FROM chain WHERE issue = 0);""")
         if len(r) and r[0][0] is not None:
-            warn("Structures without referenced chains have been detected. This happens if we have known issues, for example.")
+            warn("Structures without referenced chains have been detected.")
             print(" ".join([x[0] for x in r]))
 
         # Assert every chain is attached to a structure
-        r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure);""")
+        r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure) AND issue = 0;""")
         if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
             print(" ".join([str(x[1])+'-'+str(x[0]) for x in r]))
