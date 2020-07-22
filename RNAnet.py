@@ -42,6 +42,7 @@ errsymb = '\U0000274C'
 LSU_set = {"RF00002", "RF02540", "RF02541", "RF02543", "RF02546"}   # From Rfam CLAN 00112
 SSU_set = {"RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"}  # From Rfam CLAN 00111
 no_nts_set = set()
+weird_mappings = set()
 
 class NtPortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -273,13 +274,6 @@ class Chain:
             self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
             return 1
 
-        # Remove nucleotides of the chain that are outside the Rfam mapping, if any
-        if self.pdb_start and self.pdb_end:
-            if self.pdb_start < self.pdb_end:
-                df = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
-            else:
-                df = df.drop(df[(df.nt_resnum < self.pdb_end) | (df.nt_resnum > self.pdb_start)].index)
-
         #############################################
         # Solve some common issues and drop ligands
         #############################################
@@ -297,6 +291,9 @@ class Chain:
             or (df.iloc[[-1]].puckering=='').any())
             or (len(df.index_chain) >= 2 and df.iloc[[-1]].nt_resnum.iloc[0] > 50 + df.iloc[[-2]].nt_resnum.iloc[0])):
             df = df.head(-1) 
+
+        # drop eventual nts with index_chain < the first residue (usually, ligands)
+        df = df.drop(df[df.index_chain < 0].index)  
 
         # Assert some nucleotides still exist
         try:
@@ -334,13 +331,31 @@ class Chain:
                 df.iloc[i+1:, 1] += 1
             else:
                 warn(f"Missing index_chain {i} in {self.chain_label} !")
-        df = df.drop(df[df.index_chain < 0].index)  # drop eventual ones with index_chain < the first residue (usually, ligands)
+        
+        # Remove nucleotides of the chain that are outside the Rfam mapping, if any
+        if self.pdb_start and self.pdb_end:
+            if self.pdb_start < self.pdb_end:
+                newdf = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
+            else:
+                newdf = df.drop(df[(df.nt_resnum < self.pdb_end) | (df.nt_resnum > self.pdb_start)].index)
 
-        # Re-Assert some nucleotides still exist
+            if len(newdf.index_chain) > 0:
+                # everything's okay 
+                df = newdf
+            else:
+                # There were nucleotides in this chain but we removed them all while
+                # filtering the ones outside the Rfam mapping.
+                # This probably means that, for this chain, the mapping is relative to 
+                # index_chain and not nt_resnum.
+                warn(f"Assuming {self.chain_label}'s mapping to {self.rfam_fam} is an absolute position interval.")
+                weird_mappings.add(self.chain_label + "." + self.rfam_fam)
+                df = df.drop(df[(df.index_chain < self.pdb_start) | (df.index_chain > self.pdb_end)].index)
+        
         try:
-            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
+            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # update length of chain from nt_resnum point of view
         except IndexError:
-            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} between {self.pdb_start} and "
+                 f"{self.pdb_end} ({'not' if not self.inferred else ''} inferred). Ignoring chain {self.chain_label}.", error=True)
             no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
@@ -360,7 +375,7 @@ class Chain:
         # portion solved in 3D  1 |--------------|79 85|------------| 156
         # Rfam mapping           3 |------------------------------------------ ... -------| 3353 (yes larger, 'cause it could be inferred)
         # nt resnum              3 |--------------------------------|  156
-        # index_chain            1 |-------------|77 83|------------|  149 (before correction)
+        # index_chain            1 |-------------|77 83|------------|  154 
         # expected data point    1 |--------------------------------|  154
         #
 
@@ -537,6 +552,8 @@ class Chain:
             warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
             self.delete_me = True
             self.error_messages = "Sequence is too short. (< 5 resolved nts)"
+            return 1
+
         return 0
 
     def remap(self, columns_to_save, s_seq):
@@ -1352,10 +1369,10 @@ class Pipeline:
         if self.HOMOLOGY:
             # check if chains have been re_mapped:
             r = sql_ask_database(conn, """SELECT COUNT(DISTINCT chain_id) AS Count, rfam_acc FROM chain 
-                                          WHERE chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
+                                          WHERE issue = 0 AND chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
                                           GROUP BY rfam_acc;""")
             if len(r) and r[0][0] is not None:
-                warn("Chains were not remapped (This happens if we have known issues for example):")
+                warn("Chains were not remapped:")
                 for x in r:
                     print(str(x[0]) + " chains of family " + x[1])
 
@@ -1999,24 +2016,43 @@ def work_realign(rfam_acc):
                 # there are no new sequences to align...
                 return
 
+            existing_ali_path = path_to_seq_data + f"realigned/{rfam_acc}++.stk"
+            new_ali_path = path_to_seq_data + f"realigned/{rfam_acc}_new.stk"
+
             # Align the new sequences
-            with open(path_to_seq_data + f"realigned/{rfam_acc}_new.stk", 'w') as o:
+            with open(new_ali_path, 'w') as o:
                 p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm", 
-                                    path_to_seq_data + f"realigned/{rfam_acc}_new.fa"], 
+                                                path_to_seq_data + f"realigned/{rfam_acc}_new.fa"], 
                                     stdout=o, stderr=subprocess.PIPE)
             notify("Aligned new sequences together")
 
+            # Detect doublons and remove them
+            existing_stk = AlignIO.parse(existing_ali_path, "stk")
+            existing_ids = [ r.id for r in existing_stk ]
+            del existing_stk
+            new_stk = AlignIO.parse(new_ali_path, "stk")
+            new_ids = [ r.id for r in new_stk ]
+            del new_stk
+            doublons = [ i for i in existing_ids if i in new_ids ]
+            del existing_ids, new_ids
+            if len(doublons):
+                warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.stk and using their newest version")
+                with open(path_to_seq_data + "realigned/toremove.txt", "w") as toremove:
+                    toremove.write('\n'.join(doublons)+'\n')
+                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path], 
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                os.remove(path_to_seq_data + "realigned/toremove.txt")
+
             # And we merge the two alignments
-            p2= subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", "--rna",
-                                path_to_seq_data + f"realigned/{rfam_acc}++.stk", 
-                                path_to_seq_data + f"realigned/{rfam_acc}_new.stk" ], 
+            p2= subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", 
+                                                "--rna", existing_ali_path, new_ali_path ], 
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
-            subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
+            subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", existing_ali_path])
             notify("Merged alignments into one")
 
             # remove the partial files
-            os.remove(path_to_seq_data + f"realigned/{rfam_acc}_new.stk")
+            os.remove(new_ali_path)
             os.remove(path_to_seq_data + f"realigned/{rfam_acc}_new.fa")
 
         else:
@@ -2041,7 +2077,7 @@ def work_realign(rfam_acc):
 
         # Convert Stockholm to aligned FASTA
         subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", "--informat", "stockholm", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
-        subprocess.run(["rm", "-f", "esltmp*"])
+        subprocess.run(["rm", "-f", "esltmp*"]) # We can, because we are not running in parallel for this part.
 
     # Assert everything worked, or save an error
     with open(path_to_seq_data + f"realigned/{rfam_acc}++.afa") as output:
@@ -2248,6 +2284,8 @@ if __name__ == "__main__":
     print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} errors).")
     if len(no_nts_set):
         print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
+    if len(weird_mappings):
+        print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
     pp.checkpoint_save_chains()
 
     if not pp.HOMOLOGY:
@@ -2279,7 +2317,6 @@ if __name__ == "__main__":
     if len(pp.fam_list):
         pp.prepare_sequences()
         pp.realign()
-
 
         # At this point, the family table is up to date    
 
