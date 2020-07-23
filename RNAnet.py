@@ -230,7 +230,7 @@ class Chain:
             warn("Could not load "+self.pdb_id+f".json with JSON package: {e}", error=True)
             self.delete_me = True
             self.error_messages = f"Could not load existing {self.pdb_id}.json file: {e}"
-            return 1
+            return None
                 
         # Print eventual warnings given by DSSR, and abort if there are some
         if "warning" in json_object.keys():
@@ -239,7 +239,7 @@ class Chain:
                 no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"DSSR warning {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}."
-            return 1
+            return None
 
         ############################################
         # Create the data-frame
@@ -252,11 +252,11 @@ class Chain:
 
             # Assert nucleotides of the chain are found
             if df.empty:
-                warn(f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
+                warn(f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.")
                 no_nts_set.add(self.pdb_id)
                 self.delete_me = True
-                self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
-                return 1
+                self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Either there is a problem with {self.pdb_id} mmCIF download, or the bases are not resolved in the structure. Delete it and retry."
+                return None
 
             # Remove low pertinence or undocumented descriptors, convert angles values
             cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
@@ -272,7 +272,7 @@ class Chain:
             warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
             self.delete_me = True
             self.error_messages = f"Error while parsing DSSR's json output:\n{e}"
-            return 1
+            return None
 
         #############################################
         # Solve some common issues and drop ligands
@@ -303,7 +303,7 @@ class Chain:
             no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
-            return 1
+            return None
 
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
         if df.iloc[0,0] != 1:
@@ -355,11 +355,11 @@ class Chain:
             l = df.iloc[-1,1] - df.iloc[0,1] + 1    # update length of chain from nt_resnum point of view
         except IndexError:
             warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} between {self.pdb_start} and "
-                 f"{self.pdb_end} ({'not' if not self.inferred else ''} inferred). Ignoring chain {self.chain_label}.", error=True)
+                 f"{self.pdb_end} ({'not ' if not self.inferred else ''}inferred). Ignoring chain {self.chain_label}.")
             no_nts_set.add(self.pdb_id)
             self.delete_me = True
-            self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
-            return 1
+            self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Either there is a problem with {self.pdb_id} mmCIF download, or the bases are not resolved in the structure. Delete it and retry."
+            return None
 
         # Add eventual missing rows because of unsolved residues in the chain.
         # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
@@ -500,9 +500,18 @@ class Chain:
         self.seq_to_align = "".join(df.nt_align_code)
         self.length = len([ x for x in self.seq_to_align if x != "-" ])
 
-        ####################################
-        # Save everything to database
-        ####################################
+        # Remove too short chains
+        if self.length < 5:
+            warn(f"{self.chain_label} sequence is too short, let's ignore it.\t")
+            self.delete_me = True
+            self.error_messages = "Sequence is too short. (< 5 resolved nts)"
+            return None
+
+        return df
+
+    def register_chain(self, df):
+        """Saves the extracted 3D data to the database.
+        """
 
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
@@ -535,26 +544,19 @@ class Chain:
                                                     AND chain_name='{self.pdb_chain_id}' 
                                                     AND rfam_acc IS NULL;""")[0][0]
             
-            # Add the nucleotides
-            sql_execute(conn, f"""
-            INSERT OR IGNORE INTO nucleotide 
-            (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
-            epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
-            v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
-            paired, pair_type_LW, pair_type_DSSR, nb_interact)
-            VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
-            many=True, data=list(df.to_records(index=False)), warn_every=10)
+            # Add the nucleotides if the chain is not an issue
+            if df is not None and not self.delete_me:  # double condition is theoretically redundant here, but you never know
+                sql_execute(conn, f"""
+                INSERT OR IGNORE INTO nucleotide 
+                (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+                epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+                v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
+                paired, pair_type_LW, pair_type_DSSR, nb_interact)
+                VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
+                many=True, data=list(df.to_records(index=False)), warn_every=10)
 
-        # Remove too short chains
-        if self.length < 5:
-            warn(f"{self.chain_label} sequence is too short, let's ignore it.\t", error=True)
-            self.delete_me = True
-            self.error_messages = "Sequence is too short. (< 5 resolved nts)"
-            return 1
-
-        return 0
 
     def remap(self, columns_to_save, s_seq):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
@@ -1355,13 +1357,13 @@ class Pipeline:
         conn = sqlite3.connect(runDir + "/results/RNANet.db")
 
         # Assert every structure is used
-        r = sql_ask_database(conn, """SELECT DISTINCT pdb_id FROM structure WHERE pdb_id NOT IN (SELECT DISTINCT structure_id FROM chain WHERE issue = 0);""")
+        r = sql_ask_database(conn, """SELECT DISTINCT pdb_id FROM structure WHERE pdb_id NOT IN (SELECT DISTINCT structure_id FROM chain);""")
         if len(r) and r[0][0] is not None:
             warn("Structures without referenced chains have been detected.")
             print(" ".join([x[0] for x in r]))
 
         # Assert every chain is attached to a structure
-        r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure) AND issue = 0;""")
+        r = sql_ask_database(conn, """SELECT DISTINCT chain_id, structure_id FROM chain WHERE structure_id NOT IN (SELECT DISTINCT pdb_id FROM structure);""")
         if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
             print(" ".join([str(x[1])+'-'+str(x[0]) for x in r]))
@@ -1371,11 +1373,16 @@ class Pipeline:
             r = sql_ask_database(conn, """SELECT COUNT(DISTINCT chain_id) AS Count, rfam_acc FROM chain 
                                           WHERE issue = 0 AND chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
                                           GROUP BY rfam_acc;""")
-            if len(r) and r[0][0] is not None:
-                warn("Chains were not remapped:")
-                for x in r:
-                    print(str(x[0]) + " chains of family " + x[1])
-
+            try:
+                if len(r) and r[0][0] is not None:
+                    warn("Chains were not remapped:")
+                    for x in r:
+                        print(str(x[0]) + " chains of family " + x[1])
+            except TypeError as e:
+                print(r)
+                print(next(r))
+                print(e)
+                exit()
             # # TODO : Optimize this (too slow)
             # # check if some columns are missing in the remappings:
             # r = sql_ask_database(conn, """SELECT c.chain_id, c.structure_id, c.chain_name, c.rfam_acc, r.index_chain, r.index_ali 
@@ -1897,7 +1904,8 @@ def work_build_chain(c, extract, khetatm, retrying=False):
     
     # extract the 3D descriptors
     if not c.delete_me:
-        c.extract_3D_data()
+        df = c.extract_3D_data()
+        c.register_chain(df)
 
     # Small check
     if not c.delete_me:
@@ -2027,7 +2035,7 @@ def work_realign(rfam_acc):
             notify("Aligned new sequences together")
 
             # Detect doublons and remove them
-            existing_stk = AlignIO.parse(existing_ali_path, "stk")
+            existing_stk = AlignIO.parse(existing_ali_path, "stockholm")
             existing_ids = [ r.id for r in existing_stk ]
             del existing_stk
             new_stk = AlignIO.parse(new_ali_path, "stk")
@@ -2281,7 +2289,7 @@ if __name__ == "__main__":
         print("> Retrying to annotate some structures which just failed.", flush=True)
         pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
         pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
-    print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} errors).")
+    print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
     if len(no_nts_set):
         print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
     if len(weird_mappings):
@@ -2311,7 +2319,7 @@ if __name__ == "__main__":
             rfam_acc_to_download[c.rfam_fam] = [ c ]
         else:
             rfam_acc_to_download[c.rfam_fam].append(c)
-    print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences:")
+    print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
     
     if len(pp.fam_list):
