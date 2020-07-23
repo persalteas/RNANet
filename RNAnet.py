@@ -557,7 +557,6 @@ class Chain:
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
                 many=True, data=list(df.to_records(index=False)), warn_every=10)
 
-
     def remap(self, columns_to_save, s_seq):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
         
@@ -2035,10 +2034,10 @@ def work_realign(rfam_acc):
             notify("Aligned new sequences together")
 
             # Detect doublons and remove them
-            existing_stk = AlignIO.parse(existing_ali_path, "stockholm")
+            existing_stk = AlignIO.read(existing_ali_path, "stockholm")
             existing_ids = [ r.id for r in existing_stk ]
             del existing_stk
-            new_stk = AlignIO.parse(new_ali_path, "stk")
+            new_stk = AlignIO.read(new_ali_path, "stk")
             new_ids = [ r.id for r in new_stk ]
             del new_stk
             doublons = [ i for i in existing_ids if i in new_ids ]
