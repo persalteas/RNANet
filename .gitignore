@@ -3,7 +3,8 @@ nohup.out
 log_of_the_run.sh
 
 # results
-results/
+results/*
+logs/*
 
 # temporary results files
 data/

@@ -433,6 +433,7 @@ def to_dist_matrix(f):
         notify(f"Computed {f} distance matrix", "loaded from file")
         return 0
 
+    notify(f"Computing {f} distance matrix from alignment...")
     dm = DistanceCalculator('identity')
     with open(path_to_seq_data+"/realigned/"+f+"++.afa") as al_file:
         al = AlignIO.read(al_file, "fasta")[-len(mappings_list[f]):]
@@ -542,10 +543,10 @@ if __name__ == "__main__":
     threads = [
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 1}),
         th.Thread(target=reproduce_wadley_results, kwargs={'carbon': 4}),
-        # th.Thread(target=stats_len),            # computes figures
-        # th.Thread(target=stats_freq),           # Updates the database
-        # th.Thread(target=seq_idty),           # produces .npy files and seq idty figures
-        # th.Thread(target=per_chain_stats)       # Updates the database
+        th.Thread(target=stats_len),            # computes figures
+        th.Thread(target=stats_freq),           # Updates the database
+        th.Thread(target=seq_idty),             # produces .npy files and seq idty figures
+        th.Thread(target=per_chain_stats)       # Updates the database
     ]
     
     # Start the threads

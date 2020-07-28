@@ -44,16 +44,15 @@ SSU_set = {"RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"}  # From Rfam 
 no_nts_set = set()
 weird_mappings = set()
 
-class NtPortionSelector(object):
+class SelectivePortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
 
     Validates every chain, residue, nucleotide, to say if it is in the selection or not.
     """
 
-    def __init__(self, model_id, chain_id, start, end, khetatm):
+    def __init__(self, model_id, chain_id, valid_resnums, khetatm):
         self.chain_id = chain_id
-        self.start = start
-        self.end = end
+        self.resnums = valid_resnums
         self.pdb_model_id = model_id
         self.hydrogen_regex = re.compile("[123 ]*H.*")
         self.keep_hetatm = khetatm
@@ -77,7 +76,10 @@ class NtPortionSelector(object):
             # warn(f"icode {icode} at position {resseq}\t\t")
 
         # Accept the residue if it is in the right interval:
-        return int(self.start <= resseq <= self.end)
+        if len(self.resnums):
+            return int(resseq in self.resnums)
+        else:
+            return 1
 
     def accept_atom(self, atom):
 
@@ -128,13 +130,12 @@ class Chain:
         self.pdb_id = pdb_id                    # PDB ID
         self.pdb_model = int(pdb_model)         # model ID, starting at 1
         self.pdb_chain_id = pdb_chain_id        # chain ID (mmCIF), multiple letters
-        self.pdb_start = pdb_start              # if portion of chain, the start number (relative to the chain, not residue numbers)
-        self.pdb_end = pdb_end                  # if portion of chain, the start number (relative to the chain, not residue numbers)
-        self.reversed = (pdb_start > pdb_end) if pdb_start is not None else False  # wether pdb_start > pdb_end in the Rfam mapping
+        if len(rfam):
+            self.mapping = Mapping(chain_label, rfam, pdb_start, pdb_end, inferred)
+        else:
+            self.mapping = None
         self.chain_label = chain_label          # chain pretty name 
         self.file = ""                          # path to the 3D PDB file
-        self.rfam_fam = rfam                    # mapping to an RNA family
-        self.inferred = inferred                # Wether this mapping has been inferred from BGSU's NR list
         self.seq = ""                           # sequence with modified nts
         self.seq_to_align = ""                  # sequence with modified nts replaced, but gaps can exist
         self.length = -1                        # length of the sequence (missing residues are not counted)
@@ -156,8 +157,8 @@ class Chain:
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         
-        if self.pdb_start is not None and (self.pdb_end - self.pdb_start):
-            status = f"Extract {self.pdb_start}-{self.pdb_end} atoms from {self.pdb_id}-{self.pdb_chain_id}"
+        if self.mapping is not None:
+            status = f"Extract {self.mapping.nt_start}-{self.mapping.nt_end} atoms from {self.pdb_id}-{self.pdb_chain_id}"
             self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
         else:
             status = f"Extract {self.pdb_id}-{self.pdb_chain_id}"
@@ -183,36 +184,19 @@ class Chain:
             # Extract the desired chain
             c = s[model_idx][self.pdb_chain_id]
 
-            if self.pdb_start is not None and (self.pdb_end - self.pdb_start):
-                # # Pay attention to residue numbering 
-                # first_number = c.child_list[0].get_id()[1]          # the chain's first residue is numbered 'first_number'
-                # if self.pdb_start < self.pdb_end:                             
-                #     start = self.pdb_start + first_number - 1       # shift our start_position by 'first_number'
-                #     end = self.pdb_end + first_number - 1           # same for the end position
-                # else:
-                #     self.reversed = True                            # the 3D chain is numbered backwards compared to the Rfam family
-                #     end = self.pdb_start + first_number - 1
-                #     start = self.pdb_end + first_number - 1
-
-                if self.pdb_start < self.pdb_end:                             
-                    start = self.pdb_start        # shift our start_position by 'first_number'
-                    end = self.pdb_end            # same for the end position
-                else:
-                    self.reversed = True          # the 3D chain is numbered backwards compared to the Rfam family
-                    end = self.pdb_start
-                    start = self.pdb_end
+            if self.mapping is not None:
+                valid_set = set(self.mapping.old_nt_resnums)
             else:
-                start = c.child_list[0].get_id()[1]  # the chain's first residue is numbered 'first_number'
-                end = c.child_list[-1].get_id()[1]   # the chain's last residue number
-            
+                valid_set = set()
+
             # Define a selection
-            # sel = ChainSelector(self.pdb_chain_id, start, end, model_id = model_idx)
-            sel = NtPortionSelector(model_idx, self.pdb_chain_id, start, end, khetatm)
+            sel = SelectivePortionSelector(model_idx, self.pdb_chain_id, valid_set, khetatm)
 
             # Save that selection on the mmCIF object s to file
             ioobj = MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
+            
 
         notify(status)
 
@@ -225,7 +209,7 @@ class Chain:
         try:
             with open(path_to_3D_data + "annotations/" + self.pdb_id + ".json", 'r') as json_file:
                 json_object = json.load(json_file)
-            notify(f"Read {self.chain_label} DSSR annotations")
+            notify(f"Read {self.pdb_id} DSSR annotations")
         except json.decoder.JSONDecodeError as e:
             warn("Could not load "+self.pdb_id+f".json with JSON package: {e}", error=True)
             self.delete_me = True
@@ -275,87 +259,87 @@ class Chain:
             return None
 
         #############################################
-        # Solve some common issues and drop ligands
+        # Select the nucleotides we need
         #############################################
 
-        # Shift numbering when duplicate residue numbers are found.
+        
+        # Remove nucleotides of the chain that are outside the Rfam mapping, if any
+        if self.mapping is not None:
+            df = self.mapping.filter_df(df)
+        
+        # Duplicate residue numbers : shift numbering
         # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
         while True in df.duplicated(['nt_resnum']).values:
             i = df.duplicated(['nt_resnum']).values.tolist().index(True)
+            self.mapping.shift_resnum_range(i)
             df.iloc[i:, 1] += 1
 
+        # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
-        df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
-        while (len(df.index_chain) and df.iloc[[-1]].nt_name.tolist()[0] not in ["A", "C", "G", "U"] and 
-            ((df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
-            or (df.iloc[[-1]].puckering=='').any())
-            or (len(df.index_chain) >= 2 and df.iloc[[-1]].nt_resnum.iloc[0] > 50 + df.iloc[[-2]].nt_resnum.iloc[0])):
+        while ( len(df.index_chain) and df.iloc[-1,2] not in ["A", "C", "G", "U"] and (
+                        (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
+                        or (df.iloc[[-1]].puckering=='').any()
+                    )
+                or  (   len(df.index_chain) >= 2 and df.iloc[-1,1] > 50 + df.iloc[-2,1]    )
+                or  (   len(df.index_chain) and df.iloc[-1,2] in ["GNG", "E2C", "OHX", "IRI", "MPD", "8UZ"]   )
+              ):
+            if self.mapping is not None:
+                self.mapping.drop_ligand(df.tail(1))
             df = df.head(-1) 
 
-        # drop eventual nts with index_chain < the first residue (usually, ligands)
-        df = df.drop(df[df.index_chain < 0].index)  
+        # Duplicates in index_chain : drop, they are ligands
+        # e.g. 3iwn_1_B_1-91, ligand C2E has index_chain 1 (and nt_resnum 601)
+        duplicates = [ index for index, element in enumerate(df.duplicated(['index_chain']).values) if element ]
+        if len(duplicates):
+            for i in duplicates:
+                warn(f"Found duplicated index_chain {df.iloc[i,0]} in {self.chain_label}. Keeping only the first.")
+                if self.mapping is not None:
+                    self.mapping.log(f"Found duplicated index_chain {df.iloc[i,0]}. Keeping only the first.")
+            with open("duplicates.txt", "a") as f:
+                f.write(f"DEBUG: {self.chain_label} has duplicate index_chains !\n")
+            df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
+
+        # drop eventual nts with index_chain < the first residue,
+        # now negative because we renumber to 1 (usually, ligands)
+        ligands = df[df.index_chain < 0]
+        if len(ligands.index_chain):
+            if self.mapping is not None:
+                for line in ligands.iterrows():
+                    self.mapping.drop_ligand(line)
+            df = df.drop(ligands.index)
+        
+        # Find missing index_chain values 
+        # This happens because of resolved nucleotides that have a 
+        # strange nt_resnum value
+        # e.g. 4v49-AA, position 5'- 1003 -> 2003 -> 1004 - 3'
+        diff = set(range(df.shape[0])).difference(df['index_chain'] - 1)
+        if len(diff):
+            warn(f"Missing residues regarding index_chain: {[1+i for i in sorted(diff)]}")
+            for i in sorted(diff):
+                # check if a nucleotide numbered +1000 exists in the nts object
+                found = None
+                for nt in nts: # nts is the object from the loaded JSON and contains all nts
+                    if nt['chain_name'] != self.pdb_chain_id:
+                        continue
+                    if nt['index_chain'] == i + 1 :
+                        found = nt
+                        break
+                if found:
+                    df_row = pd.DataFrame([found], index=[i])[df.columns.values]
+                    if self.mapping is not None:
+                        self.mapping.insert_new(i+1, found['nt_resnum'], df.iloc[i,1])
+                    df_row.iloc[0,1] = df.iloc[i,1]
+                    df = pd.concat([ df.iloc[:i], df_row, df.iloc[i:] ])
+                    df.iloc[i+1:, 1] += 1
+                else:
+                    warn(f"Missing index_chain {i} in {self.chain_label} !")
 
         # Assert some nucleotides still exist
         try:
-            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # length of chain from nt_resnum point of view
-        except IndexError:
-            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Ignoring chain {self.chain_label}.", error=True)
-            no_nts_set.add(self.pdb_id)
-            self.delete_me = True
-            self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. We expect a problem with {self.pdb_id} mmCIF download. Delete it and retry."
-            return None
-
-        # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
-        if df.iloc[0,0] != 1:
-            st = df.iloc[0,0] -1
-            df.iloc[:, 0] -= st
-
-            
-        # Find missing index_chain values because of resolved nucleotides that have a strange nt_resnum value
-        # e.g. 4v49-AA, position 5'- 1003 -> 2003 -> 1004 - 3'
-        diff = set(range(df.shape[0])).difference(df['index_chain'] - 1)
-        for i in sorted(diff):
-            # check if a nucleotide numbered +1000 exists
-            looked_for = df[df.index_chain == i].nt_resnum.values[0]
-            found = None
-            for nt in nts:
-                if nt['chain_name'] != self.pdb_chain_id:
-                    continue
-                if nt['index_chain'] == i + 1 :
-                    found = nt
-                    break
-            if found:
-                df_row = pd.DataFrame([found], index=[i])[df.columns.values]
-                df_row.iloc[0,1] = df.iloc[i,1]
-                df = pd.concat([ df.iloc[:i], df_row, df.iloc[i:] ])
-                df.iloc[i+1:, 1] += 1
-            else:
-                warn(f"Missing index_chain {i} in {self.chain_label} !")
-        
-        # Remove nucleotides of the chain that are outside the Rfam mapping, if any
-        if self.pdb_start and self.pdb_end:
-            if self.pdb_start < self.pdb_end:
-                newdf = df.drop(df[(df.nt_resnum < self.pdb_start) | (df.nt_resnum > self.pdb_end)].index)
-            else:
-                newdf = df.drop(df[(df.nt_resnum < self.pdb_end) | (df.nt_resnum > self.pdb_start)].index)
-
-            if len(newdf.index_chain) > 0:
-                # everything's okay 
-                df = newdf
-            else:
-                # There were nucleotides in this chain but we removed them all while
-                # filtering the ones outside the Rfam mapping.
-                # This probably means that, for this chain, the mapping is relative to 
-                # index_chain and not nt_resnum.
-                warn(f"Assuming {self.chain_label}'s mapping to {self.rfam_fam} is an absolute position interval.")
-                weird_mappings.add(self.chain_label + "." + self.rfam_fam)
-                df = df.drop(df[(df.index_chain < self.pdb_start) | (df.index_chain > self.pdb_end)].index)
-        
-        try:
             l = df.iloc[-1,1] - df.iloc[0,1] + 1    # update length of chain from nt_resnum point of view
         except IndexError:
-            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} between {self.pdb_start} and "
-                 f"{self.pdb_end} ({'not ' if not self.inferred else ''}inferred). Ignoring chain {self.chain_label}.")
+            warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} between {self.mapping.nt_start} and "
+                 f"{self.mapping.nt_end} ({'not ' if not self.mapping.inferred else ''}inferred). Ignoring chain {self.chain_label}.")
             no_nts_set.add(self.pdb_id)
             self.delete_me = True
             self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Either there is a problem with {self.pdb_id} mmCIF download, or the bases are not resolved in the structure. Delete it and retry."
@@ -464,7 +448,7 @@ class Chain:
         df['nb_interact'] = interacts
         df = df.drop(['nt_id'], axis=1) # remove now useless descriptors
 
-        if self.reversed:
+        if self.mapping.reversed:
             # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
             # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
             # Anyways, you need to invert the angles.
@@ -507,6 +491,10 @@ class Chain:
             self.error_messages = "Sequence is too short. (< 5 resolved nts)"
             return None
 
+        # Log chain info to file
+        if self.mapping is not None:
+            self.mapping.to_file(self.chain_label+".log")
+
         return df
 
     def register_chain(self, df):
@@ -515,7 +503,7 @@ class Chain:
 
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
-            if self.pdb_start is not None:
+            if self.mapping.nt_start is not None:
                 sql_execute(conn, f"""  INSERT INTO chain 
                                         (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
                                         VALUES 
@@ -527,14 +515,14 @@ class Chain:
                                                     inferred=excluded.inferred, 
                                                     issue=excluded.issue;""", 
                                         data=(str(self.pdb_id), str(self.pdb_chain_id), 
-                                              int(self.pdb_start), int(self.pdb_end), 
-                                              int(self.reversed), str(self.rfam_fam), 
-                                              int(self.inferred), int(self.delete_me)))
+                                              int(self.mapping.nt_start), int(self.mapping.nt_end), 
+                                              int(self.mapping.reversed), str(self.mapping.rfam_acc), 
+                                              int(self.mapping.inferred), int(self.delete_me)))
                 # get the chain id
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
                                                     WHERE structure_id='{self.pdb_id}' 
                                                     AND chain_name='{self.pdb_chain_id}' 
-                                                    AND rfam_acc='{self.rfam_fam}';""")[0][0]
+                                                    AND rfam_acc='{self.mapping.rfam_acc}';""")[0][0]
             else:
                 sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, issue) VALUES (?, ?, NULL, ?) 
                                    ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue;""", 
@@ -884,6 +872,103 @@ class Downloader:
             print('\t'+validsymb)
         else:
             notify(f"Downloaded and extracted {unit} database from SILVA", "used previous file")
+
+
+class Mapping:
+    """
+    A custom class to store more information about nucleotide mappings.
+    """
+
+    def __init__(self, chain_label, rfam_acc, pdb_start, pdb_end, inferred):
+        """
+        Arguments:
+        rfam_acc : Rfam family accession number of the mapping
+        pdb_start/pdb_end : nt_resnum start and end values in the 3D data that are mapped to the family
+        inferred : wether the mapping has been inferred using BGSU's NR list
+        """
+        self.chain_label = chain_label
+        self.rfam_acc = rfam_acc
+        self.nt_start = pdb_start # nt_resnum numbering
+        self.nt_end = pdb_end # nt_resnum numbering
+        self.reversed = (pdb_start > pdb_end) 
+        self.inferred = inferred                
+        self.interval = range(pdb_start, pdb_end+1)
+
+        self.old_nt_resnums = []    # to be computed
+        self.new_nt_resnums = []    # 
+
+        self.logs = [] # Events are logged when modifying the mapping
+
+    def shift_resnum_range(self, i):
+        self.log(f"Shifting nt_resnum numbering because of duplicate residue {self.new_nt_resnums[i]}")
+        for j in range(i, len(self.new_nt_resnums)):
+            self.new_nt_resnums[j] += 1
+
+    def insert_new(self, index_chain, oldresnum, newresnum):
+        # Adds a nt that did not passed the mapping filter at first
+        # because it was numbered with a very high nt_resnum value (outside the bounds of the mapping)
+        # But, in practice, its index_chain is correct and in the bounds and it belongs to the mapped chain.
+        # Those nts are only searched if there are missing index_chain values in the mapping bounds.
+
+        # insert the nt_resnum values in the lists
+        self.old_nt_resnums.insert(index_chain-1, oldresnum)
+        self.new_nt_resnums.insert(index_chain-1, newresnum)
+
+        # shift the new_nt_resnum values if needed, to avoid creating a doublon
+        if self.new_nt_resnums[index_chain-1] == self.new_nt_resnums[index_chain]:
+            for j in range(index_chain, len(self.new_nt_resnums)):
+                self.new_nt_resnums[j] += 1
+        # warn(f"Residue {index_chain} has been saved and renumbered {newresnum} instead of {oldresnum}")
+        self.log(f"Residue {index_chain} has been saved and renumbered {newresnum} instead of {oldresnum}")
+    
+    def filter_df(self, df):
+        if not self.reversed:
+            newdf = df.drop(df[(df.nt_resnum < self.nt_start) | (df.nt_resnum > self.nt_end)].index)
+        else:
+            newdf = df.drop(df[(df.nt_resnum < self.nt_end) | (df.nt_resnum > self.nt_start)].index)
+       
+        if len(newdf.index_chain) > 0:
+            # everything's okay 
+            df = newdf
+        else:
+            # There were nucleotides in this chain but we removed them all while
+            # filtering the ones outside the Rfam mapping.
+            # This probably means that, for this chain, the mapping is relative to 
+            # index_chain and not nt_resnum.
+            warn(f"Assuming mapping to {self.rfam_acc} is an absolute position interval.")
+            weird_mappings.add(self.chain_label + "." + self.rfam_acc)
+            df = df.drop(df[(df.index_chain < self.nt_start) | (df.index_chain > self.nt_end)].index)
+
+
+        # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
+        if len(df.index_chain) and df.iloc[0,0] != 1:
+            st = df.iloc[0,0] -1
+            df.iloc[:, 0] -= st
+
+        self.old_nt_resnums = df.nt_resnum.tolist()
+        self.new_nt_resnums = df.nt_resnum.tolist()
+
+        return df
+
+    def drop_ligand(self, df_row):
+        self.log("Droping ligand:")
+        self.log(df_row)
+        i = self.new_nt_resnums.index(df_row.iloc[0,1])
+        self.old_nt_resnums.pop(i)
+        self.new_nt_resnums.pop(i)
+
+    def log(self, message):
+        if isinstance(message, str):
+            self.logs.append(message+'\n')
+        else:
+            self.logs.append(str(message))
+
+    def to_file(self, filename):
+        if not path.exists("logs"):
+            os.makedirs("logs", exist_ok=True)
+        with open("logs/"+filename, "w") as f:
+            f.writelines(self.logs)
+
 
 
 class Pipeline:
@@ -1928,6 +2013,24 @@ def work_prepare_sequences(dl, rfam_acc, chains):
     """Prepares FASTA files of homologous sequences to realign with cmalign or SINA."""
 
     if rfam_acc in LSU_set | SSU_set: # rRNA
+        if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
+            # Detect doublons and remove them
+            existing_afa = AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
+            existing_ids = [ r.id for r in existing_afa ]
+            del existing_afa
+            new_ids = [ str(c) for c in chains ]
+            doublons = [ i for i in existing_ids if i in new_ids ]
+            del existing_ids, new_ids
+            if len(doublons):
+                fasta = path_to_seq_data + f"realigned/{rfam_acc}++.fa"
+                warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.fa and using their newest version")
+                seqfile = SeqIO.parse(fasta, "fasta")
+                os.remove(fasta)
+                with open(fasta, 'w') as f:
+                    for rec in seqfile:
+                        if rec.id not in doublons:
+                            f.write(rec.format("fasta"))
+            
         # Add the new sequences with previous ones, if any
         with open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "a") as f:
             for c in chains:
@@ -2037,7 +2140,7 @@ def work_realign(rfam_acc):
             existing_stk = AlignIO.read(existing_ali_path, "stockholm")
             existing_ids = [ r.id for r in existing_stk ]
             del existing_stk
-            new_stk = AlignIO.read(new_ali_path, "stk")
+            new_stk = AlignIO.read(new_ali_path, "stockholm")
             new_ids = [ r.id for r in new_stk ]
             del new_stk
             doublons = [ i for i in existing_ids if i in new_ids ]
@@ -2046,8 +2149,9 @@ def work_realign(rfam_acc):
                 warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.stk and using their newest version")
                 with open(path_to_seq_data + "realigned/toremove.txt", "w") as toremove:
                     toremove.write('\n'.join(doublons)+'\n')
-                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path], 
+                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path+"2", existing_ali_path], 
                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                p = subprocess.run(["mv", existing_ali_path+"2", existing_ali_path], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 os.remove(path_to_seq_data + "realigned/toremove.txt")
 
             # And we merge the two alignments
@@ -2075,7 +2179,7 @@ def work_realign(rfam_acc):
             
         if len(stderr):
             print('', flush=True)
-            warn(f"Error while during sequence alignment: {stderr}", error=True)
+            warn(f"Error during sequence alignment: {stderr}", error=True)
             with open(runDir + "/errors.txt", "a") as er:
                 er.write(f"Attempting to realign {rfam_acc}:\n" + stderr + '\n')
             return 1
@@ -2087,7 +2191,7 @@ def work_realign(rfam_acc):
         subprocess.run(["rm", "-f", "esltmp*"]) # We can, because we are not running in parallel for this part.
 
     # Assert everything worked, or save an error
-    with open(path_to_seq_data + f"realigned/{rfam_acc}++.afa") as output:
+    with open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", 'r') as output:
         if not len(output.readline()):
             # The process crashed, probably because of RAM overflow
             warn(f"Failed to realign {rfam_acc} (killed)", error=True)
@@ -2237,7 +2341,7 @@ def work_save(c, homology=True):
                 NATURAL JOIN nucleotide
                 NATURAL JOIN align_column;""", 
             conn)
-        filename = path_to_3D_data + "datapoints/" + c.chain_label + '.' + c.rfam_fam
+        filename = path_to_3D_data + "datapoints/" + c.chain_label + '.' + c.mapping.rfam_acc
     else:
         df = pd.read_sql_query(f"""
                 SELECT index_chain, nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
@@ -2280,7 +2384,6 @@ if __name__ == "__main__":
     pp.dl_and_annotate(coeff_ncores=0.5) 
 
     # At this point, the structure table is up to date
-
     pp.build_chains(coeff_ncores=1.0)
 
     if len(pp.to_retry):
@@ -2293,7 +2396,8 @@ if __name__ == "__main__":
         print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
     if len(weird_mappings):
         print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
-    pp.checkpoint_save_chains()
+    if pp.SELECT_ONLY is None:
+        pp.checkpoint_save_chains()
 
     if not pp.HOMOLOGY:
         # Save chains to file
@@ -2301,7 +2405,7 @@ if __name__ == "__main__":
             work_save(c, homology=False)
         print("Completed.")
         exit(0)
-    
+
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
 
@@ -2309,15 +2413,16 @@ if __name__ == "__main__":
     # Homology information
     # ===========================================================================
 
-    pp.checkpoint_load_chains()  # If your job failed, you can comment all the "3D information" part and start from here.
+    if pp.SELECT_ONLY is None:
+        pp.checkpoint_load_chains()  # If your job failed, you can comment all the "3D information" part and start from here.
 
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in pp.loaded_chains:
-        if c.rfam_fam not in rfam_acc_to_download:
-            rfam_acc_to_download[c.rfam_fam] = [ c ]
+        if c.mapping.rfam_acc not in rfam_acc_to_download:
+            rfam_acc_to_download[c.mapping.rfam_acc] = [ c ]
         else:
-            rfam_acc_to_download[c.rfam_fam].append(c)
+            rfam_acc_to_download[c.mapping.rfam_acc].append(c)
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
     
