@@ -998,7 +998,7 @@ class Pipeline:
                 print("--archive\t\t\tCreate a tar.gz archive of the datapoints text files, and update the link to the latest archive")
                 print()
                 print("Typical usage:")
-                print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder /Data/RNA/sequences' -s --archive &") 
+                print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &") 
                 sys.exit()
             elif opt == '--version':
                 print("RNANet 1.0 alpha ")

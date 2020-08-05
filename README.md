@@ -106,7 +106,7 @@ The detailed list of options is below:
 
 Typical usage:
 ```
-nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences' -s --archive &
+nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &
 ```
 
 ## Post-computation task: estimate quality
