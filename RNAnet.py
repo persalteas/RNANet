@@ -52,7 +52,7 @@ class SelectivePortionSelector(object):
 
     def __init__(self, model_id, chain_id, valid_resnums, khetatm):
         self.chain_id = chain_id
-        self.resnums = valid_resnums
+        self.resnums = valid_resnums # list of strings, that are mostly ints
         self.pdb_model_id = model_id
         self.hydrogen_regex = re.compile("[123 ]*H.*")
         self.keep_hetatm = khetatm
@@ -70,15 +70,12 @@ class SelectivePortionSelector(object):
         if hetatm_flag in ["W", "H_MG"]:
             return int(self.keep_hetatm)      
 
-        # I don't really know what this is but the doc said to warn:          
-        if icode != " ":
-            pass
-            # warn(f"icode {icode} at position {resseq}\t\t")
-
         # Accept the residue if it is in the right interval:
-        if len(self.resnums):
-            return int(resseq in self.resnums)
-        else:
+        if icode == " " and len(self.resnums):
+            return int(str(resseq) in self.resnums)
+        elif icode != " " and len(self.resnums):
+            return int(str(resseq)+icode in self.resnums)
+        else: # len(resnum) == 0, we don't use mappings (--no-homology option)
             return 1
 
     def accept_atom(self, atom):
@@ -153,7 +150,7 @@ class Chain:
     def __hash__(self):
         return hash((self.pdb_id, self.pdb_model, self.pdb_chain_id, self.chain_label))
 
-    def extract(self, khetatm):
+    def extract(self, df, khetatm):
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         
@@ -180,12 +177,8 @@ class Chain:
             mmcif_parser = MMCIFParser()
             s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
             
-
-            # Extract the desired chain
-            c = s[model_idx][self.pdb_chain_id]
-
             if self.mapping is not None:
-                valid_set = set(self.mapping.old_nt_resnums)
+                valid_set = set(df.old_nt_resnum)
             else:
                 valid_set = set()
 
@@ -261,18 +254,33 @@ class Chain:
         #############################################
         # Select the nucleotides we need
         #############################################
-
         
         # Remove nucleotides of the chain that are outside the Rfam mapping, if any
         if self.mapping is not None:
+            if self.mapping.nt_start > self.mapping.nt_end:
+                warn(f"Mapping is reversed, this case is not supported (yet). Ignoring chain {self.chain_label}.")
+                self.delete_me = True
+                self.error_messages = f"Mapping is reversed, this case is not supported (yet)."
+                return None
             df = self.mapping.filter_df(df)
-        
+
         # Duplicate residue numbers : shift numbering
-        # Example: 4v9q-DV contains 17 and 17A which are both read 17 by DSSR.
         while True in df.duplicated(['nt_resnum']).values:
             i = df.duplicated(['nt_resnum']).values.tolist().index(True)
-            self.mapping.shift_resnum_range(i)
-            df.iloc[i:, 1] += 1
+            resnumlist = df.nt_resnum.tolist()
+            if self.mapping is not None:
+                self.mapping.log(f"Shifting nt_resnum numbering because of duplicate residue {resnumlist[i]}")
+
+            if resnumlist[i] == resnumlist[i-1]:
+                # Common 4v9q-DV case : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
+                # Solution : we shift the numbering of 17A (to 18) and the following residues.
+                df.iloc[i:, 1] += 1
+            else:
+                # 4v9k-DA case : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
+                # Here the 163B is read 163 by DSSR, but there already is a residue 163.
+                # Solution : set nt_resnum[i] to nt_resnum[i-1] + 1, and shift the following by 1.
+                df.iloc[i, 1] = 1 + df.iloc[i-1, 1]
+                df.iloc[i+1:, 1] += 1
 
         # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
@@ -280,11 +288,12 @@ class Chain:
                         (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
                         or (df.iloc[[-1]].puckering=='').any()
                     )
-                or  (   len(df.index_chain) >= 2 and df.iloc[-1,1] > 50 + df.iloc[-2,1]    )
+                or  (   len(df.index_chain) >= 2 and df.iloc[-1,1] > 50 + df.iloc[-2,1]    ) # large nt_resnum gap between the two last residues
                 or  (   len(df.index_chain) and df.iloc[-1,2] in ["GNG", "E2C", "OHX", "IRI", "MPD", "8UZ"]   )
               ):
             if self.mapping is not None:
-                self.mapping.drop_ligand(df.tail(1))
+                self.mapping.log("Droping ligand:")
+                self.mapping.log(df.tail(1))
             df = df.head(-1) 
 
         # Duplicates in index_chain : drop, they are ligands
@@ -295,8 +304,6 @@ class Chain:
                 warn(f"Found duplicated index_chain {df.iloc[i,0]} in {self.chain_label}. Keeping only the first.")
                 if self.mapping is not None:
                     self.mapping.log(f"Found duplicated index_chain {df.iloc[i,0]}. Keeping only the first.")
-            with open("duplicates.txt", "a") as f:
-                f.write(f"DEBUG: {self.chain_label} has duplicate index_chains !\n")
             df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
 
         # drop eventual nts with index_chain < the first residue,
@@ -305,30 +312,31 @@ class Chain:
         if len(ligands.index_chain):
             if self.mapping is not None:
                 for line in ligands.iterrows():
-                    self.mapping.drop_ligand(line)
+                    self.mapping.log("Droping ligand:")
+                    self.mapping.log(line)
             df = df.drop(ligands.index)
         
         # Find missing index_chain values 
         # This happens because of resolved nucleotides that have a 
-        # strange nt_resnum value
+        # strange nt_resnum value. Thanks, biologists ! :@ :(
         # e.g. 4v49-AA, position 5'- 1003 -> 2003 -> 1004 - 3'
         diff = set(range(df.shape[0])).difference(df['index_chain'] - 1)
-        if len(diff):
-            warn(f"Missing residues regarding index_chain: {[1+i for i in sorted(diff)]}")
+        if len(diff) and self.mapping is not None:
+            # warn(f"Missing residues in chain numbering: {[1+i for i in sorted(diff)]}")
             for i in sorted(diff):
-                # check if a nucleotide numbered +1000 exists in the nts object
+                # check if a nucleotide with the correct index_chain exists in the nts object
                 found = None
                 for nt in nts: # nts is the object from the loaded JSON and contains all nts
                     if nt['chain_name'] != self.pdb_chain_id:
                         continue
-                    if nt['index_chain'] == i + 1 :
+                    if nt['index_chain'] == i + 1 + self.mapping.st:
                         found = nt
                         break
                 if found:
+                    self.mapping.log(f"Residue {i+1+self.mapping.st}-{self.mapping.st} = {i+1} has been saved and renumbered {df.iloc[i,1]} instead of {found['nt_id'].replace(found['chain_name']+ '.' + found['nt_name'], '').replace('^','')}")
                     df_row = pd.DataFrame([found], index=[i])[df.columns.values]
-                    if self.mapping is not None:
-                        self.mapping.insert_new(i+1, found['nt_resnum'], df.iloc[i,1])
-                    df_row.iloc[0,1] = df.iloc[i,1]
+                    df_row.iloc[0,0] = i+1          # index_chain
+                    df_row.iloc[0,1] = df.iloc[i,1] # nt_resnum
                     df = pd.concat([ df.iloc[:i], df_row, df.iloc[i:] ])
                     df.iloc[i+1:, 1] += 1
                 else:
@@ -369,7 +377,7 @@ class Chain:
             for i in sorted(diff):
                 # Add a row at position i
                 df = pd.concat([    df.iloc[:i], 
-                                    pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, "nt_code":'-', "nt_name":'-'}, index=[i]), 
+                                    pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, "nt_id":"not resolved", "nt_code":'-', "nt_name":'-'}, index=[i]), 
                                     df.iloc[i:]       ])
                 # Increase the index_chain of all following lines
                 df.iloc[i+1:, 0] += 1
@@ -424,11 +432,11 @@ class Chain:
                     if paired[nt1_idx] == "":
                         pair_type_LW[nt1_idx] = lw_pair
                         pair_type_DSSR[nt1_idx] = dssr_pair
-                        paired[nt1_idx] = str(nt2_idx + 1)
+                        paired[nt1_idx] = str(nt2_idx + 1)          # index + 1 is actually index_chain.
                     else:
                         pair_type_LW[nt1_idx] += ',' + lw_pair
                         pair_type_DSSR[nt1_idx] += ',' + dssr_pair
-                        paired[nt1_idx] += ',' + str(nt2_idx + 1)
+                        paired[nt1_idx] += ',' + str(nt2_idx + 1)   # index + 1 is actually index_chain.
                 
                 # set nucleotide 2 with the opposite base-pair
                 if nt2 in res_ids:
@@ -442,44 +450,15 @@ class Chain:
                         pair_type_DSSR[nt2_idx] += ',' + dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
                         paired[nt2_idx] += ',' + str(nt1_idx + 1)
 
+        # transform nt_id to shorter values
+        df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^','') for n, name in zip(df.nt_id, df.nt_name) ]
+
         df['paired'] = paired
         df['pair_type_LW'] = pair_type_LW
         df['pair_type_DSSR'] = pair_type_DSSR
         df['nb_interact'] = interacts
-        df = df.drop(['nt_id'], axis=1) # remove now useless descriptors
+        df = df.drop(['nt_id', 'nt_resnum'], axis=1) # remove now useless descriptors
 
-        if self.mapping.reversed:
-            # The 3D structure is numbered from 3' to 5' instead of standard 5' to 3'
-            # or the sequence that matches the Rfam family is 3' to 5' instead of standard 5' to 3'.
-            # Anyways, you need to invert the angles.
-            # TODO: angles alpha, beta, etc
-            warn(f"Has {self.chain_label} been numbered from 3' to 5' ? Inverting pseudotorsions, other angle measures are not corrected.")
-            df = df.reindex(index=df.index[::-1]).reset_index(drop=True)
-            df['index_chain'] = 1 + df.index
-            temp_eta = df['eta']
-            df['eta'] = [ df['theta'][n] for n in range(l) ]              # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-            df['theta'] = [ temp_eta[n] for n in range(l) ]               # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-            temp_eta = df['eta_prime']
-            df['eta_prime'] = [ df['theta_prime'][n] for n in range(l) ]  # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-            df['theta_prime'] = [ temp_eta[n] for n in range(l) ]         # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-            temp_eta = df['eta_base']
-            df['eta_base'] = [ df['theta_base'][n] for n in range(l) ]    # eta(n)    = theta(l-n+1) forall n in ]1, l] 
-            df['theta_base'] = [ temp_eta[n] for n in range(l) ]          # theta(n)  = eta(l-n+1)   forall n in [1, l[ 
-            newpairs = []
-            for v in df['paired']:
-                if ',' in v:
-                    temp_v = []
-                    vs = v.split(',')
-                    for _ in vs:
-                        temp_v.append(str(l-int(_)+1) if int(_) else _ )
-                    newpairs.append(','.join(temp_v))
-                else:
-                    if len(v): 
-                        newpairs.append(str(l-int(v)+1) if int(v) else v )
-                    else: # means unpaired
-                        newpairs.append(v)
-            df['paired'] = newpairs
-                
         self.seq = "".join(df.nt_code)
         self.seq_to_align = "".join(df.nt_align_code)
         self.length = len([ x for x in self.seq_to_align if x != "-" ])
@@ -503,20 +482,19 @@ class Chain:
 
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
-            if self.mapping.nt_start is not None:
+            if self.mapping is not None:
                 sql_execute(conn, f"""  INSERT INTO chain 
-                                        (structure_id, chain_name, pdb_start, pdb_end, reversed, rfam_acc, inferred, issue)
+                                        (structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, issue)
                                         VALUES 
-                                        (?, ?, ?, ?, ?, ?, ?, ?)
+                                        (?, ?, ?, ?, ?, ?, ?)
                                         ON CONFLICT(structure_id, chain_name, rfam_acc) DO
                                         UPDATE SET  pdb_start=excluded.pdb_start, 
                                                     pdb_end=excluded.pdb_end, 
-                                                    reversed=excluded.reversed, 
                                                     inferred=excluded.inferred, 
                                                     issue=excluded.issue;""", 
                                         data=(str(self.pdb_id), str(self.pdb_chain_id), 
                                               int(self.mapping.nt_start), int(self.mapping.nt_end), 
-                                              int(self.mapping.reversed), str(self.mapping.rfam_acc), 
+                                              str(self.mapping.rfam_acc), 
                                               int(self.mapping.inferred), int(self.delete_me)))
                 # get the chain id
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
@@ -536,10 +514,10 @@ class Chain:
             if df is not None and not self.delete_me:  # double condition is theoretically redundant here, but you never know
                 sql_execute(conn, f"""
                 INSERT OR IGNORE INTO nucleotide 
-                (chain_id, index_chain, nt_resnum, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+                (chain_id, index_chain, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
                 epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
-                paired, pair_type_LW, pair_type_DSSR, nb_interact)
+                old_nt_resnum, paired, pair_type_LW, pair_type_DSSR, nb_interact)
                 VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
@@ -890,42 +868,13 @@ class Mapping:
         self.rfam_acc = rfam_acc
         self.nt_start = pdb_start # nt_resnum numbering
         self.nt_end = pdb_end # nt_resnum numbering
-        self.reversed = (pdb_start > pdb_end) 
-        self.inferred = inferred                
-        self.interval = range(pdb_start, pdb_end+1)
-
-        self.old_nt_resnums = []    # to be computed
-        self.new_nt_resnums = []    # 
+        self.inferred = inferred
 
         self.logs = [] # Events are logged when modifying the mapping
 
-    def shift_resnum_range(self, i):
-        self.log(f"Shifting nt_resnum numbering because of duplicate residue {self.new_nt_resnums[i]}")
-        for j in range(i, len(self.new_nt_resnums)):
-            self.new_nt_resnums[j] += 1
-
-    def insert_new(self, index_chain, oldresnum, newresnum):
-        # Adds a nt that did not passed the mapping filter at first
-        # because it was numbered with a very high nt_resnum value (outside the bounds of the mapping)
-        # But, in practice, its index_chain is correct and in the bounds and it belongs to the mapped chain.
-        # Those nts are only searched if there are missing index_chain values in the mapping bounds.
-
-        # insert the nt_resnum values in the lists
-        self.old_nt_resnums.insert(index_chain-1, oldresnum)
-        self.new_nt_resnums.insert(index_chain-1, newresnum)
-
-        # shift the new_nt_resnum values if needed, to avoid creating a doublon
-        if self.new_nt_resnums[index_chain-1] == self.new_nt_resnums[index_chain]:
-            for j in range(index_chain, len(self.new_nt_resnums)):
-                self.new_nt_resnums[j] += 1
-        # warn(f"Residue {index_chain} has been saved and renumbered {newresnum} instead of {oldresnum}")
-        self.log(f"Residue {index_chain} has been saved and renumbered {newresnum} instead of {oldresnum}")
-    
     def filter_df(self, df):
-        if not self.reversed:
-            newdf = df.drop(df[(df.nt_resnum < self.nt_start) | (df.nt_resnum > self.nt_end)].index)
-        else:
-            newdf = df.drop(df[(df.nt_resnum < self.nt_end) | (df.nt_resnum > self.nt_start)].index)
+
+        newdf = df.drop(df[(df.nt_resnum < self.nt_start) | (df.nt_resnum > self.nt_end)].index)
        
         if len(newdf.index_chain) > 0:
             # everything's okay 
@@ -939,23 +888,23 @@ class Mapping:
             weird_mappings.add(self.chain_label + "." + self.rfam_acc)
             df = df.drop(df[(df.index_chain < self.nt_start) | (df.index_chain > self.nt_end)].index)
 
-
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
+        self.st = 0
         if len(df.index_chain) and df.iloc[0,0] != 1:
-            st = df.iloc[0,0] -1
-            df.iloc[:, 0] -= st
+            self.st = df.iloc[0,0] -1
+            df.iloc[:, 0] -= self.st
+            self.log(f"Shifting index_chain of {self.st}")
 
-        self.old_nt_resnums = df.nt_resnum.tolist()
-        self.new_nt_resnums = df.nt_resnum.tolist()
+        # Check that some residues are not included by mistake:
+        # e.g. 4v4t-AA.RF00382-20-55 contains 4 residues numbered 30 but actually far beyond the mapped part,
+        # because the icode are not read by DSSR.
+        toremove = df[ df.index_chain > self.nt_end ]
+        if not toremove.empty:
+            df = df.drop(toremove.index)
+            self.log(f"Some nt_resnum values are likely to be wrong, not considering residues:")
+            self.log(str(toremove))
 
         return df
-
-    def drop_ligand(self, df_row):
-        self.log("Droping ligand:")
-        self.log(df_row)
-        i = self.new_nt_resnums.index(df_row.iloc[0,1])
-        self.old_nt_resnums.pop(i)
-        self.new_nt_resnums.pop(i)
 
     def log(self, message):
         if isinstance(message, str):
@@ -964,11 +913,13 @@ class Mapping:
             self.logs.append(str(message))
 
     def to_file(self, filename):
+        if self.logs == []:
+            return # Do not create a log file if there is nothing to log
+
         if not path.exists("logs"):
             os.makedirs("logs", exist_ok=True)
         with open("logs/"+filename, "w") as f:
             f.writelines(self.logs)
-
 
 
 class Pipeline:
@@ -991,6 +942,7 @@ class Pipeline:
         self.EXTRACT_CHAINS = False
         self.REUSE_ALL = False
         self.SELECT_ONLY = None
+        self.ARCHIVE = False
 
     def process_options(self):
         """Sets the paths and options of the pipeline"""
@@ -1002,7 +954,7 @@ class Pipeline:
                                     [   "help", "resolution=", "keep-hetatm=", "from-scratch",
                                         "fill-gaps=", "3d-folder=", "seq-folder=",
                                         "no-homology", "ignore-issues", "extract", "only=", "all",
-                                        "update-homologous" ])
+                                        "archive", "update-homologous" ])
         except getopt.GetoptError as err:
             print(err)
             sys.exit(2)
@@ -1043,9 +995,10 @@ class Pipeline:
                 print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them")
                 print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
+                print("--archive\t\t\tCreate a tar.gz archive of the datapoints text files, and update the link to the latest archive")
                 print()
                 print("Typical usage:")
-                print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder /Data/RNA/sequences' &") 
+                print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder /Data/RNA/sequences' -s --archive &") 
                 sys.exit()
             elif opt == '--version':
                 print("RNANet 1.0 alpha ")
@@ -1102,7 +1055,9 @@ class Pipeline:
                 self.USE_KNOWN_ISSUES = False
             elif opt == "--extract":
                 self.EXTRACT_CHAINS = True
-    
+            elif opt == "--archive":
+                self.ARCHIVE = True
+
         if "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
             print("See RNANet.py --help for more information.")
@@ -1420,14 +1375,15 @@ class Pipeline:
         conn = sqlite3.connect(runDir+"/results/RNANet.db")
         pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
                           conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
-        pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, reversed, date, exp_method, resolution, issue FROM structure 
+        pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
                             JOIN chain ON structure.pdb_id = chain.structure_id
                             ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
         conn.close()
 
         # Archive the results
-        os.makedirs("results/archive", exist_ok=True)
-        subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
+        if self.SELECT_ONLY is None:
+            os.makedirs("results/archive", exist_ok=True)
+            subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
 
         # Update shortcuts to latest versions
         subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", runDir + "/results/summary_latest.csv", runDir + "/results/families_latest.csv"])
@@ -1549,7 +1505,6 @@ def sql_define_tables(conn):
                 chain_name      VARCHAR(2) NOT NULL,
                 pdb_start       SMALLINT,
                 pdb_end         SMALLINT,
-                reversed        TINYINT,
                 issue           TINYINT,
                 rfam_acc        CHAR(7),
                 inferred        TINYINT,
@@ -1578,7 +1533,7 @@ def sql_define_tables(conn):
             CREATE TABLE IF NOT EXISTS nucleotide (
                 chain_id        INT,
                 index_chain     SMALLINT,
-                nt_resnum       SMALLINT,
+                old_nt_resnum   VARCHAR(5),
                 nt_position     SMALLINT,
                 nt_name         VARCHAR(5),
                 nt_code         CHAR(1),
@@ -2004,7 +1959,7 @@ def work_build_chain(c, extract, khetatm, retrying=False):
 
     # extract the portion we want
     if extract and not c.delete_me:
-        c.extract(khetatm)
+        c.extract(df, khetatm)
 
     return c
 
@@ -2331,7 +2286,7 @@ def work_save(c, homology=True):
     conn = sqlite3.connect(runDir + "/results/RNANet.db", timeout=15.0)
     if homology:
         df = pd.read_sql_query(f"""
-                SELECT index_chain, nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
+                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
                 is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn,
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
@@ -2344,7 +2299,7 @@ def work_save(c, homology=True):
         filename = path_to_3D_data + "datapoints/" + c.chain_label + '.' + c.mapping.rfam_acc
     else:
         df = pd.read_sql_query(f"""
-                SELECT index_chain, nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
+                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
                 is_A, is_C, is_G, is_U, is_other, dbn,
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
@@ -2405,7 +2360,8 @@ if __name__ == "__main__":
             work_save(c, homology=False)
         print("Completed.")
         exit(0)
-
+    
+    
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
 

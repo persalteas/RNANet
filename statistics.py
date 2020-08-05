@@ -139,6 +139,7 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
         fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}.png")
         if show:
             fig.show()
+        fig.close()
 
         # Smoothed joint distribution
         fig = plt.figure()
@@ -149,6 +150,7 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
         fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}.png")
         if show:
             fig.show()
+        fig.close()
 
         # 2D Wadley plot
         fig = plt.figure(figsize=(5,5))
@@ -161,6 +163,7 @@ def reproduce_wadley_results(show=False, carbon=4, sd_range=(1,4)):
         fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}.png")
         if show:
             fig.show()
+        fig.close()
     # print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
 
 def stats_len():
@@ -440,7 +443,7 @@ def to_dist_matrix(f):
     idty = dm.get_distance(al).matrix # list of lists
     del al
     l = len(idty)
-    np.save("data/"+f+".npy", np.array([ idty[i] + [0]*(l-1-i) if i<l-1 else idty[i]  for i in range(l) ]))
+    np.save("data/"+f+".npy", np.array([ idty[i] + [0]*(l-1-i) if i<l-1 else idty[i]  for i in range(l) ], dtype=object))
     del idty
     notify(f"Computed {f} distance matrix")
     return 0
