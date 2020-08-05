@@ -34,7 +34,7 @@ Finally, export this data from the SQLite database into flat CSV files.
 
 * `results/RNANet.db` is a SQLite database file containing several tables with all the information, which you can query yourself with your custom requests,
 * `3D-folder-you-passed-in-option/datapoints/*` are flat text CSV files, one for one RNA chain mapped to one RNA family, gathering the per-position nucleotide descriptors,
-* `results/RNANET_datapoints_latest.tar.gz` is a compressed archive of the above CSV files
+* `results/RNANET_datapoints_latest.tar.gz` is a compressed archive of the above CSV files (only if you passed the --archive option)
 * `path-to-3D-folder-you-passed-in-option/rna_mapped_to_Rfam` If you used the --extract option, this folder contains one mmCIF file per RNA chain mapped to one RNA family, without other chains, proteins (nor ions and ligands by default)
 * `results/summary_latest.csv` summarizes information about the RNA chains
 * `results/families_latest.csv` summarizes information about the RNA families
@@ -54,7 +54,7 @@ Other folders are created and not deleted, which you might want to conserve to a
 - CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
 - GPU: not required
 - RAM: 16 GB with a large swap partition is okay. 32 GB is recommended (usage peaks at ~27 GB)
-- Storage: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. Go for a 100GB partition and you are good to go. The computation speed is really decreased if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe SSD) because of permanent I/O with the SQlite database.
+- Storage: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. Pick a 100GB partition and you are good to go. The computation speed is way better if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe SSD) because of constant I/O with the SQlite database.
 - Network : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but maybe you company/university closes ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
 
 To give you an estimation, our last full run took exactly 12h, excluding the time to download the MMCIF files containing RNA (around 25GB to download) and the time to compute statistics.
@@ -65,7 +65,7 @@ Update runs are much quicker, around 3 hours. It depends mostly on what RNA fami
 ## Dependencies
 You need to install:
 - DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/). 
-- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.You don't need the whole X3DNA suite of tools, just DSSR is fine. Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
+- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `esl-alimanip` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.You don't need the whole X3DNA suite of tools, just DSSR is fine. Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
 - SINA, follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
 - Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*)
 - The following Python packages: `python3.8 -m pip install numpy matplotlib pandas biopython psutil pymysql requests sqlalchemy sqlite3 tqdm`
@@ -76,35 +76,41 @@ It requires solid hardware to run. It takes around 15 hours the first time, and 
 The detailed list of options is below:
 
 ```
--h [ --help ]			Print this help message
---version			    Print the program version
+-h [ --help ]                   Print this help message
+--version                       Print the program version
 
--r 4.0 [ --resolution=4.0 ]	Maximum 3D structure resolution to consider a RNA chain.
--s				        Run statistics computations after completion
---extract			    Extract the portions of 3D RNA chains to individual mmCIF files.
---keep-hetatm=False		(True | False) Keep ions, waters and ligands in produced mmCIF files. 
-				        Does not affect the descriptors.
---fill-gaps=True		(True | False) Replace gaps in nt_align_code field due to unresolved residues
-				        by the most common nucleotide at this position in the alignment.
---3d-folder=…			Path to a folder to store the 3D data files. Subfolders will contain:
-					        RNAcifs/		Full structures containing RNA, in mmCIF format
-					        rna_mapped_to_Rfam/ or rnaonly/	Extracted 'pure' RNA chains
-					        datapoints/		Final results in CSV file format.
---seq-folder=…			Path to a folder to store the sequence and alignment files.
-					        rfam_sequences/fasta/	Compressed hits to Rfam families
-					        realigned/		Sequences, covariance models, and alignments by family
---no-homology			Do not try to compute PSSMs and do not align sequences.
-				        Allows to yield more 3D data (consider chains without a Rfam mapping).
+-r 4.0 [ --resolution=4.0 ]     Maximum 3D structure resolution to consider a RNA chain.
+-s                              Run statistics computations after completion
+--extract                       Extract the portions of 3D RNA chains to individual mmCIF files.
+--keep-hetatm=False             (True | False) Keep ions, waters and ligands in produced mmCIF files. 
+                                Does not affect the descriptors.
+--fill-gaps=True                (True | False) Replace gaps in nt_align_code field due to unresolved residues
+                                by the most common nucleotide at this position in the alignment.
+--3d-folder=…                   Path to a folder to store the 3D data files. Subfolders will contain:
+                                        RNAcifs/                Full structures containing RNA, in mmCIF format
+                                        rna_mapped_to_Rfam/     Extracted 'pure' RNA chains
+                                        datapoints/             Final results in CSV file format.
+--seq-folder=…                  Path to a folder to store the sequence and alignment files.
+                                        rfam_sequences/fasta/   Compressed hits to Rfam families
+                                        realigned/              Sequences, covariance models, and alignments by family
+--no-homology                   Do not try to compute PSSMs and do not align sequences.
+                                Allows to yield more 3D data (consider chains without a Rfam mapping).
 
---ignore-issues			Do not ignore already known issues and attempt to compute them
---update-homologous		Re-download Rfam sequences and SILVA arb databases, and realign all families
---from-scratch			Delete database, local 3D and sequence files, and known issues, and recompute.
+--all                           Build chains even if they already are in the database.
+--only                          Ask to process a specific chain label only
+--ignore-issues                 Do not ignore already known issues and attempt to compute them
+--update-homologous             Re-download Rfam and SILVA databases, realign all families, and recompute all CSV files
+--from-scratch                  Delete database, local 3D and sequence files, and known issues, and recompute.
+--archive                       Create a tar.gz archive of the datapoints text files, and update the link to the latest archive
+```
+
+Typical usage:
+```
+nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences' -s --archive &
 ```
 
 ## Post-computation task: estimate quality
 The file statistics.py is supposed to give a summary on the produced dataset. See the results/ folder. It can be run automatically after RNANet if you pass the `-s` option.
-
-
 
 # How to further filter the dataset
 You may want to build your own sub-dataset by querying the results/RNANet.db file. Here are quick examples using Python3 and its sqlite3 package.
@@ -133,7 +139,7 @@ with sqlite3.connect("results/RNANet.db) as connection:
 Step 2 : Then, we define a template string, containing the SQL request we use to get all information of one RNA chain, with brackets { } at the place we will insert every chain_id. 
 You can remove fields you are not interested in.
 ```
-req = """SELECT index_chain, nt_resnum, position, nt_name, nt_code, nt_align_code, is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+req = """SELECT index_chain, old_nt_resnum, position, nt_name, nt_code, nt_align_code, is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
 v0, v1, v2, v3, v4, amlitude, phase_angle, puckering 
 FROM 
 (SELECT chain_id, rfam_acc from chain WHERE chain_id = {})
@@ -223,7 +229,7 @@ To help you design your own requests, here follows a description of the database
 * `chain_id`: The chain the nucleotide belongs to
 * `index_chain`: its absolute position within the portion of chain mapped to Rfam, from 1 to X. This is completely uncorrelated to any gene start or 3D chain residue numbers.
 * `nt_position`: relative position within the portion of chain mapped to RFam, from 0 to 1
-* `nt_resnum`: The residue number in the 3D mmCIF file
+* `old_nt_resnum`: The residue number in the 3D mmCIF file (it's a string actually, some contain a letter like '37A')
 * `nt_name`: The residue type. This includes modified nucleotide names (e.g. 5MC for 5-methylcytosine)
 * `nt_code`: One-letter name. Lowercase "acgu" letters are used for modified "ACGU" bases.
 * `nt_align_code`: One-letter name used for sequence alignment. Contains "ACGUN-" only first, and then, gaps may be replaced by the most common letter at this position (default)
