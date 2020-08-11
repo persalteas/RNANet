@@ -254,7 +254,7 @@ class Chain:
         #############################################
         # Select the nucleotides we need
         #############################################
-        
+
         # Remove nucleotides of the chain that are outside the Rfam mapping, if any
         if self.mapping is not None:
             if self.mapping.nt_start > self.mapping.nt_end:
@@ -267,16 +267,34 @@ class Chain:
         # Duplicate residue numbers : shift numbering
         while True in df.duplicated(['nt_resnum']).values:
             i = df.duplicated(['nt_resnum']).values.tolist().index(True)
-            resnumlist = df.nt_resnum.tolist()
+            duplicates = df[df.nt_resnum == df.iloc[i,1]]
+            n_dup = len(duplicates.nt_resnum)
+            index_last_dup = duplicates.index_chain.iloc[-1] - 1
             if self.mapping is not None:
-                self.mapping.log(f"Shifting nt_resnum numbering because of duplicate residue {resnumlist[i]}")
+                self.mapping.log(f"Shifting nt_resnum numbering because of {n_dup} duplicate residues {df.iloc[i,1]}")
 
-            if resnumlist[i] == resnumlist[i-1]:
-                # Common 4v9q-DV case : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
+            if df.iloc[i,1] == df.iloc[i-1,1] and df.iloc[index_last_dup + 1, 1] - 1 > df.iloc[index_last_dup, 1]:
+                # The redundant nts are consecutive in the chain (at the begining at least), and there is a gap at the end
+
+                if duplicates.iloc[n_dup-1, 0] - duplicates.iloc[0, 0] + 1 == n_dup:
+                    # They are all contiguous in the chain
+                    # 4v9n-DA case (and similar ones) : 610-611-611A-611B-611C-611D-611E-611F-611G-617-618...
+                    # there is a redundancy (611) followed by a gap (611-617). 
+                    # We want the redundancy to fill the gap.
+                    df.iloc[i:i+n_dup-1, 1] += 1
+                else:
+                    # We solve the problem continous component by continuous component
+                    for j in range(1, n_dup+1):
+                        if duplicates.iloc[j,0] == 1 + duplicates.iloc[j-1,0]: # continuous
+                            df.iloc[i+j-1,1] += 1
+                        else:
+                            break
+            elif df.iloc[i,1] == df.iloc[i-1,1]:
+                # Common 4v9q-DV case (and similar ones) : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
                 # Solution : we shift the numbering of 17A (to 18) and the following residues.
                 df.iloc[i:, 1] += 1
             else:
-                # 4v9k-DA case : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
+                # 4v9k-DA case (and similar ones) : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
                 # Here the 163B is read 163 by DSSR, but there already is a residue 163.
                 # Solution : set nt_resnum[i] to nt_resnum[i-1] + 1, and shift the following by 1.
                 df.iloc[i, 1] = 1 + df.iloc[i-1, 1]
@@ -295,6 +313,7 @@ class Chain:
                 self.mapping.log("Droping ligand:")
                 self.mapping.log(df.tail(1))
             df = df.head(-1) 
+
 
         # Duplicates in index_chain : drop, they are ligands
         # e.g. 3iwn_1_B_1-91, ligand C2E has index_chain 1 (and nt_resnum 601)
@@ -370,7 +389,6 @@ class Chain:
         # index_chain            1 |-------------|77 83|------------|  154 
         # expected data point    1 |--------------------------------|  154
         #
-
         if l != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < l
             resnum_start = df.iloc[0,1]
             diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)     # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
