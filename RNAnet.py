@@ -1411,7 +1411,10 @@ class Pipeline:
             subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
 
         # Update shortcuts to latest versions
-        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", runDir + "/results/summary_latest.csv", runDir + "/results/families_latest.csv"])
+        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", 
+                                    runDir + "/results/summary_latest.csv", 
+                                    runDir + "/results/families_latest.csv"
+                        ])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/summary_{time_str}.csv", runDir + "/results/summary_latest.csv"])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/families_{time_str}.csv", runDir + "/results/families_latest.csv"])
