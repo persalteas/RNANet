@@ -1,7 +1,7 @@
 # This is a script supposed to be run periodically as a cron job
 
 cd /home/lbecquey/Projects/RNANet;
-rm -f stdout.txt stderr.txt errors.txt;
+rm -f nohup.out errors.txt;
 
 # Run RNANet
 nohup bash -c 'time ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ -s -r 20.0 --archive';
