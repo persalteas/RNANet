@@ -1638,6 +1638,7 @@ def sql_ask_database(conn, sql, warn_every = 10):
 
 @trace_unhandled_exceptions
 def sql_execute(conn, sql, many=False, data=None, warn_every=10):
+    conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
     for _ in range(100): # retry 100 times if it fails
         try:
             if many:
