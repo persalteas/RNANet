@@ -7,7 +7,7 @@ Future versions might compute a real MSA-based clusering directly with Rfamseq n
 This script prepares the dataset from available public data in PDB and Rfam.
 
 
-**Please cite**: *Coming soon, expect it summer 2020*
+**Please cite**: *Coming soon, expect it in 2021*
 
 # What it does
 The script follows these steps:
@@ -72,7 +72,7 @@ You need to install:
 
 ## Command line
 Run `./RNANet.py --3d-folder path/to/3D/data/folder --seq-folder path/to/sequence/data/folder [ - other options ]`. 
-It requires solid hardware to run. It takes around 15 hours the first time, and 9h then, tested on a server with 32 cores and 48GB of RAM.
+It requires solid hardware to run. It takes around around 12 to 15 hours the first time, and 1 to 3h then, tested on a server with 32 cores and 48GB of RAM.
 The detailed list of options is below:
 
 ```

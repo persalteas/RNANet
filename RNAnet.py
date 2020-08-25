@@ -1026,7 +1026,7 @@ class Pipeline:
                 print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &") 
                 sys.exit()
             elif opt == '--version':
-                print("RNANet 1.0 alpha ")
+                print("RNANet 1.1 beta")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
                 assert float(arg) > 0.0 and float(arg) <= 20.0 
