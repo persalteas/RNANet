@@ -12,6 +12,6 @@ gzip -k results/RNANet.db
 
 # Sync in Seafile
 seaf-cli start;
-sleep 1h;
+sleep 30m;
 seaf-cli stop;
 
