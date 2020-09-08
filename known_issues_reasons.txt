@@ -487,3 +487,15 @@ DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_AA_1-1562.
 4v5z_1_AA_1-1563
 DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_AA_1-1563.
 
+6lqm_1_8_1267-4755
+Could not find nucleotides of chain 8 in annotation 6lqm.json. Either there is a problem with 6lqm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lu8_1_8_1267-4755
+Could not find nucleotides of chain 8 in annotation 6lu8.json. Either there is a problem with 6lu8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lsr_1_8_1267-4755
+Could not find nucleotides of chain 8 in annotation 6lsr.json. Either there is a problem with 6lsr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lss_1_8_1267-4755
+Could not find nucleotides of chain 8 in annotation 6lss.json. Either there is a problem with 6lss mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+

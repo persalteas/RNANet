@@ -288,6 +288,9 @@ def parallel_stats_pairs(f):
 
     REQUIRES tables chain, nucleotide up-to-date.""" 
 
+    if path.isfile("data/"+f+"_pairs.csv") and path.isfile("data/"+f+"_counts.csv"):
+        return
+
     # Get a worker number to position the progress bar
     global idxQueue
     thr_idx = idxQueue.get()
@@ -363,7 +366,7 @@ def parallel_stats_pairs(f):
         data.append(expanded_list)
 
     # Update the database
-    with sqlite3.connect("results/RNANet.db") as conn:
+    with sqlite3.connect("results/RNANet.db", isolation_level=None) as conn:
         conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
         sql_execute(conn, """UPDATE chain SET pair_count_cWW = ?, pair_count_cWH = ?, pair_count_cWS = ?, pair_count_cHH = ?,
                                 pair_count_cHS = ?, pair_count_cSS = ?, pair_count_tWW = ?, pair_count_tWH = ?, pair_count_tWS = ?, 
@@ -554,7 +557,7 @@ def per_chain_stats():
 
     REQUIRES tables chain, nucleotide up to date. """
 
-    with sqlite3.connect("results/RNANet.db") as conn:
+    with sqlite3.connect("results/RNANet.db", isolation_level=None) as conn:
         # Compute per-chain nucleotide frequencies
         df = pd.read_sql("SELECT SUM(is_A) as A, SUM(is_C) AS C, SUM(is_G) AS G, SUM(is_U) AS U, SUM(is_other) AS O, chain_id FROM nucleotide GROUP BY chain_id;", conn)
         df["total"] = pd.Series(df.A + df.C + df.G + df.U + df.O, dtype=np.float64)
@@ -610,7 +613,7 @@ if __name__ == "__main__":
 
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, leave=True)
-
+sqlite3 
     try:
         for j in joblist:
             p.apply_async(j.func_, args=j.args_, callback=log_to_pbar(pbar))
@@ -625,6 +628,9 @@ if __name__ == "__main__":
         exit(1)
     except:
         print("Something went wrong")
+
+    print()
+    print()
 
     # finish the work after the parallel portions
     per_chain_stats()

@@ -1389,7 +1389,7 @@ class Pipeline:
             # Remove previous precomputed data
             subprocess.run(["rm","-f", "data/wadley_kernel_eta.npz", "data/wadley_kernel_eta_prime.npz", "data/pair_counts.csv"])
             for f in self.fam_list:
-                subprocess.run(["rm","-f", f"data/{f}.npy"])
+                subprocess.run(["rm","-f", f"data/{f}.npy", f"data/{f}_pairs.csv", f"data/{f}_counts.csv"])
 
             # Run statistics files
             os.chdir(runDir)
@@ -1397,13 +1397,12 @@ class Pipeline:
             subprocess.run(["python3.8", "statistics.py", path_to_3D_data, path_to_seq_data])
 
         # Save additional informations
-        conn = sqlite3.connect(runDir+"/results/RNANet.db")
-        pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
-                          conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
-        pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
-                            JOIN chain ON structure.pdb_id = chain.structure_id
-                            ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
-        conn.close()
+        with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
+            pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
+                            conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
+            pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
+                                JOIN chain ON structure.pdb_id = chain.structure_id
+                                ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
 
         # Archive the results
         if self.SELECT_ONLY is None:
@@ -2408,6 +2407,7 @@ if __name__ == "__main__":
             rfam_acc_to_download[c.mapping.rfam_acc] = [ c ]
         else:
             rfam_acc_to_download[c.mapping.rfam_acc].append(c)
+
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
     
