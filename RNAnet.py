@@ -469,7 +469,7 @@ class Chain:
                         paired[nt2_idx] += ',' + str(nt1_idx + 1)
 
         # transform nt_id to shorter values
-        df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^','') for n, name in zip(df.nt_id, df.nt_name) ]
+        df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^','').replace('/','') for n, name in zip(df.nt_id, df.nt_name) ]
 
         df['paired'] = paired
         df['pair_type_LW'] = pair_type_LW
