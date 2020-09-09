@@ -10,6 +10,17 @@ for KILLPID in $PROCESS_LIST; do
   fi
 done
 
+PROCESS_TO_KILL="statistics.py"
+PROCESS_LIST=`ps ax | grep -Ei ${PROCESS_TO_KILL} | grep -Eiv '(grep|vi statistics.py)' | awk ' { print $1;}'`
+KILLED=
+for KILLPID in $PROCESS_LIST; do
+  if [ ! -z $KILLPID ];then
+    kill -9 $KILLPID
+    echo "Killed PID ${KILLPID}"
+    KILLED=yes
+  fi
+done
+
 if [ -z $KILLED ];then
     echo "Didn't kill anything"
 fi

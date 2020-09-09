@@ -273,32 +273,39 @@ class Chain:
             if self.mapping is not None:
                 self.mapping.log(f"Shifting nt_resnum numbering because of {n_dup} duplicate residues {df.iloc[i,1]}")
 
-            if df.iloc[i,1] == df.iloc[i-1,1] and df.iloc[index_last_dup + 1, 1] - 1 > df.iloc[index_last_dup, 1]:
-                # The redundant nts are consecutive in the chain (at the begining at least), and there is a gap at the end
+            try:
+                if i > 0 and index_last_dup +1 < len(df.index) and df.iloc[i,1] == df.iloc[i-1,1] and df.iloc[index_last_dup + 1, 1] - 1 > df.iloc[index_last_dup, 1]:
+                    # The redundant nts are consecutive in the chain (at the begining at least), and there is a gap at the end
 
-                if duplicates.iloc[n_dup-1, 0] - duplicates.iloc[0, 0] + 1 == n_dup:
-                    # They are all contiguous in the chain
-                    # 4v9n-DA case (and similar ones) : 610-611-611A-611B-611C-611D-611E-611F-611G-617-618...
-                    # there is a redundancy (611) followed by a gap (611-617). 
-                    # We want the redundancy to fill the gap.
-                    df.iloc[i:i+n_dup-1, 1] += 1
+                    if duplicates.iloc[n_dup-1, 0] - duplicates.iloc[0, 0] + 1 == n_dup:
+                        # They are all contiguous in the chain
+                        # 4v9n-DA case (and similar ones) : 610-611-611A-611B-611C-611D-611E-611F-611G-617-618...
+                        # there is a redundancy (611) followed by a gap (611-617). 
+                        # We want the redundancy to fill the gap.
+                        df.iloc[i:i+n_dup-1, 1] += 1
+                    else:
+                        # We solve the problem continous component by continuous component
+                        for j in range(1, n_dup+1):
+                            if duplicates.iloc[j,0] == 1 + duplicates.iloc[j-1,0]: # continuous
+                                df.iloc[i+j-1,1] += 1
+                            else:
+                                break
+                elif df.iloc[i,1] == df.iloc[i-1,1]:
+                    # Common 4v9q-DV case (and similar ones) : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
+                    # Solution : we shift the numbering of 17A (to 18) and the following residues.
+                    df.iloc[i:, 1] += 1
                 else:
-                    # We solve the problem continous component by continuous component
-                    for j in range(1, n_dup+1):
-                        if duplicates.iloc[j,0] == 1 + duplicates.iloc[j-1,0]: # continuous
-                            df.iloc[i+j-1,1] += 1
-                        else:
-                            break
-            elif df.iloc[i,1] == df.iloc[i-1,1]:
-                # Common 4v9q-DV case (and similar ones) : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
-                # Solution : we shift the numbering of 17A (to 18) and the following residues.
-                df.iloc[i:, 1] += 1
-            else:
-                # 4v9k-DA case (and similar ones) : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
-                # Here the 163B is read 163 by DSSR, but there already is a residue 163.
-                # Solution : set nt_resnum[i] to nt_resnum[i-1] + 1, and shift the following by 1.
-                df.iloc[i, 1] = 1 + df.iloc[i-1, 1]
-                df.iloc[i+1:, 1] += 1
+                    # 4v9k-DA case (and similar ones) : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
+                    # Here the 163B is read 163 by DSSR, but there already is a residue 163.
+                    # Solution : set nt_resnum[i] to nt_resnum[i-1] + 1, and shift the following by 1.
+                    df.iloc[i, 1] = 1 + df.iloc[i-1, 1]
+                    df.iloc[i+1:, 1] += 1
+            except:
+                warn(f"Error with parsing of {self.chain_label} duplicate residue numbers. Ignoring it.")
+                self.delete_me = True
+                self.error_messages = f"Error with parsing of duplicate residues numbers."
+                return None
+
 
         # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
@@ -1019,7 +1026,7 @@ class Pipeline:
                 print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &") 
                 sys.exit()
             elif opt == '--version':
-                print("RNANet 1.0 alpha ")
+                print("RNANet 1.1 beta")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
                 assert float(arg) > 0.0 and float(arg) <= 20.0 
@@ -1382,7 +1389,7 @@ class Pipeline:
             # Remove previous precomputed data
             subprocess.run(["rm","-f", "data/wadley_kernel_eta.npz", "data/wadley_kernel_eta_prime.npz", "data/pair_counts.csv"])
             for f in self.fam_list:
-                subprocess.run(["rm","-f", f"data/{f}.npy"])
+                subprocess.run(["rm","-f", f"data/{f}.npy", f"data/{f}_pairs.csv", f"data/{f}_counts.csv"])
 
             # Run statistics files
             os.chdir(runDir)
@@ -1390,13 +1397,12 @@ class Pipeline:
             subprocess.run(["python3.8", "statistics.py", path_to_3D_data, path_to_seq_data])
 
         # Save additional informations
-        conn = sqlite3.connect(runDir+"/results/RNANet.db")
-        pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
-                          conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
-        pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
-                            JOIN chain ON structure.pdb_id = chain.structure_id
-                            ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
-        conn.close()
+        with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
+            pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
+                            conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
+            pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
+                                JOIN chain ON structure.pdb_id = chain.structure_id
+                                ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
 
         # Archive the results
         if self.SELECT_ONLY is None:
@@ -1404,7 +1410,10 @@ class Pipeline:
             subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
 
         # Update shortcuts to latest versions
-        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", runDir + "/results/summary_latest.csv", runDir + "/results/families_latest.csv"])
+        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", 
+                                    runDir + "/results/summary_latest.csv", 
+                                    runDir + "/results/families_latest.csv"
+                        ])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/summary_{time_str}.csv", runDir + "/results/summary_latest.csv"])
         subprocess.run(['ln',"-s", runDir +f"/results/archive/families_{time_str}.csv", runDir + "/results/families_latest.csv"])
@@ -1631,6 +1640,7 @@ def sql_ask_database(conn, sql, warn_every = 10):
 
 @trace_unhandled_exceptions
 def sql_execute(conn, sql, many=False, data=None, warn_every=10):
+    conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
     for _ in range(100): # retry 100 times if it fails
         try:
             if many:
@@ -2397,6 +2407,7 @@ if __name__ == "__main__":
             rfam_acc_to_download[c.mapping.rfam_acc] = [ c ]
         else:
             rfam_acc_to_download[c.mapping.rfam_acc].append(c)
+
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
     
