@@ -613,7 +613,7 @@ if __name__ == "__main__":
 
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, leave=True)
-sqlite3 
+
     try:
         for j in joblist:
             p.apply_async(j.func_, args=j.args_, callback=log_to_pbar(pbar))

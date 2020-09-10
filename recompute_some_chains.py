@@ -3,13 +3,8 @@ import subprocess, os, sys
 
 # Put a list of problematic chains here, they will be properly deleted and recomputed
 problems = [
-"4v7f_1_1_4-3396",
-"4v7f_1_1_1-3167",
-"4v7f_1_1_1-3255",
-"6g90_1_1_1-407",
-"3q3z_1_A_1-74",
-"3q3z_1_V_1-74",
-"4v7f_1_3_1-121"
+"4v9n_1_DA_1-2879",
+"4v9n_1_DA_148-2875"
 ]
 
 path_to_3D_data = sys.argv[1]
