@@ -119,11 +119,13 @@ class BufferingSummaryInfo(AlignInfo.SummaryInfo):
 
 
 class Chain:
-    """ The object which stores all our data and the methods to process it.
+    """ 
+    The object which stores all our data and the methods to process it.
 
-    Chains accumulate information through this scipt, and are saved to files at the end of major steps."""
+    Chains accumulate information through this scipt, and are saved to files at the end of major steps.
+    """
 
-    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, rfam="", inferred=False, pdb_start=None, pdb_end=None):
+    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam="", inferred=False, pdb_start=None, pdb_end=None):
         self.pdb_id = pdb_id                    # PDB ID
         self.pdb_model = int(pdb_model)         # model ID, starting at 1
         self.pdb_chain_id = pdb_chain_id        # chain ID (mmCIF), multiple letters
@@ -131,6 +133,7 @@ class Chain:
             self.mapping = Mapping(chain_label, rfam, pdb_start, pdb_end, inferred)
         else:
             self.mapping = None
+        self.eq_class = eq_class                # BGSU NR list class id
         self.chain_label = chain_label          # chain pretty name 
         self.file = ""                          # path to the 3D PDB file
         self.seq = ""                           # sequence with modified nts
@@ -509,30 +512,33 @@ class Chain:
             # Register the chain in table chain
             if self.mapping is not None:
                 sql_execute(conn, f"""  INSERT INTO chain 
-                                        (structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, issue)
+                                        (structure_id, chain_name, pdb_start, pdb_end, rfam_acc, eq_class, inferred, issue)
                                         VALUES 
-                                        (?, ?, ?, ?, ?, ?, ?)
+                                        (?, ?, ?, ?, ?, ?, ?, ?)
                                         ON CONFLICT(structure_id, chain_name, rfam_acc) DO
                                         UPDATE SET  pdb_start=excluded.pdb_start, 
                                                     pdb_end=excluded.pdb_end, 
+                                                    eq_class=excluded.eq_class,
                                                     inferred=excluded.inferred, 
                                                     issue=excluded.issue;""", 
                                         data=(str(self.pdb_id), str(self.pdb_chain_id), 
                                               int(self.mapping.nt_start), int(self.mapping.nt_end), 
-                                              str(self.mapping.rfam_acc), 
+                                              str(self.mapping.rfam_acc), str(self.eq_class),
                                               int(self.mapping.inferred), int(self.delete_me)))
                 # get the chain id
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
                                                     WHERE structure_id='{self.pdb_id}' 
                                                     AND chain_name='{self.pdb_chain_id}' 
-                                                    AND rfam_acc='{self.mapping.rfam_acc}';""")[0][0]
+                                                    AND rfam_acc='{self.mapping.rfam_acc}'
+                                                    AND eq_class='{self.eq_class}';""")[0][0]
             else:
-                sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, issue) VALUES (?, ?, NULL, ?) 
-                                   ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue;""", 
-                            data=(str(self.pdb_id), str(self.pdb_chain_id), int(self.delete_me)))
+                sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, eq_class, issue) VALUES (?, ?, NULL, ?, ?) 
+                                   ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue, eq_class=excluded.eq_class;""", 
+                            data=(str(self.pdb_id), str(self.pdb_chain_id), str(self.eq_class), int(self.delete_me)))
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
                                                     WHERE structure_id='{self.pdb_id}' 
                                                     AND chain_name='{self.pdb_chain_id}' 
+                                                    AND eq_class='{self.eq_class}'
                                                     AND rfam_acc IS NULL;""")[0][0]
             
             # Add the nucleotides if the chain is not an issue
@@ -848,14 +854,14 @@ class Downloader:
             if path.isfile(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv"):
                 print("\t> Use of the previous version.\t", end = "", flush=True)
             else:
-                return [], []
+                return pd.DataFrame([], columns=["class", "class_members"])
 
         nrlist = pd.read_csv(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv")
-        full_structures_list = nrlist['class_members'].tolist()
+        full_structures_list = [ tuple(i[1]) for i in nrlist[['class','class_members']].iterrows() ]
         print(f"\t{validsymb}", flush=True)
 
         # The beginning of an adventure.
-        return full_structures_list
+        return full_structures_list # list of ( str (class), str (class_members) )
 
     def download_from_SILVA(self, unit):
         if not path.isfile(path_to_seq_data + f"realigned/{unit}.arb"):
@@ -1060,8 +1066,8 @@ class Pipeline:
             elif opt == "--from-scratch":
                 warn("Deleting previous database and recomputing from scratch.")
                 subprocess.run(["rm", "-rf", 
-                                path_to_3D_data + "annotations",
-                                # path_to_3D_data + "RNAcifs",  # DEBUG : keep the cifs !
+                                # path_to_3D_data + "annotations",  # DEBUG : keep the annotations !
+                                # path_to_3D_data + "RNAcifs",      # DEBUG : keep the cifs !
                                 path_to_3D_data + "rna_mapped_to_Rfam",
                                 path_to_3D_data + "rnaonly",
                                 path_to_seq_data + "realigned",
@@ -1095,7 +1101,7 @@ class Pipeline:
         If self.HOMOLOGY is set to False, simply returns a list of Chain() objects with available 3D chains."""
 
         # List all 3D RNA chains below given resolution
-        full_structures_list = self.dl.download_BGSU_NR_list(self.CRYSTAL_RES)
+        full_structures_list = self.dl.download_BGSU_NR_list(self.CRYSTAL_RES) # list of tuples ( class, class_members )
 
         # Check for a list of known problems:
         if path.isfile(runDir + "/known_issues.txt"):
@@ -1132,8 +1138,8 @@ class Pipeline:
                 exit(1)
         else:
             conn = sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0)
-            for codelist in tqdm(full_structures_list):
-                codes = str(codelist).replace('+',',').split(',')
+            for eq_class, codelist in tqdm(full_structures_list):
+                codes = codelist.replace('+',',').split(',')
 
                 # Simply convert the list of codes to Chain() objects
                 for c in codes:
@@ -1144,7 +1150,7 @@ class Pipeline:
                     chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
                     res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc IS NULL AND issue=0""")
                     if not len(res): # the chain is NOT yet in the database, or this is a known issue
-                        self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
+                        self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
 
         if self.SELECT_ONLY is not None:
@@ -1400,7 +1406,7 @@ class Pipeline:
         with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
             pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
                             conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
-            pd.read_sql_query("""SELECT structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
+            pd.read_sql_query("""SELECT eq_class, structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
                                 JOIN chain ON structure.pdb_id = chain.structure_id
                                 ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
 
@@ -1530,6 +1536,7 @@ def sql_define_tables(conn):
                 chain_id        INTEGER PRIMARY KEY NOT NULL,
                 structure_id    CHAR(4) NOT NULL,
                 chain_name      VARCHAR(2) NOT NULL,
+                eq_class        VARCHAR(10),
                 pdb_start       SMALLINT,
                 pdb_end         SMALLINT,
                 issue           TINYINT,
@@ -1793,7 +1800,8 @@ def work_infer_mappings(update_only, allmappings, codelist):
     known_mappings = pd.DataFrame()
 
     # Split the comma-separated list of chain codes into chain codes:
-    codes = str(codelist).replace('+',',').split(',')
+    eq_class = codelist[0]
+    codes = codelist[1].replace('+',',').split(',')
 
     # Search for mappings that apply to an element of this PDB chains list:
     for c in codes:
@@ -1894,9 +1902,9 @@ def work_infer_mappings(update_only, allmappings, codelist):
                     with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
                         res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc='{rfam}' AND issue=0""")
                     if not len(res): # the chain is NOT yet in the database, or this is a known issue
-                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
                 else:
-                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
     
     return newchains
 
