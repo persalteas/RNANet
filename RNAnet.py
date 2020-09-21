@@ -8,8 +8,6 @@ from Bio.PDB.mmcifio import MMCIFIO
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict 
 from Bio.PDB.PDBExceptions import PDBConstructionWarning, BiopythonWarning
 from Bio.PDB.Dice import ChainSelector
-from Bio._py3k import urlretrieve as _urlretrieve
-from Bio._py3k import urlcleanup as _urlcleanup
 from Bio.Alphabet import generic_rna
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -22,6 +20,21 @@ from time import sleep
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
+def trace_unhandled_exceptions(func):
+    @wraps(func)
+    def wrapped_func(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except:
+            s = traceback.format_exc()
+            with open(runDir +  "/errors.txt", "a") as f:
+                f.write("Exception in "+func.__name__+"\n")
+                f.write(s)
+                f.write("\n\n")
+
+            warn('Exception in '+func.__name__, error=True)
+            print(s)
+    return wrapped_func
 
 pd.set_option('display.max_rows', None)
 sqlite3.enable_callback_tracebacks(True)
@@ -123,7 +136,7 @@ class Chain:
 
     Chains accumulate information through this scipt, and are saved to files at the end of major steps."""
 
-    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, rfam="", inferred=False, pdb_start=None, pdb_end=None):
+    def __init__(self, pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam="", inferred=False, pdb_start=None, pdb_end=None):
         self.pdb_id = pdb_id                    # PDB ID
         self.pdb_model = int(pdb_model)         # model ID, starting at 1
         self.pdb_chain_id = pdb_chain_id        # chain ID (mmCIF), multiple letters
@@ -193,6 +206,7 @@ class Chain:
 
         notify(status)
 
+    @trace_unhandled_exceptions
     def extract_3D_data(self):
         """ Maps DSSR annotations to the chain. """
 
@@ -749,8 +763,7 @@ class Downloader:
         print(f"\t> Download Rfam.cm.gz from Rfam..." + " " * 37, end='', flush=True) 
         if not path.isfile(path_to_seq_data + "Rfam.cm"):
             try:
-                _urlcleanup()
-                _urlretrieve(f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz', path_to_seq_data + "Rfam.cm.gz")
+                subprocess.run(["wget", "ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz", "-O", path_to_seq_data + "Rfam.cm.gz"])
                 print(f"\t{validsymb}", flush=True)
                 print(f"\t\t> Uncompressing Rfam.cm...", end='', flush=True)
                 subprocess.run(["gunzip", path_to_seq_data + "Rfam.cm.gz"], stdout=subprocess.DEVNULL)
@@ -813,16 +826,14 @@ class Downloader:
         if not path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):
             for _ in range(10): # retry 100 times if it fails
                 try:
-                    _urlcleanup()
-                    _urlretrieve(   f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz',
-                                    path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz")
+                    subprocess.run(["wget", f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz', "-O", path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"], stdout=subprocess.DEVNULL)
                     notify(f"Downloaded {rfam_acc}.fa.gz from Rfam")
                     return          # if it worked, no need to retry
                 except Exception as e:
                     warn(f"Error downloading {rfam_acc}.fa.gz: {e}")
                     warn("retrying in 0.2s (worker " + str(os.getpid()) + f', try {_+1}/100)')
                     time.sleep(0.2)
-            warn("Tried to reach database 100 times and failed. Aborting.", error=True)
+            warn("Tried to reach Rfam FTP 100 times and failed. Aborting.", error=True)
         else:
             notify(f"Downloaded {rfam_acc}.fa.gz from Rfam", "already there")
 
@@ -860,14 +871,11 @@ class Downloader:
     def download_from_SILVA(self, unit):
         if not path.isfile(path_to_seq_data + f"realigned/{unit}.arb"):
             try:
-                _urlcleanup()
                 print(f"Downloading {unit} from SILVA...", end='', flush=True)
                 if unit=="LSU":
-                    _urlretrieve('http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz',
-                                  path_to_seq_data + "realigned/LSU.arb.gz")
+                    subprocess.run(["wget", "http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz", "-O", path_to_seq_data + "realigned/LSU.arb.gz"])
                 else:
-                    _urlretrieve('http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz', 
-                                  path_to_seq_data + "realigned/SSU.arb.gz")
+                    subprocess.run(["wget", "http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz", "-O", path_to_seq_data + "realigned/SSU.arb.gz"])
             except:
                 warn(f"Error downloading the {unit} database from SILVA", error=True)
                 exit(1)
@@ -986,7 +994,7 @@ class Pipeline:
 
         for opt, arg in opts:
 
-            if opt in ["--from-scratch", "--update-mmcifs", "--update-homologous"] and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
+            if opt in ["--from-scratch", "--update-homologous"] and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
                 print("Please provide --3d-folder and --seq-folder first, so that we know what to delete and update.")
                 exit()
 
@@ -1083,7 +1091,7 @@ class Pipeline:
             elif opt == "--archive":
                 self.ARCHIVE = True
 
-        if "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data]:
+        if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
             print("See RNANet.py --help for more information.")
             exit(1)
@@ -1144,7 +1152,7 @@ class Pipeline:
                     chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
                     res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc IS NULL AND issue=0""")
                     if not len(res): # the chain is NOT yet in the database, or this is a known issue
-                        self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label))
+                        self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
 
         if self.SELECT_ONLY is not None:
@@ -1475,22 +1483,6 @@ def init_worker(tqdm_lock=None):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     if tqdm_lock is not None:
         tqdm.set_lock(tqdm_lock)
-
-def trace_unhandled_exceptions(func):
-    @wraps(func)
-    def wrapped_func(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except:
-            s = traceback.format_exc()
-            with open(runDir +  "/errors.txt", "a") as f:
-                f.write("Exception in "+func.__name__+"\n")
-                f.write(s)
-                f.write("\n\n")
-
-            warn('Exception in '+func.__name__, error=True)
-            print(s)
-    return wrapped_func
 
 def warn(message, error=False):
     """Pretty-print warnings and error messages.
@@ -1894,9 +1886,9 @@ def work_infer_mappings(update_only, allmappings, codelist):
                     with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
                         res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc='{rfam}' AND issue=0""")
                     if not len(res): # the chain is NOT yet in the database, or this is a known issue
-                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
                 else:
-                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
     
     return newchains
 
@@ -1907,14 +1899,12 @@ def work_mmcif(pdb_id):
     SETS table structure
     """
 
-    url = 'http://files.rcsb.org/download/%s.cif' % (pdb_id)
     final_filepath = path_to_3D_data+"RNAcifs/"+pdb_id+".cif"
 
     # Attempt to download it if not present
     try:
         if not path.isfile(final_filepath):
-            _urlcleanup()
-            _urlretrieve(url, final_filepath)
+            subprocess.run(["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath], stdout=subprocess.DEVNULL)
     except:
         warn(f"Unable to download {pdb_id}.cif. Ignoring it.", error=True)
         return
