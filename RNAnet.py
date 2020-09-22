@@ -210,7 +210,7 @@ class Chain:
         notify(status)
 
     @trace_unhandled_exceptions
-    def extract_3D_data(self):
+    def extract_3D_data(self, save_logs=True):
         """ Maps DSSR annotations to the chain. """
 
         ############################################
@@ -513,7 +513,7 @@ class Chain:
             return None
 
         # Log chain info to file
-        if self.mapping is not None:
+        if save_logs and self.mapping is not None:
             self.mapping.to_file(self.chain_label+".log")
 
         return df
@@ -982,6 +982,7 @@ class Pipeline:
         self.REUSE_ALL = False
         self.SELECT_ONLY = None
         self.ARCHIVE = False
+        self.SAVELOGS = True
 
     def process_options(self):
         """Sets the paths and options of the pipeline"""
@@ -992,7 +993,7 @@ class Pipeline:
             opts, _ = getopt.getopt( sys.argv[1:], "r:hs", 
                                     [   "help", "resolution=", "keep-hetatm=", "from-scratch",
                                         "fill-gaps=", "3d-folder=", "seq-folder=",
-                                        "no-homology", "ignore-issues", "extract", "only=", "all",
+                                        "no-homology", "ignore-issues", "extract", "only=", "all", "no-logs",
                                         "archive", "update-homologous" ])
         except getopt.GetoptError as err:
             print(err)
@@ -1035,6 +1036,7 @@ class Pipeline:
                 print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
                 print("--archive\t\t\tCreate a tar.gz archive of the datapoints text files, and update the link to the latest archive")
+                print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
                 print()
                 print("Typical usage:")
                 print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &") 
@@ -1096,6 +1098,8 @@ class Pipeline:
                 self.EXTRACT_CHAINS = True
             elif opt == "--archive":
                 self.ARCHIVE = True
+            elif opt == "--no-logs":
+                self.SAVELOGS = False
 
         if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
@@ -1227,7 +1231,7 @@ class Pipeline:
                 c.delete_me = False # give a second chance
             if (c.chain_label not in self.known_issues) or not self.USE_KNOWN_ISSUES:
                 joblist.append(Job(function=work_build_chain, how_many_in_parallel=int(coeff_ncores*ncores), 
-                                    args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry]))
+                                    args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry, self.SAVELOGS]))
         try:
             results = execute_joblist(joblist)
         except:
@@ -1957,7 +1961,7 @@ def work_mmcif(pdb_id):
     return 0
 
 @trace_unhandled_exceptions
-def work_build_chain(c, extract, khetatm, retrying=False):
+def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     """Reads information from JSON and save it to database.
     If asked, also extracts the 3D chains from their original structure files.
 
@@ -1969,7 +1973,7 @@ def work_build_chain(c, extract, khetatm, retrying=False):
     
     # extract the 3D descriptors
     if not c.delete_me:
-        df = c.extract_3D_data()
+        df = c.extract_3D_data(save_logs)
         c.register_chain(df)
 
     # Small check

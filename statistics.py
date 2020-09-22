@@ -5,7 +5,7 @@
 # in the database.
 # This should be run from the folder where the file is (to access the database with path "results/RNANet.db")
 
-import os, pickle, sqlite3, shlex, subprocess, sys
+import getopt, os, pickle, sqlite3, shlex, subprocess, sys
 import numpy as np
 import pandas as pd
 import threading as th
@@ -24,14 +24,9 @@ from tqdm import tqdm
 from collections import Counter
 from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker
 
-# This sets the paths
-if len(sys.argv) > 1:
-    path_to_3D_data = path.abspath(sys.argv[1])
-    path_to_seq_data = path.abspath(sys.argv[2])
-else:
-    print("Please set paths to 3D data using command line arguments:")
-    print("./statistics.py /path/to/3D/data/ /path/to/sequence/data/")
-    exit()
+path_to_3D_data = "tobedefinedbyoptions"
+path_to_seq_data = "tobedefinedbyoptions"
+res_thr = 20.0 # default: all structures
 
 LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
 SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
@@ -54,6 +49,8 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
                      This removes noise and cuts too high peaks, to clearly see the clusters.
     """
 
+    os.makedirs("results/figures/wadley_plots/", exist_ok=True)
+
     if carbon == 4:
         angle = "eta"
         xlabel = "$\\eta=C_4'^{i-1}-P^i-C_4'^i-P^{i+1}$"
@@ -66,7 +63,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         exit("You overestimate my capabilities !")
 
     
-    if not path.isfile(f"data/wadley_kernel_{angle}.npz"):
+    if not path.isfile(f"data/wadley_kernel_{angle}_{res_thr}A.npz"):
 
         # Get a worker number to position the progress bar
         global idxQueue
@@ -75,10 +72,25 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
 
         # Extract the angle values of c2'-endo and c3'-endo nucleotides
         with sqlite3.connect("results/RNANet.db") as conn:
-            df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE puckering="C2'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+            df = pd.read_sql(f"""SELECT {angle}, th{angle} 
+                                 FROM nucleotide JOIN (
+                                    SELECT chain_id FROM chain JOIN structure
+                                    WHERE structure.resolution <= {res_thr}
+                                 ) AS c
+                                 WHERE puckering="C2'-endo" 
+                                    AND {angle} IS NOT NULL 
+                                    AND th{angle} IS NOT NULL;""", conn)
             c2_endo_etas = df[angle].values.tolist()
             c2_endo_thetas = df["th"+angle].values.tolist()
-            df = pd.read_sql(f"""SELECT {angle}, th{angle} FROM nucleotide WHERE form = '.' AND puckering="C3'-endo" AND {angle} IS NOT NULL AND th{angle} IS NOT NULL;""", conn)
+            df = pd.read_sql(f"""SELECT {angle}, th{angle} 
+                                 FROM nucleotide JOIN (
+                                    SELECT chain_id FROM chain JOIN structure
+                                    WHERE structure.resolution <= {res_thr}
+                                 ) AS c
+                                 WHERE form = '.' 
+                                    AND puckering="C3'-endo" 
+                                    AND {angle} IS NOT NULL 
+                                    AND th{angle} IS NOT NULL;""", conn)
             c3_endo_etas = df[angle].values.tolist()
             c3_endo_thetas = df["th"+angle].values.tolist()
         
@@ -145,7 +157,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         ax.bar3d(xpos.ravel(), ypos.ravel(), 0.0, 0.09, 0.09, hist_cut.ravel(), color=color_values, zorder="max")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}_{res_thr}A.png")
         if show:
             fig.show()
         plt.close()
@@ -156,7 +168,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         ax.plot_surface(xx, yy, f_cut, cmap=cm.get_cmap("coolwarm"), linewidth=0, antialiased=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}_{res_thr}A.png")
         if show:
             fig.show()
         plt.close()
@@ -169,7 +181,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
 
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}_{res_thr}A.png")
         if show:
             fig.show()
         plt.close()
@@ -184,6 +196,21 @@ def stats_len():
     # Get a worker number to position the progress bar
     global idxQueue
     thr_idx = idxQueue.get()
+
+    # sort the RNA families so that the plot is readable
+    def family_order(f):
+        if f in LSU_set:
+            return 4
+        elif f in SSU_set:
+            return 3
+        elif f in ["RF00001"]:      #
+            return 1                # put tRNAs and 5S rRNAs first,
+        elif f in ["RF00005"]:      # because of the logarithmic scale, otherwise, they look tiny
+            return 0                #
+        else:
+            return 2
+    
+    fam_list.sort(key=family_order)
 
     cols = []
     lengths = []
@@ -204,8 +231,8 @@ def stats_len():
 
         # Get the lengths of chains
         with sqlite3.connect("results/RNANet.db") as conn:
-            l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(index_chain) FROM (SELECT chain_id FROM chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY chain_id;", warn_every=0) ]
-        lengths.append(l)
+            l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(index_chain) FROM (SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id WHERE rfam_acc='{f}' AND resolution <= {res_thr}) NATURAL JOIN nucleotide GROUP BY chain_id;", warn_every=0) ]
+        lengths.append(l) # list of chain lengths from the family
 
         # notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
 
@@ -235,7 +262,7 @@ def stats_len():
                 ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.5))
 
     # Save the figure
-    fig.savefig("results/figures/lengths.png")
+    fig.savefig(f"results/figures/lengths_{res_thr}A.png")
     idxQueue.put(thr_idx) # replace the thread index in the queue
     # notify("Computed sequence length statistics and saved the figure.")
 
@@ -577,8 +604,44 @@ def log_to_pbar(pbar):
 
 if __name__ == "__main__":
 
-    os.makedirs("results/figures/wadley_plots/", exist_ok=True)
+    # parse options
+    try:
+        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "resolution=", "3d-folder=", "seq-folder=" ])
+    except getopt.GetoptError as err:
+        print(err)
+        sys.exit(2)
+    for opt, arg in opts:
 
+        if opt == "-h" or opt == "--help":
+            print(  "RNANet statistics, a script to build a multiscale RNA dataset from public data\n"
+                    "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
+            print()
+            print("Options:")
+            print("-h [ --help ]\t\t\tPrint this help message")
+            print()
+            print("-r 20.0 [ --resolution=20.0 ]\tCompute statistics using chains of resolution 20.0A or better.")
+            print("--3d-folder=…\t\t\tPath to a folder containing the 3D data files. Required subfolders should be:"
+                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
+            print("--seq-folder=…\t\t\tPath to a folder containing the sequence and alignment files. Required subfolder:"
+                    "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
+            sys.exit()
+        elif opt == '--version':
+            print("RNANet statistics 1.1 beta")
+            sys.exit()
+        elif opt == "-r" or opt == "--resolution":
+            assert float(arg) > 0.0 and float(arg) <= 20.0 
+            res_thr = float(arg)
+        elif opt=='--3d-folder':
+            path_to_3D_data = path.abspath(arg)
+            if path_to_3D_data[-1] != '/':
+                path_to_3D_data += '/'
+        elif opt=='--seq-folder':
+            path_to_seq_data = path.abspath(arg)
+            if path_to_seq_data[-1] != '/':
+                path_to_seq_data += '/'
+    
+
+    # Load mappings
     print("Loading mappings list...")
     with sqlite3.connect("results/RNANet.db") as conn:
         fam_list = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from family ORDER BY rfam_acc ASC;") ]
@@ -602,14 +665,14 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    joblist.append(Job(function=reproduce_wadley_results, args=(1,)))
-    joblist.append(Job(function=reproduce_wadley_results, args=(4,)))
+    # joblist.append(Job(function=reproduce_wadley_results, args=(1,)))
+    # joblist.append(Job(function=reproduce_wadley_results, args=(4,)))
     joblist.append(Job(function=stats_len)) # Computes figures
-    joblist.append(Job(function=stats_freq)) # updates the database
-    for f in famlist:
-        joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
-        if f not in ignored:
-            joblist.append(Job(function=to_dist_matrix, args=(f,))) # updates the database
+    # joblist.append(Job(function=stats_freq)) # updates the database
+    # for f in famlist:
+    #     joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
+    #     if f not in ignored:
+    #         joblist.append(Job(function=to_dist_matrix, args=(f,))) # updates the database
 
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, leave=True)
@@ -633,6 +696,6 @@ if __name__ == "__main__":
     print()
 
     # finish the work after the parallel portions
-    per_chain_stats()
-    seq_idty()
-    stats_pairs()
+    # per_chain_stats()
+    # seq_idty()
+    # stats_pairs()
