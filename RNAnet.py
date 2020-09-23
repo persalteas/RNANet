@@ -18,7 +18,7 @@ from os import path, makedirs
 from multiprocessing import Pool, Manager, set_start_method
 from time import sleep
 from tqdm import tqdm
-from tqdm.contrib.concurrent import process_map
+from setproctitle import setproctitle
 
 def trace_unhandled_exceptions(func):
     @wraps(func)
@@ -169,7 +169,8 @@ class Chain:
     def extract(self, df, khetatm):
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
-        
+        setproctitle(f"RNANet.py {self.chain_label} extract()")
+
         if self.mapping is not None:
             status = f"Extract {self.mapping.nt_start}-{self.mapping.nt_end} atoms from {self.pdb_id}-{self.pdb_chain_id}"
             self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
@@ -213,6 +214,8 @@ class Chain:
     def extract_3D_data(self, save_logs=True):
         """ Maps DSSR annotations to the chain. """
 
+        setproctitle(f"RNANet.py {self.chain_label} extract_3D_data()")
+        
         ############################################
         # Load the mmCIF annotations from file
         ############################################
@@ -311,6 +314,10 @@ class Chain:
                     # Common 4v9q-DV case (and similar ones) : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
                     # Solution : we shift the numbering of 17A (to 18) and the following residues.
                     df.iloc[i:, 1] += 1
+                elif duplicates.iloc[0,0] == 1 and df.iloc[i,0] == 3:
+                    # 4wzo_1_1J case, there is a residue numbered -1 and read as 1 before the number 0.
+                    df.iloc[1:, 1] += 1
+                    df.iloc[0, 1] = 0
                 else:
                     # 4v9k-DA case (and similar ones) : the nt_id is not the full nt_resnum: ... 1629 > 1630 > 163B > 1631 > ...
                     # Here the 163B is read 163 by DSSR, but there already is a residue 163.
@@ -322,7 +329,6 @@ class Chain:
                 self.delete_me = True
                 self.error_messages = f"Error with parsing of duplicate residues numbers."
                 return None
-
 
         # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
@@ -337,7 +343,6 @@ class Chain:
                 self.mapping.log("Droping ligand:")
                 self.mapping.log(df.tail(1))
             df = df.head(-1) 
-
 
         # Duplicates in index_chain : drop, they are ligands
         # e.g. 3iwn_1_B_1-91, ligand C2E has index_chain 1 (and nt_resnum 601)
@@ -384,7 +389,7 @@ class Chain:
                     df.iloc[i+1:, 1] += 1
                 else:
                     warn(f"Missing index_chain {i} in {self.chain_label} !")
-
+        
         # Assert some nucleotides still exist
         try:
             l = df.iloc[-1,1] - df.iloc[0,1] + 1    # update length of chain from nt_resnum point of view
@@ -522,6 +527,8 @@ class Chain:
         """Saves the extracted 3D data to the database.
         """
 
+        setproctitle(f"RNANet.py {self.chain_label} register_chain()")
+
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
             # Register the chain in table chain
             if self.mapping is not None:
@@ -574,6 +581,8 @@ class Chain:
         columns_to_save: a set of indexes in the alignment that are mapped to previous sequences in the alignment
         s_seq: the aligned version of self.seq_to_align
         """
+
+        setproctitle(f"RNANet.py {self.chain_label} remap()")
 
         alilen = len(s_seq)
         re_mappings = []
@@ -629,6 +638,8 @@ class Chain:
         
         REQUIRES align_column and re_mapping up to date
         """
+
+        setproctitle(f"RNANet.py {self.chain_label} replace_gaps()")
 
         homology_data = sql_ask_database(conn, f"""SELECT freq_A, freq_C, freq_G, freq_U, freq_other FROM
                                                     (SELECT chain_id, rfam_acc FROM chain WHERE chain_id={self.db_chain_id})
@@ -741,6 +752,9 @@ class Downloader:
         """Query the Rfam public MySQL database for mappings between their RNA families and PDB structures.
 
         """
+
+        setproctitle(f"RNANet.py download_Rfam_PDB_mappings()")
+
         # Download PDB mappings to Rfam family
         print("> Fetching latest PDB mappings from Rfam..." + " " * 29, end='', flush=True)
         try:
@@ -766,6 +780,8 @@ class Downloader:
         Does not download if already there.
         """
 
+        setproctitle(f"RNANet.py download_Rfam_cm()")
+
         print(f"\t> Download Rfam.cm.gz from Rfam..." + " " * 37, end='', flush=True) 
         if not path.isfile(path_to_seq_data + "Rfam.cm"):
             try:
@@ -785,6 +801,9 @@ class Downloader:
         Family ID, number of sequences identified, maximum length of those sequences.
         SETS family in the database (partially)
         """
+        
+        setproctitle(f"RNANet.py download_Rfam_family_stats()")
+
         try: 
             db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
             
@@ -829,6 +848,8 @@ class Downloader:
 
         Actually gets a FASTA archive from the public Rfam FTP. Does not download if already there."""
 
+        setproctitle(f"RNANet.py download_Rfam_sequences({rfam_acc})")
+
         if not path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):
             for _ in range(10): # retry 100 times if it fails
                 try:
@@ -849,6 +870,9 @@ class Downloader:
 
         Does not remove structural redundancy.
         """
+
+        setproctitle(f"RNANet.py download_BGSU_NR_list({res})")
+
         nr_code = min([ i for i in [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 20.0] if i >= res ]) 
         print(f"> Fetching latest list of RNA files at {nr_code} A resolution from BGSU website...", end='', flush=True)
         # Download latest BGSU non-redundant list
@@ -875,6 +899,10 @@ class Downloader:
         return full_structures_list # list of ( str (class), str (class_members) )
 
     def download_from_SILVA(self, unit):
+
+        setproctitle(f"RNANet.py download_from_SILVA({unit})")
+
+
         if not path.isfile(path_to_seq_data + f"realigned/{unit}.arb"):
             try:
                 print(f"Downloading {unit} from SILVA...", end='', flush=True)
@@ -988,6 +1016,8 @@ class Pipeline:
         """Sets the paths and options of the pipeline"""
         global path_to_3D_data
         global path_to_seq_data
+
+        setproctitle("RNANet.py process_options()")
 
         try:
             opts, _ = getopt.getopt( sys.argv[1:], "r:hs", 
@@ -1105,12 +1135,15 @@ class Pipeline:
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
             print("See RNANet.py --help for more information.")
             exit(1)
-
+    
+    @trace_unhandled_exceptions
     def list_available_mappings(self):
         """List 3D chains with available Rfam mappings.
 
         Return a list of Chain() objects with the mappings set up.        
         If self.HOMOLOGY is set to False, simply returns a list of Chain() objects with available 3D chains."""
+
+        setproctitle("RNANet.py list_available_mappings()")
 
         # List all 3D RNA chains below given resolution
         full_structures_list = self.dl.download_BGSU_NR_list(self.CRYSTAL_RES) # list of tuples ( class, class_members )
@@ -1131,11 +1164,11 @@ class Pipeline:
             # Compute the list of mappable structures using NR-list and Rfam-PDB mappings
             # And get Chain() objects
             print("> Building list of structures...", flush=True)
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores)
+            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores, maxtasksperchild=1)
             try:
 
-                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, bar_format="{percentage:3.0f}%|{bar}|")
-                for _, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list)): 
+                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, desc="Eq. classes", bar_format="{percentage:3.0f}%|{bar}|")
+                for _, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list, chunksize=1)): 
                     self.update += newchains
                     pbar.update(1) # Everytime the iteration finishes, update the global progress bar
 
@@ -1161,7 +1194,7 @@ class Pipeline:
                     pdb_chain_id = nr[2].upper()
                     chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
                     res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc IS NULL AND issue=0""")
-                    if not len(res): # the chain is NOT yet in the database, or this is a known issue
+                    if not len(res) or self.REUSE_ALL: # the chain is NOT yet in the database, or this is a known issue
                         self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
 
@@ -1179,6 +1212,8 @@ class Pipeline:
         REQUIRES the previous definition of self.update, so call list_available_mappings() before.
         SETS table structure"""
 
+        setproctitle(f"RNANet.py dl_and_annotate(retry={retry})")
+
         # Prepare the results folders
         if not path.isdir(path_to_3D_data + "RNAcifs"):
             os.makedirs(path_to_3D_data + "RNAcifs")        # for the whole structures
@@ -1186,15 +1221,15 @@ class Pipeline:
             os.makedirs(path_to_3D_data + "annotations")    # for DSSR analysis of the whole structures
         
         # Download and annotate
-        print("> Downloading and annotating structures...", flush=True)
+        print("> Downloading and annotating structures (or checking previous results if they exist)...", flush=True)
         if retry:
             mmcif_list = sorted(set([ c.pdb_id for c in self.retry ]))
         else:
-            mmcif_list = sorted(set([ c.pdb_id for c in self.update if not path.isfile(path_to_3D_data + "annotations/" + c.pdb_id + ".json") ]))
+            mmcif_list = sorted(set([ c.pdb_id for c in self.update ]))
         try:
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores))
+            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores), maxtasksperchild=1)
             pbar = tqdm(mmcif_list, maxinterval=1.0, miniters=1, desc="mmCIF files")
-            for _ in p.imap_unordered(work_mmcif, mmcif_list): 
+            for _ in p.imap_unordered(work_mmcif, mmcif_list, chunksize=1): 
                 pbar.update(1) # Everytime the iteration finishes, update the global progress bar
             pbar.close()
             p.close()
@@ -1212,6 +1247,8 @@ class Pipeline:
         
         REQUIRES the previous definition of self.update, so call list_available_mappings() before.
         SETS self.loaded_chains"""
+
+        setproctitle(f"RNANet.py build_chains(retry={retry})")
 
         # Prepare folders
         if self.EXTRACT_CHAINS:
@@ -1239,19 +1276,25 @@ class Pipeline:
             exit(1)
 
         # If there were newly discovered problems, add this chain to the known issues
+        issues = 0
+        issues_names = []
         ki = open(runDir + "/known_issues.txt", 'a')
         kir = open(runDir + "/known_issues_reasons.txt", 'a')
         for c in results:
             if c[1].delete_me and c[1].chain_label not in self.known_issues:
                 if retry or "Could not load existing" not in c[1].error_messages:
                     self.known_issues.append(c[1].chain_label)
-                    warn(f"Adding {c[1].chain_label} to known issues.")
+                    issues += 1
+                    issues_names.append(c[1].chain_label)
                     ki.write(c[1].chain_label + '\n')
                     kir.write(c[1].chain_label + '\n' + c[1].error_messages + '\n\n')
                     with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
                         sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
         ki.close()
         kir.close()
+        if issues:
+            warn("Added newly discovered issues to known issues:")
+            print("\033[33m"+ " ".join(issues_names) + "\033[0m", flush=True)
     
         # Add successfully built chains to list
         self.loaded_chains += [ c[1] for c in results if not c[1].delete_me ]
@@ -1275,6 +1318,8 @@ class Pipeline:
         
         REQUIRES that self.loaded_chains is defined.
         SETS family (partially, through call)"""
+
+        setproctitle("RNANet.py prepare_sequences()")
 
         # Preparing a results folder
         if not os.access(path_to_seq_data + "realigned/", os.F_OK):
@@ -1307,6 +1352,8 @@ class Pipeline:
         
         REQUIRES self.fam_list to be defined
         SETS family (partially)"""
+
+        setproctitle("RNANet.py realign()")
 
         # Prepare the job list
         joblist = []
@@ -1345,6 +1392,8 @@ class Pipeline:
         
         REQUIRES self.fam_list to be defined"""
 
+        setproctitle("RNANet.py remap()")
+
         print("Computing nucleotide frequencies in alignments...\nThis can be very long on slow storage devices (Hard-drive...)")
         print("Check your CPU and disk I/O activity before deciding if the job failed.")
         nworkers =max(min(ncores, len(self.fam_list)), 1)
@@ -1357,11 +1406,11 @@ class Pipeline:
 
         # Start a process pool to dispatch the RNA families,
         # over multiple CPUs (one family by CPU)
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers, maxtasksperchild=5)
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers, maxtasksperchild=1)
 
         try:
             fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True) 
-            for i, _ in enumerate(p.imap_unordered(partial(work_pssm, fill_gaps=self.FILL_GAPS), self.fam_list)): # Apply work_pssm to each RNA family
+            for i, _ in enumerate(p.imap_unordered(partial(work_pssm, fill_gaps=self.FILL_GAPS), self.fam_list, chunksize=1)): # Apply work_pssm to each RNA family
                 fam_pbar.update(1) # Everytime the iteration finishes on a family, update the global progress bar over the RNA families
             fam_pbar.close()
             p.close()
@@ -1378,6 +1427,8 @@ class Pipeline:
         
         REQUIRES self.loaded_chains (to output corresponding CSV files) and self.fam_list (for statistics)"""
     
+        setproctitle("RNANet.py output_results()")
+
         time_str = time.strftime("%Y%m%d")
 
         #Prepare folders:
@@ -1387,10 +1438,10 @@ class Pipeline:
             os.makedirs(runDir + "/results/archive/")
 
         # Save to by-chain CSV files
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3, maxtasksperchild=1)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True) 
-            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
+            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains, chunksize=2)):
                 pbar.update(1) 
             pbar.close()
             p.close()
@@ -1438,6 +1489,8 @@ class Pipeline:
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
+
+        setproctitle("RNANet.py sanitize_database()")
 
         conn = sqlite3.connect(runDir + "/results/RNANet.db")
 
@@ -1532,7 +1585,7 @@ def sql_define_tables(conn):
                 chain_id        INTEGER PRIMARY KEY NOT NULL,
                 structure_id    CHAR(4) NOT NULL,
                 chain_name      VARCHAR(2) NOT NULL,
-                eq_class        VARCHAR(10),
+                eq_class        VARCHAR(16),
                 pdb_start       SMALLINT,
                 pdb_end         SMALLINT,
                 issue           TINYINT,
@@ -1767,9 +1820,9 @@ def execute_joblist(fulljoblist):
 
             print("using", n, "processes:")
             # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=n, maxtasksperchild=5, initializer=init_worker)
+            p = Pool(processes=n, maxtasksperchild=1, initializer=init_worker)
             try:
-                raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch)
+                raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch, chunksize=2)
                 p.close()
                 p.join()
             except KeyboardInterrupt as e:
@@ -1792,6 +1845,9 @@ def work_infer_mappings(update_only, allmappings, codelist):
     build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
     of any element of the list to all the list elements.
     """
+
+    setproctitle("RNAnet.py work_infer_mappings()")
+
     newchains = []
     known_mappings = pd.DataFrame()
 
@@ -1812,11 +1868,12 @@ def work_infer_mappings(update_only, allmappings, codelist):
     
     # Now infer mappings for chains that are not explicitely listed in Rfam-PDB mappings:
     if len(known_mappings):
+        
         families = set(known_mappings['rfam_acc'])
 
         # generalize
         inferred_mappings = known_mappings.drop(['pdb_id','chain'], axis=1).drop_duplicates()
-        
+
         # check for approximative redundancy:
         if len(inferred_mappings) != len(inferred_mappings.drop_duplicates(subset="rfam_acc")):
             # Then, there exists some mapping variants onto the same Rfam family CM,
@@ -1831,9 +1888,25 @@ def work_infer_mappings(update_only, allmappings, codelist):
                         len(inferred_mappings[thisfam_5_3]) !=  len(inferred_mappings[ inferred_mappings['rfam_acc'] == rfam ])
                     and len(inferred_mappings[thisfam_5_3]) > 0
                 ):
-                    warn(f"There are mappings for {rfam} in both directions:", error=True)
-                    print(inferred_mappings)
-                    exit(1)
+                    # there are mappings in both directions... wtf Rfam ?!
+                    if (len(inferred_mappings[thisfam_5_3]) == len(inferred_mappings[thisfam_3_5]) == 1
+                        and int(inferred_mappings[thisfam_5_3].pdb_start) == int(inferred_mappings[thisfam_3_5].pdb_end)
+                        and int(inferred_mappings[thisfam_5_3].pdb_end) == int(inferred_mappings[thisfam_3_5].pdb_start)
+                    ):
+                        # The two mappings are on the same nucleotide interval, but in each sense.
+                        # e.g. RF00254 6v5b and 6v5c... maybe a bug on their side ? 
+                        # How can a chain match a CM in both senses ?
+                        # We keep only the 5->3 sense.
+                        inferred_mappings = inferred_mappings.drop(index=inferred_mappings.index[thisfam_3_5])
+                        sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
+                        thisfam_5_3 =  (inferred_mappings['rfam_acc'] == rfam ) & sel_5_to_3
+                        thisfam_3_5 =  (inferred_mappings['rfam_acc'] == rfam ) & (sel_5_to_3 == False)
+                        print()
+                        warn(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
+                    else:
+                        warn(f"There are mappings for {rfam} in both directions:", error=True)
+                        print(inferred_mappings)
+                        exit(1)
 
                 # Compute consensus for chains in 5' -> 3' sense
                 if len(inferred_mappings[thisfam_5_3]):
@@ -1887,7 +1960,7 @@ def work_infer_mappings(update_only, allmappings, codelist):
                     pdb_start = int(m.pdb_start.min())
                     pdb_end = int(m.pdb_end.max())
                     inferred = False
-                else: # otherwise, use the inferred mapping
+                elif not(pdb_id in known_mappings.pdb_id and pdb_chain_id in known_mappings.chain): # if no known mapping on another family, use the inferred mapping
                     pdb_start = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_start)
                     pdb_end = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_end)
                     inferred = True
@@ -1911,6 +1984,8 @@ def work_mmcif(pdb_id):
     SETS table structure
     """
 
+    setproctitle(f"RNAnet.py work_mmcif({pdb_id})")
+
     final_filepath = path_to_3D_data+"RNAcifs/"+pdb_id+".cif"
 
     # Attempt to download it if not present
@@ -1921,43 +1996,52 @@ def work_mmcif(pdb_id):
         warn(f"Unable to download {pdb_id}.cif. Ignoring it.", error=True)
         return
 
-    # Load the MMCIF file with Biopython 
-    mmCif_info = MMCIF2Dict(final_filepath)
-
-    # Get info about that structure
-    exp_meth = mmCif_info["_exptl.method"][0]
-    date = mmCif_info["_pdbx_database_status.recvd_initial_deposition_date"][0]
-    if "_refine.ls_d_res_high" in mmCif_info.keys() and mmCif_info["_refine.ls_d_res_high"][0] not in ['.', '?']:
-        reso = float(mmCif_info["_refine.ls_d_res_high"][0])
-    elif "_refine.ls_d_res_low" in mmCif_info.keys() and mmCif_info["_refine.ls_d_res_low"][0] not in ['.', '?']:
-        reso = float(mmCif_info["_refine.ls_d_res_low"][0])
-    elif "_em_3d_reconstruction.resolution" in mmCif_info.keys() and mmCif_info["_em_3d_reconstruction.resolution"][0] not in ['.', '?']:
-        reso = float(mmCif_info["_em_3d_reconstruction.resolution"][0])
-    else:
-        warn(f"Wtf, structure {pdb_id} has no resolution ?")
-        warn(f"Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
-        reso = 0.0
-    
-    # Save into the database
+    # check if it exists in database
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
-        sql_execute(conn, """INSERT OR REPLACE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
-                             VALUES (?, ?, DATE(?), ?, ?);""", data = (pdb_id, 1, date, exp_meth, reso))
+        r = sql_ask_database(conn, f"""SELECT * from structure where pdb_id = '{pdb_id}';""")
 
-    # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
-    output = subprocess.run(["x3dna-dssr", f"-i={final_filepath}", "--json", "--auxfile=no"], 
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout = output.stdout.decode('utf-8')
-    stderr = output.stderr.decode('utf-8')
+    # if not, read the CIF header and register the structure
+    if not len(r):
+        # Load the MMCIF file with Biopython 
+        mmCif_info = MMCIF2Dict(final_filepath)
 
-    if "exception" in stderr:
-        # DSSR is unable to parse the chain.
-        warn(f"Exception while running DSSR, ignoring {pdb_id}.", error=True)
-        return 1
+        # Get info about that structure
+        exp_meth = mmCif_info["_exptl.method"][0]
+        date = mmCif_info["_pdbx_database_status.recvd_initial_deposition_date"][0]
+        if "_refine.ls_d_res_high" in mmCif_info.keys() and mmCif_info["_refine.ls_d_res_high"][0] not in ['.', '?']:
+            reso = float(mmCif_info["_refine.ls_d_res_high"][0])
+        elif "_refine.ls_d_res_low" in mmCif_info.keys() and mmCif_info["_refine.ls_d_res_low"][0] not in ['.', '?']:
+            reso = float(mmCif_info["_refine.ls_d_res_low"][0])
+        elif "_em_3d_reconstruction.resolution" in mmCif_info.keys() and mmCif_info["_em_3d_reconstruction.resolution"][0] not in ['.', '?']:
+            reso = float(mmCif_info["_em_3d_reconstruction.resolution"][0])
+        else:
+            warn(f"Wtf, structure {pdb_id} has no resolution ?")
+            warn(f"Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
+            reso = 0.0
+        
+        # Save into the database
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            sql_execute(conn, """INSERT OR REPLACE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
+                                VALUES (?, ?, DATE(?), ?, ?);""", data = (pdb_id, 1, date, exp_meth, reso))
 
-    # save the analysis to file only if we can load it :/
-    json_file = open(path_to_3D_data + "annotations/" + pdb_id + ".json", "w")
-    json_file.write(stdout)
-    json_file.close()
+    if not path.isfile(path_to_3D_data + "annotations/" + pdb_id + ".json"):
+
+        # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
+        output = subprocess.run(["x3dna-dssr", f"-i={final_filepath}", "--json", "--auxfile=no"], 
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout = output.stdout.decode('utf-8')
+        stderr = output.stderr.decode('utf-8')
+
+        if "exception" in stderr:
+            # DSSR is unable to parse the chain.
+            warn(f"Exception while running DSSR, ignoring {pdb_id}.", error=True)
+            return 1
+
+        # save the analysis to file only if we can load it :/
+        json_file = open(path_to_3D_data + "annotations/" + pdb_id + ".json", "w")
+        json_file.write(stdout)
+        json_file.close()
+
     return 0
 
 @trace_unhandled_exceptions
@@ -1966,6 +2050,9 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     If asked, also extracts the 3D chains from their original structure files.
 
     """
+
+    setproctitle(f"RNAnet.py work_build_chain({c.chain_label})")
+
     if not path.isfile(path_to_3D_data + "annotations/" + c.pdb_id + ".json"):
         warn(f"Could not find annotations for {c.chain_label}, ignoring it.", error=True)
         c.delete_me = True
@@ -1996,6 +2083,8 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
 @trace_unhandled_exceptions
 def work_prepare_sequences(dl, rfam_acc, chains):
     """Prepares FASTA files of homologous sequences to realign with cmalign or SINA."""
+
+    setproctitle("RNAnet.py work_prepare_sequences()")
 
     if rfam_acc in LSU_set | SSU_set: # rRNA
         if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
@@ -2086,6 +2175,8 @@ def work_realign(rfam_acc):
     Rfam covariance models are used with Infernal tools, except for rRNAs. 
     cmalign requires too much RAM for them, so we use SINA, a specifically designed tool for rRNAs.
     """
+
+    setproctitle(f"RNAnet.py work_realign({rfam_acc})")
 
     if rfam_acc in LSU_set | SSU_set: 
         # Ribosomal subunits deserve a special treatment.
@@ -2210,6 +2301,7 @@ def work_pssm(f, fill_gaps):
     Uses only 1 core, so this function can be called in parallel.
     
     """
+    setproctitle(f"RNAnet.py work_pssm({f})")
 
     # Get a worker number to position the progress bar
     global idxQueue
@@ -2223,6 +2315,7 @@ def work_pssm(f, fill_gaps):
     try:
         align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
     except:
+        warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         with open(runDir + "/errors.txt", "a") as errf:
             errf.write(f"{f}'s alignment is wrong. Recompute it and retry.\n")
         return 1
@@ -2313,6 +2406,9 @@ def work_pssm(f, fill_gaps):
 
 @trace_unhandled_exceptions
 def work_save(c, homology=True):
+
+    setproctitle(f"RNAnet.py work_save({c.chain_label})")
+
     conn = sqlite3.connect(runDir + "/results/RNANet.db", timeout=15.0)
     if homology:
         df = pd.read_sql_query(f"""

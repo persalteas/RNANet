@@ -31,7 +31,7 @@ res_thr = 20.0 # default: all structures
 LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
 SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
 
-def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
+def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
     """
     Plot the joint distribution of pseudotorsion angles, in a Ramachandran-style graph.
     See Wadley & Pyle (2007)
@@ -63,7 +63,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         exit("You overestimate my capabilities !")
 
     
-    if not path.isfile(f"data/wadley_kernel_{angle}_{res_thr}A.npz"):
+    if not path.isfile(f"data/wadley_kernel_{angle}_{res}A.npz"):
 
         # Get a worker number to position the progress bar
         global idxQueue
@@ -75,7 +75,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
             df = pd.read_sql(f"""SELECT {angle}, th{angle} 
                                  FROM nucleotide JOIN (
                                     SELECT chain_id FROM chain JOIN structure
-                                    WHERE structure.resolution <= {res_thr}
+                                    WHERE structure.resolution <= {res}
                                  ) AS c
                                  WHERE puckering="C2'-endo" 
                                     AND {angle} IS NOT NULL 
@@ -85,7 +85,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
             df = pd.read_sql(f"""SELECT {angle}, th{angle} 
                                  FROM nucleotide JOIN (
                                     SELECT chain_id FROM chain JOIN structure
-                                    WHERE structure.resolution <= {res_thr}
+                                    WHERE structure.resolution <= {res}
                                  ) AS c
                                  WHERE form = '.' 
                                     AND puckering="C3'-endo" 
@@ -111,14 +111,14 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         pbar.update(1)
 
         # Save the data to an archive for later use without the need to recompute
-        np.savez(f"data/wadley_kernel_{angle}.npz",
+        np.savez(f"data/wadley_kernel_{angle}_{res}A.npz",
                   c3_endo_e=c3_endo_etas, c3_endo_t=c3_endo_thetas,
                   c2_endo_e=c2_endo_etas, c2_endo_t=c2_endo_thetas,
                   kernel_c3=f_c3, kernel_c2=f_c2)
         pbar.close()
         idxQueue.put(thr_idx)
     else:
-        f = np.load(f"data/wadley_kernel_{angle}.npz")
+        f = np.load(f"data/wadley_kernel_{angle}_{res}A.npz")
         c2_endo_etas = f["c2_endo_e"]
         c3_endo_etas = f["c3_endo_e"]
         c2_endo_thetas = f["c2_endo_t"]
@@ -157,7 +157,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         ax.bar3d(xpos.ravel(), ypos.ravel(), 0.0, 0.09, 0.09, hist_cut.ravel(), color=color_values, zorder="max")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}_{res_thr}A.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -168,7 +168,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         ax.plot_surface(xx, yy, f_cut, cmap=cm.get_cmap("coolwarm"), linewidth=0, antialiased=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}_{res_thr}A.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -178,10 +178,9 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4)):
         ax = fig.gca()
         ax.scatter(x, y, s=1, alpha=0.1)
         ax.contourf(xx, yy, f_cut, alpha=0.5, cmap=cm.get_cmap("coolwarm"), levels=levels, extend="max")
-
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}_{res_thr}A.png")
+        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -231,7 +230,13 @@ def stats_len():
 
         # Get the lengths of chains
         with sqlite3.connect("results/RNANet.db") as conn:
-            l = [ x[0] for x in sql_ask_database(conn, f"SELECT COUNT(index_chain) FROM (SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id WHERE rfam_acc='{f}' AND resolution <= {res_thr}) NATURAL JOIN nucleotide GROUP BY chain_id;", warn_every=0) ]
+            l = [ x[0] for x in sql_ask_database(conn, f"""SELECT COUNT(index_chain) 
+                                                            FROM (
+                                                                SELECT chain_id 
+                                                                FROM chain JOIN structure ON chain.structure_id = structure.pdb_id 
+                                                                WHERE rfam_acc='{f}' AND resolution <= {res_thr}
+                                                            ) NATURAL JOIN nucleotide 
+                                                            GROUP BY chain_id;""", warn_every=0) ]
         lengths.append(l) # list of chain lengths from the family
 
         # notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
@@ -597,12 +602,181 @@ def per_chain_stats():
                           many=True, data=list(df.to_records(index=False)), warn_every=10)
     notify("Updated the database with per-chain base frequencies")
 
+def general_stats():
+    """
+    Number of structures as function of the resolution threshold
+    Number of Rfam families as function of the resolution threshold
+    """
+    with sqlite3.connect("results/RNANet.db") as conn:
+        df_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
+                                        FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                                        WHERE rfam_acc IS NULL AND ISSUE=0;""", conn)
+        df_mapped_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
+                                            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                                            WHERE rfam_acc IS NOT NULL AND ISSUE=0;""", conn)
+        df_mapped_copies = pd.read_sql(f"""SELECT pdb_id, chain_name, inferred, rfam_acc, pdb_start, pdb_end, exp_method, resolution
+                                            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                                            WHERE rfam_acc IS NOT NULL AND ISSUE=0;""", conn)
+        df_inferred_only_unique = pd.read_sql(f"""SELECT DISTINCT pdb_id, c.chain_name, exp_method, resolution
+                                                    FROM (SELECT inferred, rfam_acc, pdb_start, pdb_end, chain.structure_id, chain.chain_name, r.redundancy, r.inf_redundancy
+                                                            FROM chain 
+                                                            JOIN (SELECT structure_id, chain_name, COUNT(distinct rfam_acc) AS redundancy, SUM(inferred) AS inf_redundancy 
+                                                                    FROM chain 
+                                                                    WHERE rfam_acc IS NOT NULL AND issue=0 
+                                                                    GROUP BY structure_id, chain_name
+                                                            ) AS r ON chain.structure_id=r.structure_id AND chain.chain_name = r.chain_name 
+                                                            WHERE r.redundancy=r.inf_redundancy AND rfam_acc IS NOT NULL and issue=0
+                                                    ) AS c
+                                                    JOIN structure ON c.structure_id=structure.pdb_id;""", conn)
+    print("> found", len(df_inferred_only_unique.index), "chains which are mapped only by inference using BGSU NR Lists.")
+
+    ##########################################
+    # plot N = f(resolution, exp_method)
+    ##########################################
+
+    methods = df_unique.exp_method.unique()
+
+    fig, axs = plt.subplots(1+len(methods), 3, figsize=(15,5*(1+len(methods))), sharex=True)
+    df_unique.sort_values('resolution', inplace=True, ignore_index=True)
+    df_mapped_unique.sort_values('resolution', inplace=True, ignore_index=True)
+    df_inferred_only_unique.sort_values('resolution', inplace=True, ignore_index=True)
+    df_mapped_copies.sort_values('resolution', inplace=True, ignore_index=True)
+    max_res = max(df_unique.resolution)
+    max_structs = len(df_mapped_copies.index.tolist())
+    colors = np.linspace(0,1,1+len(methods))
+    plt.xticks( np.arange(0, max_res+2, 2.0).tolist(),  np.arange(0, max_res+2, 2.0).tolist() )
+
+    axs[0][0].grid(axis='y', ls='dotted', lw=1)
+    axs[0][0].hist(df_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[0], 1), label='distribution')
+    axs[0][0].hist(df_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[0], 0.5), cumulative=True, label='cumulative')
+    axs[0][0].text(0.95*max_res, 0.95*len(df_unique.resolution), "%d " %  len(df_unique.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+    axs[0][0].set_ylabel("ALL", fontsize=14)
+    axs[0][0].set_title("Number of unique RNA chains", fontsize=14)
+    axs[0][0].set_ylim((0, max_structs * 1.05))
+    axs[0][0].legend(loc="best", fontsize=14)
+
+    axs[0][1].grid(axis='y', ls='dotted', lw=1)
+    axs[0][1].set_yticklabels([])
+    axs[0][1].hist(df_mapped_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[0], 1), label='distribution')
+    axs[0][1].hist(df_mapped_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[0], 0.5), cumulative=True, label='cumulative')
+    axs[0][1].hist(df_inferred_only_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0.2, 0, colors[0], 0.5), cumulative=True, label='only by inference')
+    axs[0][1].text(0.95*max_res, 0.95*len(df_mapped_unique.resolution), "%d " %  len(df_mapped_unique.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+    axs[0][1].set_title("Number of unique RNA chains\nmapped to $\geq 1$ family", fontsize=14)
+    axs[0][1].set_ylim((0, max_structs * 1.05))
+    axs[0][1].legend(loc="best", fontsize=14)
+
+    axs[0][2].grid(axis='y', ls='dotted', lw=1)
+    axs[0][2].set_yticklabels([])
+    axs[0][2].hist(df_mapped_copies.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[0], 1), label='distribution')
+    axs[0][2].hist(df_mapped_copies.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[0], 0.5), cumulative=True, label='cumulative')
+    axs[0][2].hist(df_mapped_copies[df_mapped_copies.inferred == 1].resolution, bins=np.arange(0, max_res, 0.5), fc=(0.2, 0, colors[0], 0.5), cumulative=True, label='inferred')
+    axs[0][2].text(0.95*max_res, 0.95*len(df_mapped_copies.resolution), "%d " %  len(df_mapped_copies.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+    axs[0][2].set_title("Number of RNA chains mapped to a\nfamily (with copies)", fontsize=14)
+    axs[0][2].legend(loc="right", fontsize=14)
+    axs[0][2].set_ylim((0, max_structs * 1.05))
+
+    for i,m in enumerate(methods):
+        df_unique_m = df_unique[df_unique.exp_method == m]
+        df_mapped_unique_m = df_mapped_unique[df_mapped_unique.exp_method == m]
+        df_inferred_only_unique_m = df_inferred_only_unique[df_inferred_only_unique.exp_method == m]
+        df_mapped_copies_m = df_mapped_copies[ df_mapped_copies.exp_method == m]
+        max_structs = len(df_mapped_copies_m.resolution.tolist())
+        print("> found", max_structs, "structures with method", m, flush=True)
+
+        axs[1+i][0].grid(axis='y', ls='dotted', lw=1)
+        axs[1+i][0].hist(df_unique_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[1+i], 1), label='distribution')
+        axs[1+i][0].hist(df_unique_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[1+i], 0.5), cumulative=True, label='cumulative')
+        axs[1+i][0].text(0.95*max_res, 0.95*len(df_unique_m.resolution), "%d " %  len(df_unique_m.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+        axs[1+i][0].set_ylim((0, max_structs * 1.05))
+        axs[1+i][0].set_ylabel(m, fontsize=14)
+        axs[1+i][0].legend(loc="best", fontsize=14)
+
+        axs[1+i][1].grid(axis='y', ls='dotted', lw=1)
+        axs[1+i][1].set_yticklabels([])
+        axs[1+i][1].hist(df_mapped_unique_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[1+i], 1), label='distribution')
+        axs[1+i][1].hist(df_mapped_unique_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[1+i], 0.5), cumulative=True, label='cumulative')
+        axs[1+i][1].hist(df_inferred_only_unique_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0.2, 0, colors[1+i], 0.5), cumulative=True, label='only by inference')
+        axs[1+i][1].text(0.95*max_res, 0.95*len(df_mapped_unique_m.resolution), "%d " %  len(df_mapped_unique_m.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+        axs[1+i][1].set_ylim((0, max_structs * 1.05))
+        axs[1+i][1].legend(loc="best", fontsize=14)
+        
+        axs[1+i][2].grid(axis='y', ls='dotted', lw=1)
+        axs[1+i][2].set_yticklabels([])
+        axs[1+i][2].hist(df_mapped_copies_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 1, colors[1+i], 1), label='distribution')
+        axs[1+i][2].hist(df_mapped_copies_m.resolution, bins=np.arange(0, max_res, 0.5), fc=(0, 0, colors[1+i], 0.5), cumulative=True, label='cumulative')
+        axs[1+i][2].hist(df_mapped_copies_m[df_mapped_copies_m.inferred == 1].resolution, bins=np.arange(0, max_res, 0.5), fc=(0.2, 0, colors[1+i], 0.5), cumulative=True, label='inferred')
+        axs[1+i][2].text(0.95*max_res, 0.95*len(df_mapped_copies_m.resolution), "%d " %  len(df_mapped_copies_m.resolution), 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+        axs[1+i][2].set_ylim((0, max_structs * 1.05))
+        axs[1+i][2].legend(loc="right", fontsize=14)
+    
+    axs[-1][0].set_xlabel("Structure resolution\n(Angströms, lower is better)", fontsize=14)
+    axs[-1][1].set_xlabel("Structure resolution\n(Angströms, lower is better)", fontsize=14)
+    axs[-1][2].set_xlabel("Structure resolution\n(Angströms, lower is better)", fontsize=14)
+
+    fig.suptitle("Number of RNA chains by experimental method and resolution", fontsize=16)
+    fig.subplots_adjust(left=0.07, right=0.98, wspace=0.05, 
+                        hspace=0.05, bottom=0.05, top=0.92)
+    fig.savefig("results/figures/resolutions.png")
+    plt.close()
+
+    ##########################################
+    # plot Nfam = f(resolution, exp_method)
+    ##########################################
+
+    df_mapped_copies['n_fam'] = [ len(df_mapped_copies.rfam_acc[:i+1].unique()) for i in range(len(df_mapped_copies.index)) ]
+
+    fig, axs = plt.subplots(1, 1+len(methods), figsize=(5*(1+len(methods)), 5))
+    max_res = max(df_mapped_copies.resolution)
+    max_fams = max(df_mapped_copies.n_fam)
+    colors = np.linspace(0,1,1+len(methods))
+    plt.xticks( np.arange(0, max_res+2, 2.0).tolist(),  np.arange(0, max_res+2, 2.0).tolist() )
+
+    axs[0].grid(axis='y', ls='dotted', lw=1)
+    axs[0].plot(df_mapped_copies.resolution, df_mapped_copies.n_fam)
+    axs[0].text(0.95*max_res, 0.95*df_mapped_copies.n_fam.iloc[-1], "%d " %  df_mapped_copies.n_fam.iloc[-1], 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+    axs[0].set_title("ALL", fontsize=14)
+    axs[0].set_xlabel("Structure resolution (Angströms)", fontsize=14)
+    axs[0].set_ylabel("Number of Rfam families", fontsize=14)
+    axs[0].set_ylim((0, max_res * 1.05))
+    axs[0].set_ylim((0, max_fams * 1.05))
+    
+    for i,m in enumerate(methods):
+        df_mapped_copies_m = df_mapped_copies[ df_mapped_copies.exp_method == m].drop("n_fam", axis=1).copy()
+        df_mapped_copies_m['n_fam'] = [ len(df_mapped_copies_m.rfam_acc[:i+1].unique()) for i in range(len(df_mapped_copies_m.index)) ]
+        print(">", df_mapped_copies_m.n_fam.iloc[-1], "different RNA families have a 3D structure solved by", m)
+
+        axs[1+i].grid(axis='y', ls='dotted', lw=1)
+        axs[1+i].plot(df_mapped_copies_m.resolution, df_mapped_copies_m.n_fam, )
+        axs[1+i].text(0.95*max(df_mapped_copies_m.resolution), 0.95*df_mapped_copies_m.n_fam.iloc[-1], "%d " %  df_mapped_copies_m.n_fam.iloc[-1], 
+                         horizontalalignment='right', verticalalignment='top', fontsize=14)
+        axs[1+i].set_xlim((0, max_res * 1.05))
+        axs[1+i].set_ylim((0, max_fams * 1.05))
+        axs[1+i].set_xlabel("Structure resolution (Angströms)", fontsize=14)
+        axs[1+i].set_title(m, fontsize=14)
+        axs[1+i].set_yticklabels([])
+    
+    fig.suptitle("Number of RNA families used by experimental method and resolution", fontsize=16)
+    fig.subplots_adjust(left=0.05, right=0.98, wspace=0.05, 
+                        hspace=0.05, bottom=0.12, top=0.84)
+    fig.savefig("results/figures/Nfamilies.png")
+    plt.close()
+
 def log_to_pbar(pbar):
     def update(r):
         pbar.update(1)
     return update
 
 if __name__ == "__main__":
+
+    general_stats()
+    exit()
 
     # parse options
     try:
@@ -665,8 +839,8 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    # joblist.append(Job(function=reproduce_wadley_results, args=(1,)))
-    # joblist.append(Job(function=reproduce_wadley_results, args=(4,)))
+    joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), 4.0)))   # res threshold is 4.0 Angstroms by default
+    joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), 4.0)))   #
     joblist.append(Job(function=stats_len)) # Computes figures
     # joblist.append(Job(function=stats_freq)) # updates the database
     # for f in famlist:
