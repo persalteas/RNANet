@@ -1164,10 +1164,10 @@ class Pipeline:
             # Compute the list of mappable structures using NR-list and Rfam-PDB mappings
             # And get Chain() objects
             print("> Building list of structures...", flush=True)
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores, maxtasksperchild=1)
+            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores)
             try:
 
-                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, desc="Eq. classes", bar_format="{percentage:3.0f}%|{bar}|")
+                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, desc="Eq. classes", bar_format="{desc}:{percentage:3.0f}%|{bar}|")
                 for _, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list, chunksize=1)): 
                     self.update += newchains
                     pbar.update(1) # Everytime the iteration finishes, update the global progress bar
@@ -1183,7 +1183,7 @@ class Pipeline:
                 exit(1)
         else:
             conn = sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0)
-            for eq_class, codelist in tqdm(full_structures_list):
+            for eq_class, codelist in tqdm(full_structures_list, desc="Eq. classes"):
                 codes = codelist.replace('+',',').split(',')
 
                 # Simply convert the list of codes to Chain() objects
@@ -1204,6 +1204,7 @@ class Pipeline:
         self.n_chains = len(self.update)
         print(str(self.n_chains) + " RNA chains of interest.")
     
+    @trace_unhandled_exceptions
     def dl_and_annotate(self, retry=False, coeff_ncores = 0.75):
         """
         Gets mmCIF files from the PDB, and runs DSSR on them.
@@ -1212,7 +1213,7 @@ class Pipeline:
         REQUIRES the previous definition of self.update, so call list_available_mappings() before.
         SETS table structure"""
 
-        setproctitle(f"RNANet.py dl_and_annotate(retry={retry})")
+        # setproctitle(f"RNANet.py dl_and_annotate(retry={retry})")
 
         # Prepare the results folders
         if not path.isdir(path_to_3D_data + "RNAcifs"):
@@ -1293,7 +1294,7 @@ class Pipeline:
         ki.close()
         kir.close()
         if issues:
-            warn("Added newly discovered issues to known issues:")
+            warn(f"Added {issues} newly discovered issues to known issues:")
             print("\033[33m"+ " ".join(issues_names) + "\033[0m", flush=True)
     
         # Add successfully built chains to list
@@ -1438,7 +1439,7 @@ class Pipeline:
             os.makedirs(runDir + "/results/archive/")
 
         # Save to by-chain CSV files
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3, maxtasksperchild=1)
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True) 
             for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains, chunksize=2)):
@@ -1991,7 +1992,7 @@ def work_mmcif(pdb_id):
     # Attempt to download it if not present
     try:
         if not path.isfile(final_filepath):
-            subprocess.run(["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath], stdout=subprocess.DEVNULL)
+            subprocess.run(["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except:
         warn(f"Unable to download {pdb_id}.cif. Ignoring it.", error=True)
         return
@@ -2006,7 +2007,12 @@ def work_mmcif(pdb_id):
         mmCif_info = MMCIF2Dict(final_filepath)
 
         # Get info about that structure
-        exp_meth = mmCif_info["_exptl.method"][0]
+        try:
+            exp_meth = mmCif_info["_exptl.method"][0]
+        except KeyError:
+            warn(f"Wtf, {pdb_id}.cif has no _exptl.method ? Assuming X-ray.")
+            warn(f"Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
+            exp_meth = "X-RAY DIFFRACTION"
         date = mmCif_info["_pdbx_database_status.recvd_initial_deposition_date"][0]
         if "_refine.ls_d_res_high" in mmCif_info.keys() and mmCif_info["_refine.ls_d_res_high"][0] not in ['.', '?']:
             reso = float(mmCif_info["_refine.ls_d_res_high"][0])
@@ -2463,6 +2469,7 @@ if __name__ == "__main__":
 
     # Download and annotate new RNA 3D chains (Chain objects in pp.update)
     pp.dl_and_annotate(coeff_ncores=0.5) 
+    print("Here we go.")
 
     # At this point, the structure table is up to date
     pp.build_chains(coeff_ncores=1.0)
