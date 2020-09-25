@@ -610,22 +610,22 @@ def general_stats():
     with sqlite3.connect("results/RNANet.db") as conn:
         df_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
                                         FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                        WHERE rfam_acc IS NULL AND ISSUE=0;""", conn)
+                                        WHERE rfam_acc = 'unmappd' AND ISSUE=0;""", conn)
         df_mapped_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
                                             FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                            WHERE rfam_acc IS NOT NULL AND ISSUE=0;""", conn)
+                                            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""", conn)
         df_mapped_copies = pd.read_sql(f"""SELECT pdb_id, chain_name, inferred, rfam_acc, pdb_start, pdb_end, exp_method, resolution
                                             FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                            WHERE rfam_acc IS NOT NULL AND ISSUE=0;""", conn)
+                                            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""", conn)
         df_inferred_only_unique = pd.read_sql(f"""SELECT DISTINCT pdb_id, c.chain_name, exp_method, resolution
                                                     FROM (SELECT inferred, rfam_acc, pdb_start, pdb_end, chain.structure_id, chain.chain_name, r.redundancy, r.inf_redundancy
                                                             FROM chain 
                                                             JOIN (SELECT structure_id, chain_name, COUNT(distinct rfam_acc) AS redundancy, SUM(inferred) AS inf_redundancy 
                                                                     FROM chain 
-                                                                    WHERE rfam_acc IS NOT NULL AND issue=0 
+                                                                    WHERE rfam_acc != 'unmappd' AND issue=0 
                                                                     GROUP BY structure_id, chain_name
                                                             ) AS r ON chain.structure_id=r.structure_id AND chain.chain_name = r.chain_name 
-                                                            WHERE r.redundancy=r.inf_redundancy AND rfam_acc IS NOT NULL and issue=0
+                                                            WHERE r.redundancy=r.inf_redundancy AND rfam_acc != 'unmappd' and issue=0
                                                     ) AS c
                                                     JOIN structure ON c.structure_id=structure.pdb_id;""", conn)
     print("> found", len(df_inferred_only_unique.index), "chains which are mapped only by inference using BGSU NR Lists.")
@@ -775,9 +775,6 @@ def log_to_pbar(pbar):
 
 if __name__ == "__main__":
 
-    general_stats()
-    exit()
-
     # parse options
     try:
         opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "resolution=", "3d-folder=", "seq-folder=" ])
@@ -839,8 +836,8 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), 4.0)))   # res threshold is 4.0 Angstroms by default
-    joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), 4.0)))   #
+    # joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), 4.0)))   # res threshold is 4.0 Angstroms by default
+    # joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), 4.0)))   #
     joblist.append(Job(function=stats_len)) # Computes figures
     # joblist.append(Job(function=stats_freq)) # updates the database
     # for f in famlist:
@@ -873,3 +870,4 @@ if __name__ == "__main__":
     # per_chain_stats()
     # seq_idty()
     # stats_pairs()
+    general_stats()

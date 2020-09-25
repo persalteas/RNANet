@@ -553,14 +553,14 @@ class Chain:
                                                     AND rfam_acc='{self.mapping.rfam_acc}'
                                                     AND eq_class='{self.eq_class}';""")[0][0]
             else:
-                sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, eq_class, issue) VALUES (?, ?, NULL, ?, ?) 
+                sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, eq_class, issue) VALUES (?, ?, 'unmappd', ?, ?) 
                                    ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue, eq_class=excluded.eq_class;""", 
                             data=(str(self.pdb_id), str(self.pdb_chain_id), str(self.eq_class), int(self.delete_me)))
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
                                                     WHERE structure_id='{self.pdb_id}' 
                                                     AND chain_name='{self.pdb_chain_id}' 
                                                     AND eq_class='{self.eq_class}'
-                                                    AND rfam_acc IS NULL;""")[0][0]
+                                                    AND rfam_acc = 'unmappd';""")[0][0]
             
             # Add the nucleotides if the chain is not an issue
             if df is not None and not self.delete_me:  # double condition is theoretically redundant here, but you never know
@@ -1193,7 +1193,7 @@ class Pipeline:
                     pdb_model = int(nr[1])
                     pdb_chain_id = nr[2].upper()
                     chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
-                    res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc IS NULL AND issue=0""")
+                    res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc = 'unmappd' AND issue=0""")
                     if not len(res) or self.REUSE_ALL: # the chain is NOT yet in the database, or this is a known issue
                         self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
