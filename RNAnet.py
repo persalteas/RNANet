@@ -166,7 +166,7 @@ class Chain:
     def __hash__(self):
         return hash((self.pdb_id, self.pdb_model, self.pdb_chain_id, self.chain_label))
 
-    def extract(self, df, khetatm):
+    def extract(self, df, khetatm) -> None:
         """ Extract the part which is mapped to Rfam from the main CIF file and save it to another file.
         """
         setproctitle(f"RNANet.py {self.chain_label} extract()")
@@ -192,8 +192,17 @@ class Chain:
 
             # Load the whole mmCIF into a Biopython structure object:
             mmcif_parser = MMCIFParser()
-            s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
-            
+            try:
+                s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
+            except ValueError as e:
+                warn(f"ValueError in {self.chain_label} CIF file: {e}")
+                self.delete_me = True
+                return
+            except IndexError as e:
+                warn(f"IndexError in {self.chain_label} CIF file: {e}")
+                self.delete_me = True
+                return
+
             if self.mapping is not None:
                 valid_set = set(df.old_nt_resnum)
             else:
@@ -206,7 +215,6 @@ class Chain:
             ioobj = MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
-            
 
         notify(status)
 
@@ -1137,7 +1145,7 @@ class Pipeline:
             exit(1)
     
     @trace_unhandled_exceptions
-    def list_available_mappings(self):
+    def list_available_mappings(self) -> None:
         """List 3D chains with available Rfam mappings.
 
         Return a list of Chain() objects with the mappings set up.        
@@ -1228,7 +1236,7 @@ class Pipeline:
         else:
             mmcif_list = sorted(set([ c.pdb_id for c in self.update ]))
         try:
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores), maxtasksperchild=1)
+            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores))
             pbar = tqdm(mmcif_list, maxinterval=1.0, miniters=1, desc="mmCIF files")
             for _ in p.imap_unordered(work_mmcif, mmcif_list, chunksize=1): 
                 pbar.update(1) # Everytime the iteration finishes, update the global progress bar
@@ -1407,7 +1415,7 @@ class Pipeline:
 
         # Start a process pool to dispatch the RNA families,
         # over multiple CPUs (one family by CPU)
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers, maxtasksperchild=1)
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
 
         try:
             fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True) 
@@ -1841,7 +1849,7 @@ def execute_joblist(fulljoblist):
     return results
 
 @trace_unhandled_exceptions
-def work_infer_mappings(update_only, allmappings, codelist):
+def work_infer_mappings(update_only, allmappings, codelist) -> list:
     """Given a list of PDB chains corresponding to an equivalence class from BGSU's NR list, 
     build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
     of any element of the list to all the list elements.
