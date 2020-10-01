@@ -86,7 +86,7 @@ $ docker image import rnanet_v1.2_docker.tar rnanet
 ```
 * Step 3 : Run the container, giving it 3 folders to mount as volumes: a first to store the 3D data, a second to store the sequence data and alignments, and a third to output the results, data and logs:
 ```
-$ docker run -v path/to/3D/data/folder:/3D -v path/to/sequence/data/folder:/sequences -v path/to/experiment/results/folder:/runDir rnanet [ - other options ]
+$ docker run --rm -v path/to/3D/data/folder:/3D -v path/to/sequence/data/folder:/sequences -v path/to/experiment/results/folder:/runDir rnanet [ - other options ]
 ```
 
 The detailed list of options is below:
@@ -123,6 +123,11 @@ The detailed list of options is below:
 --no-logs                       Do not save per-chain logs of the numbering modifications
 ```
 You may not use the --3d-folder and --seq-folder options, they are set by default to the paths you provide with the -v options when running Docker.
+
+Typical usage:
+```
+nohup bash -c 'time docker run --rm -v /path/to/3D/data/folder:/3D -v /path/to/sequence/data/folder:/sequences -v /path/to/experiment/folder:/runDir rnanet -s --no-logs ' &
+```
 
 ## Using classical command line installation
 

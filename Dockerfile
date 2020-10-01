@@ -23,7 +23,7 @@ RUN apk update && apk add --no-cache \
     \
     mkdir /3D && mkdir /sequences && \
     \
-    mv /RNANet/x3dna-dssr /usr/local/bin/x3dna-dssr && chmod +x /usr/local/bin/x3dna-dssr && \
+    mv /RNANet/scripts/x3dna-dssr /usr/local/bin/x3dna-dssr && chmod +x /usr/local/bin/x3dna-dssr && \
     \
     curl -SL http://eddylab.org/infernal/infernal-1.1.3.tar.gz | tar xz  && cd infernal-1.1.3 && \
     ./configure && make -j 16 && make install && cd easel && make install && cd / && \

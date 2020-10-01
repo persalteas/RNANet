@@ -20,7 +20,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import scipy, os, sqlite3
+import scipy, os, sqlite3, sys
 # from sklearn.linear_model import LinearRegression
 from mpl_toolkits.mplot3d import Axes3D
 pd.set_option('display.max_rows', None)
@@ -28,7 +28,10 @@ pd.set_option('display.max_rows', None)
 LSU_set = ["RF00002", "RF02540", "RF02541", "RF02543", "RF02546"]   # From Rfam CLAN 00112
 SSU_set = ["RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"]  # From Rfam CLAN 00111
 
-with sqlite3.connect(os.getcwd()+"/results/RNANet.db") as conn:
+path_to_db = sys.argv[1]    # The RNANet.db file
+runDir = os.path.dirname(os.path.realpath(path_to_db)) + '/../'
+
+with sqlite3.connect(path_to_db) as conn:
     df = pd.read_sql("SELECT rfam_acc, max_len, nb_total_homol, comput_time, comput_peak_mem FROM family;", conn)
 
 to_remove = [ f for f in df.rfam_acc if f in LSU_set+SSU_set ]
@@ -74,7 +77,7 @@ ax.set_ylabel("Maximum length of sequences ")
 ax.set_zlabel("Computation time (s)")
 
 plt.subplots_adjust(wspace=0.4)
-plt.savefig(os.getcwd()+"/results/cmalign_jobs_performance.png")
+plt.savefig(runDir+"/results/cmalign_jobs_performance.png")
 
 # # ========================================================
 # # Linear Regression of max_mem as function of max_length
@@ -110,7 +113,7 @@ plt.savefig(os.getcwd()+"/results/cmalign_jobs_performance.png")
 # plt.plot(x, coeffs[0] + np.exp(coeffs[1]*x), "-g", label="expo fit")
 # plt.plot(x, coeffs_log[0] + coeffs_log[1]*np.log(x), "-b", label="log fit")
 # plt.legend()
-# plt.savefig("results/regression/memory_linear_model.png")
+# plt.savefig(runDir + "/results/regression/memory_linear_model.png")
 
 # # ========================================================
 # # Linear Regression of comp_time as function of n_chains
@@ -131,4 +134,4 @@ plt.savefig(os.getcwd()+"/results/cmalign_jobs_performance.png")
 # plt.ylabel("Computation time (s)")
 # plt.plot(x, b0 + b1*x, "-r", label="linear fit")
 # plt.legend()
-# plt.savefig("results/regression/comp_time_linear_model.png")
+# plt.savefig(runDir + "/results/regression/comp_time_linear_model.png")
