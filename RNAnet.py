@@ -1510,13 +1510,9 @@ class Pipeline:
 
         setproctitle("RNANet.py output_results()")
 
-        time_str = time.strftime("%Y%m%d")
-
         # Prepare folders:
         if not os.path.isdir(path_to_3D_data + "datapoints/"):
             os.makedirs(path_to_3D_data + "datapoints/")
-        if not os.path.isdir(runDir + "/results/archive/"):
-            os.makedirs(runDir + "/results/archive/")
 
         # Save to by-chain CSV files
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
@@ -1551,28 +1547,20 @@ class Pipeline:
                             "--seq-folder", path_to_seq_data, "-r", str(self.CRYSTAL_RES)])
 
         # Save additional informations
-        os.makedirs(runDir + "/archive", exist_ok=True)
         with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
             pd.read_sql_query("""SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem 
                                  FROM family ORDER BY nb_3d_chains DESC;""",
-                              conn).to_csv(runDir + f"/archive/families_{time_str}.csv", float_format="%.2f", index=False)
+                              conn).to_csv(runDir + f"/results/families.csv", float_format="%.2f", index=False)
             pd.read_sql_query("""SELECT eq_class, structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue 
                                  FROM structure 
                                  JOIN chain ON structure.pdb_id = chain.structure_id
                                  ORDER BY structure_id, chain_name, rfam_acc ASC;""",
-                              conn).to_csv(runDir + f"/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
+                              conn).to_csv(runDir + f"/results/summary.csv", float_format="%.2f", index=False)
 
-        # Update shortcuts to latest versions
-        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz",
-                                    runDir + "/results/summary_latest.csv",
-                                    runDir + "/results/families_latest.csv"
-                        ])
         if self.ARCHIVE:
+            os.makedirs(runDir + "/archive", exist_ok=True)
             subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf",
-                            runDir + f"/archive/RNANET_datapoints_{time_str}.tar.gz", "."])
-            subprocess.run(['ln', "-s", runDir + f"/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
-        subprocess.run(['ln', "-s", runDir + f"/archive/summary_{time_str}.csv", runDir + "/results/summary_latest.csv"])
-        subprocess.run(['ln', "-s", runDir + f"/archive/families_{time_str}.csv", runDir + "/results/families_latest.csv"])
+                            runDir + f"/archive/RNANET_datapoints_{time.strftime('%Y%m%d')}.tar.gz", "."])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
