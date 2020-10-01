@@ -79,7 +79,7 @@ Update runs are much quicker, around 3 hours. It depends mostly on what RNA fami
 
 ## Using Docker
 
-* Step 1 : Download the [Docker container](#soon). Open a terminal and move to the appropriate directory.
+* Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/f/e5edece989884a7294a6/?dl=1). Open a terminal and move to the appropriate directory.
 * Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
 ```
 $ docker image import rnanet_v1.2_docker.tar rnanet
