@@ -1,5 +1,6 @@
 #!/usr/bin/python3.8
 import Bio
+import Bio.PDB as pdb
 import concurrent.futures
 import getopt
 import gzip
@@ -25,7 +26,8 @@ from multiprocessing import Pool, Manager
 from time import sleep
 from tqdm import tqdm
 from setproctitle import setproctitle
-
+from Bio import AlignIO, SeqIO
+from Bio.Align import AlignInfo
 
 def trace_unhandled_exceptions(func):
     @wraps(func)
@@ -112,7 +114,7 @@ class SelectivePortionSelector(object):
         return 1
 
 
-class BufferingSummaryInfo(Bio.Align.AlignInfo.SummaryInfo):
+class BufferingSummaryInfo(AlignInfo.SummaryInfo):
 
     def get_pssm(self, family, index):
         """Create a position specific score matrix object for the alignment. 
@@ -139,7 +141,7 @@ class BufferingSummaryInfo(Bio.Align.AlignInfo.SummaryInfo):
                         score_dict[this_residue] = 1.0
             pssm_info.append(('*', score_dict))
 
-        return Bio.Align.AlignInfo.PSSM(pssm_info)
+        return AlignInfo.PSSM(pssm_info)
 
 
 class Chain:
@@ -198,11 +200,11 @@ class Chain:
 
         with warnings.catch_warnings():
             # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
-            warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
-            warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
+            warnings.simplefilter('ignore', pdb.PDBExceptions.PDBConstructionWarning)
+            warnings.simplefilter('ignore', pdb.PDBExceptions.BiopythonWarning)
 
             # Load the whole mmCIF into a Biopython structure object:
-            mmcif_parser = Bio.PDB.MMCIFParser()
+            mmcif_parser = pdb.MMCIFParser()
             try:
                 s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
             except ValueError as e:
@@ -223,7 +225,7 @@ class Chain:
             sel = SelectivePortionSelector(model_idx, self.pdb_chain_id, valid_set, khetatm)
 
             # Save that selection on the mmCIF object s to file
-            ioobj = Bio.PDB.mmcifio.MMCIFIO()
+            ioobj = pdb.MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
 
@@ -1115,7 +1117,7 @@ class Pipeline:
                 print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &")
                 sys.exit()
             elif opt == '--version':
-                print("RNANet 1.1 beta")
+                print("RNANet 1.2, parallelized, Dockerized")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
                 assert float(arg) > 0.0 and float(arg) <= 20.0
@@ -1445,7 +1447,7 @@ class Pipeline:
         # Update the database
         data = []
         for r in results:
-            align = Bio.AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
+            align = AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
             nb_3d_chains = len([1 for r in align if '[' in r.id])
             if r[0] in SSU_set:  # SSU v138 is used
                 nb_homologs = 2225272       # source: https://www.arb-silva.de/documentation/release-138/
@@ -1535,9 +1537,9 @@ class Pipeline:
         # Run statistics
         if self.RUN_STATS:
             # Remove previous precomputed data
-            subprocess.run(["rm", "-f", runDir + "/data/wadley_kernel_eta.npz", 
-                                        runDir + "/data/wadley_kernel_eta_prime.npz", 
-                                        runDir + "/data/pair_counts.csv"])
+            subprocess.run(["rm", "-f", runDir + f"/data/wadley_kernel_eta_{self.CRYSTAL_RES}.npz", 
+                                        runDir + f"/data/wadley_kernel_eta_prime_{self.CRYSTAL_RES}.npz", 
+                                        runDir + f"/data/pair_counts_{self.CRYSTAL_RES}.csv"])
             for f in self.fam_list:
                 subprocess.run(["rm", "-f", runDir + f"/data/{f}.npy", 
                                             runDir + f"/data/{f}_pairs.csv", 
@@ -2124,7 +2126,7 @@ def work_mmcif(pdb_id):
     # if not, read the CIF header and register the structure
     if not len(r):
         # Load the MMCIF file with Biopython
-        mmCif_info = Bio.PDB.MMCIF2Dict.MMCIF2Dict(final_filepath)
+        mmCif_info = pdb.MMCIF2Dict.MMCIF2Dict(final_filepath)
 
         # Get info about that structure
         try:
@@ -2218,7 +2220,7 @@ def work_prepare_sequences(dl, rfam_acc, chains):
     if rfam_acc in LSU_set | SSU_set:  # rRNA
         if os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
             # Detect doublons and remove them
-            existing_afa = Bio.AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
+            existing_afa = AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
             existing_ids = [r.id for r in existing_afa]
             del existing_afa
             new_ids = [str(c) for c in chains]
@@ -2227,7 +2229,7 @@ def work_prepare_sequences(dl, rfam_acc, chains):
             if len(doublons):
                 warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.fa and using their newest version")
                 fasta = path_to_seq_data + f"realigned/{rfam_acc}++.fa"
-                seqfile = Bio.SeqIO.parse(fasta, "fasta")
+                seqfile = SeqIO.parse(fasta, "fasta")
                 # remove it and rewrite it with its own content filtered
                 os.remove(fasta)
                 with open(fasta, 'w') as f:
@@ -2268,7 +2270,7 @@ def work_prepare_sequences(dl, rfam_acc, chains):
             with open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w") as plusplus:
                 ids = set()
                 # Remove doublons from the Rfam hits
-                for r in Bio.SeqIO.parse(path_to_seq_data + f"realigned/{rfam_acc}.fa", "fasta"):
+                for r in SeqIO.parse(path_to_seq_data + f"realigned/{rfam_acc}.fa", "fasta"):
                     if r.id not in ids:
                         ids.add(r.id)
                         plusplus.write('> '+r.description+'\n'+str(r.seq)+'\n')
@@ -2343,10 +2345,10 @@ def work_realign(rfam_acc):
             notify("Aligned new sequences together")
 
             # Detect doublons and remove them
-            existing_stk = Bio.AlignIO.read(existing_ali_path, "stockholm")
+            existing_stk = AlignIO.read(existing_ali_path, "stockholm")
             existing_ids = [r.id for r in existing_stk]
             del existing_stk
-            new_stk = Bio.AlignIO.read(new_ali_path, "stockholm")
+            new_stk = AlignIO.read(new_ali_path, "stockholm")
             new_ids = [r.id for r in new_stk]
             del new_stk
             doublons = [i for i in existing_ids if i in new_ids]
@@ -2447,7 +2449,7 @@ def work_pssm(f, fill_gaps):
 
     # Open the alignment
     try:
-        align = Bio.AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
     except:
         warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         with open(runDir + "/errors.txt", "a") as errf:
