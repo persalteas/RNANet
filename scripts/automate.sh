@@ -19,6 +19,9 @@ cp /home/lbecquey/Projects/RNANet/results/frequencies.csv /home/lbecquey/Project
 cp /home/lbecquey/Projects/RNANet/results/pair_types.csv /home/lbecquey/Projects/RNANet/archive/pair_types_latest.csv
 mv /home/lbecquey/Projects/RNANet/results/RNANet.db.gz /home/lbecquey/Projects/RNANet/archive/
 
+# Init Seafile synchronization between RNANet library and ./archive/ folder (just the first time !)
+# seaf-cli sync -l 8e082c6e-b9ed-4b2f-9279-de2177134c57 -s https://entrepot.ibisc.univ-evry.fr -u l****.b*****y@univ-evry.fr -p ****************** -d archive/
+
 # Sync in Seafile
 seaf-cli start >> latest_run.log 2>&1
 echo 'Waiting 10m for SeaFile synchronization...' >> latest_run.log
