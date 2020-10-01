@@ -11,7 +11,7 @@
 #   - Use a specialised database (SILVA) : better alignments (we guess?), but two kind of jobs
 #   - Use cmalign --small everywhere (homogeneity)
 # Moreover, --small requires --nonbanded --cyk, which means the output alignement is the optimally scored one. 
-# To date, we trust Infernal as the best tool to realign RNA. Is it ?
+# To date, we trust Infernal as the best tool to realign ncRNA. Is it ?
 
 # Contact: louis.becquey@univ-evry.fr (PhD student), fariza.tahi@univ-evry.fr (PI)
 
@@ -28,7 +28,7 @@ pd.set_option('display.max_rows', None)
 LSU_set = ["RF00002", "RF02540", "RF02541", "RF02543", "RF02546"]   # From Rfam CLAN 00112
 SSU_set = ["RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"]  # From Rfam CLAN 00111
 
-with sqlite3.connect("results/RNANet.db") as conn:
+with sqlite3.connect(os.getcwd()+"/results/RNANet.db") as conn:
     df = pd.read_sql("SELECT rfam_acc, max_len, nb_total_homol, comput_time, comput_peak_mem FROM family;", conn)
 
 to_remove = [ f for f in df.rfam_acc if f in LSU_set+SSU_set ]
@@ -74,7 +74,7 @@ ax.set_ylabel("Maximum length of sequences ")
 ax.set_zlabel("Computation time (s)")
 
 plt.subplots_adjust(wspace=0.4)
-plt.savefig("results/cmalign_jobs_performance.png")
+plt.savefig(os.getcwd()+"/results/cmalign_jobs_performance.png")
 
 # # ========================================================
 # # Linear Regression of max_mem as function of max_length

@@ -13,3 +13,4 @@ esl*
 # environment stuff
 .vscode/
 *.pyc
+__pycache__/

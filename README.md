@@ -94,6 +94,8 @@ The detailed list of options is below:
 -h [ --help ]                   Print this help message
 --version                       Print the program version
 
+-f [ --full-inference ]         Infer new 3D->family mappings even if Rfam already provides some. Yields more copies of chains
+                                mapped to different families.
 -r 4.0 [ --resolution=4.0 ]     Maximum 3D structure resolution to consider a RNA chain.
 -s                              Run statistics computations after completion
 --extract                       Extract the portions of 3D RNA chains to individual mmCIF files.
@@ -105,7 +107,7 @@ The detailed list of options is below:
                                         RNAcifs/                Full structures containing RNA, in mmCIF format
                                         rna_mapped_to_Rfam/     Extracted 'pure' RNA chains
                                         datapoints/             Final results in CSV file format.
---seq-folder=…                  Path to a folder to store the sequence and alignment files.
+--seq-folder=…                  Path to a folder to store the sequence and alignment files. Subfolders will be:
                                         rfam_sequences/fasta/   Compressed hits to Rfam families
                                         realigned/              Sequences, covariance models, and alignments by family
 --no-homology                   Do not try to compute PSSMs and do not align sequences.
@@ -117,11 +119,12 @@ The detailed list of options is below:
 --update-homologous             Re-download Rfam and SILVA databases, realign all families, and recompute all CSV files
 --from-scratch                  Delete database, local 3D and sequence files, and known issues, and recompute.
 --archive                       Create a tar.gz archive of the datapoints text files, and update the link to the latest archive
+--no-logs                       Do not save per-chain logs of the numbering modifications
 ```
 
 Typical usage:
 ```
-nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &
+nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &
 ```
 
 ## Post-computation task: estimate quality

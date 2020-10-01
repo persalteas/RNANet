@@ -3,7 +3,6 @@
 # This file computes additional statistics over the produced dataset.
 # Run this file if you want the base counts, pair-type counts, identity percents, etc
 # in the database.
-# This should be run from the folder where the file is (to access the database with path "results/RNANet.db")
 
 import getopt, os, pickle, sqlite3, shlex, subprocess, sys
 import numpy as np
@@ -22,34 +21,35 @@ from multiprocessing import Pool, Manager
 from os import path
 from tqdm import tqdm
 from collections import Counter
-from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker
+from setproctitle import setproctitle
+from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker, trace_unhandled_exceptions
 
 path_to_3D_data = "tobedefinedbyoptions"
 path_to_seq_data = "tobedefinedbyoptions"
+runDir = os.getcwd()
 res_thr = 20.0 # default: all structures
 
 LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
 SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
 
-def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
+@trace_unhandled_exceptions
+def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=2.0):
     """
     Plot the joint distribution of pseudotorsion angles, in a Ramachandran-style graph.
-    See Wadley & Pyle (2007)
+    See Wadley & Pyle (2007).
+    Only unique unmapped chains with resolution < res argument are considered.
 
     Arguments:
-    show: True or False, call plt.show() at this end or not
-    filter_helical: None, "form", "zone", or "both"
-                    None: do not remove helical nucleotide
-                    "form": remove nucleotides if they belong to a A, B or Z form stem
-                    "zone": remove nucleotides falling in an arbitrary zone (see zone argument)
-                    "both": remove nucleotides fulfilling one or both of the above conditions
-    carbon: 1 or 4, use C4' (eta and theta) or C1' (eta_prime and theta_prime)
-    sd_range: tuple, set values below avg + sd_range[0] * stdev to 0,
-                     and values above avg + sd_range[1] * stdev to avg + sd_range[1] * stdev.
-                     This removes noise and cuts too high peaks, to clearly see the clusters.
+    carbon:     1 or 4, use C4' (eta and theta) or C1' (eta_prime and theta_prime)
+    show:       True or False, call plt.show() at this end or not
+    sd_range:   tuple, set values below avg + sd_range[0] * stdev to 0,
+                    and values above avg + sd_range[1] * stdev to avg + sd_range[1] * stdev.
+                    This removes noise and cuts too high peaks, to clearly see the clusters.
+    res:        Minimal resolution (maximal resolution value, actually) of the structure to 
+                    consider its nucleotides.
     """
 
-    os.makedirs("results/figures/wadley_plots/", exist_ok=True)
+    os.makedirs(runDir + "/results/figures/wadley_plots/", exist_ok=True)
 
     if carbon == 4:
         angle = "eta"
@@ -63,30 +63,32 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         exit("You overestimate my capabilities !")
 
     
-    if not path.isfile(f"data/wadley_kernel_{angle}_{res}A.npz"):
+    if not path.isfile(runDir + f"/data/wadley_kernel_{angle}_{res}A.npz"):
 
         # Get a worker number to position the progress bar
         global idxQueue
         thr_idx = idxQueue.get()
+        setproctitle(f"RNANet statistics.py Worker {thr_idx+1} reproduce_wadley_results(carbon={carbon})")
+
         pbar = tqdm(total=2, desc=f"Worker {thr_idx+1}: eta/theta C{carbon} kernels", position=thr_idx+1, leave=False)
 
         # Extract the angle values of c2'-endo and c3'-endo nucleotides
-        with sqlite3.connect("results/RNANet.db") as conn:
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             df = pd.read_sql(f"""SELECT {angle}, th{angle} 
-                                 FROM nucleotide JOIN (
-                                    SELECT chain_id FROM chain JOIN structure
-                                    WHERE structure.resolution <= {res}
-                                 ) AS c
+                                 FROM (
+                                    SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                                    WHERE chain.rfam_acc = 'unmappd' AND structure.resolution <= {res} AND issue = 0
+                                 ) AS c NATURAL JOIN nucleotide
                                  WHERE puckering="C2'-endo" 
                                     AND {angle} IS NOT NULL 
                                     AND th{angle} IS NOT NULL;""", conn)
             c2_endo_etas = df[angle].values.tolist()
             c2_endo_thetas = df["th"+angle].values.tolist()
             df = pd.read_sql(f"""SELECT {angle}, th{angle} 
-                                 FROM nucleotide JOIN (
-                                    SELECT chain_id FROM chain JOIN structure
-                                    WHERE structure.resolution <= {res}
-                                 ) AS c
+                                 FROM (
+                                    SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                                    WHERE chain.rfam_acc = 'unmappd' AND structure.resolution <= {res} AND issue = 0
+                                 ) AS c NATURAL JOIN nucleotide 
                                  WHERE form = '.' 
                                     AND puckering="C3'-endo" 
                                     AND {angle} IS NOT NULL 
@@ -111,14 +113,16 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         pbar.update(1)
 
         # Save the data to an archive for later use without the need to recompute
-        np.savez(f"data/wadley_kernel_{angle}_{res}A.npz",
+        np.savez(runDir + f"/data/wadley_kernel_{angle}_{res}A.npz",
                   c3_endo_e=c3_endo_etas, c3_endo_t=c3_endo_thetas,
                   c2_endo_e=c2_endo_etas, c2_endo_t=c2_endo_thetas,
                   kernel_c3=f_c3, kernel_c2=f_c2)
         pbar.close()
         idxQueue.put(thr_idx)
     else:
-        f = np.load(f"data/wadley_kernel_{angle}_{res}A.npz")
+        setproctitle(f"RNANet statistics.py reproduce_wadley_results(carbon={carbon})")
+
+        f = np.load(runDir + f"/data/wadley_kernel_{angle}_{res}A.npz")
         c2_endo_etas = f["c2_endo_e"]
         c3_endo_etas = f["c3_endo_e"]
         c2_endo_thetas = f["c2_endo_t"]
@@ -148,7 +152,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         f_low_thr = f.mean() + sd_range[0]*f.std()
         f_cut = np.where(f > f_sup_thr, f_sup_thr, f)
         f_cut = np.where(f_cut < f_low_thr, 0, f_cut)
-        levels = [f.mean()+f.std(), f.mean()+2*f.std(), f.mean()+4*f.std()]
+        levels = [ f.mean()+f.std(), f.mean()+2*f.std(), f.mean()+4*f.std()]
 
         # histogram:
         fig = plt.figure()
@@ -157,7 +161,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         ax.bar3d(xpos.ravel(), ypos.ravel(), 0.0, 0.09, 0.09, hist_cut.ravel(), color=color_values, zorder="max")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_hist_{angle}_{l}_{res}A.png")
+        fig.savefig(runDir + f"/results/figures/wadley_plots/wadley_hist_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -168,7 +172,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         ax.plot_surface(xx, yy, f_cut, cmap=cm.get_cmap("coolwarm"), linewidth=0, antialiased=True)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_distrib_{angle}_{l}_{res}A.png")
+        fig.savefig(runDir + f"/results/figures/wadley_plots/wadley_distrib_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -177,10 +181,10 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
         fig = plt.figure(figsize=(5,5))
         ax = fig.gca()
         ax.scatter(x, y, s=1, alpha=0.1)
-        ax.contourf(xx, yy, f_cut, alpha=0.5, cmap=cm.get_cmap("coolwarm"), levels=levels, extend="max")
+        ax.contourf(xx, yy, f, alpha=0.5, cmap=cm.get_cmap("coolwarm"), levels=levels, extend="max")
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        fig.savefig(f"results/figures/wadley_plots/wadley_{angle}_{l}_{res}A.png")
+        fig.savefig(runDir + f"/results/figures/wadley_plots/wadley_{angle}_{l}_{res}A.png")
         if show:
             fig.show()
         plt.close()
@@ -188,9 +192,12 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=4.0):
 
 def stats_len():
     """Plots statistics on chain lengths in RNA families.
+    Uses all chains mapped to a family including copies, inferred or not.
     
     REQUIRES tables chain, nucleotide up to date.
     """
+
+    setproctitle(f"RNANet statistics.py stats_len({res_thr})")
     
     # Get a worker number to position the progress bar
     global idxQueue
@@ -214,7 +221,7 @@ def stats_len():
     cols = []
     lengths = []
     
-    for i,f in enumerate(tqdm(fam_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Average chain lengths", leave=False)):
+    for f in tqdm(fam_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Average chain lengths", leave=False):
 
         # Define a color for that family in the plot
         if f in LSU_set:
@@ -229,7 +236,7 @@ def stats_len():
             cols.append("grey")
 
         # Get the lengths of chains
-        with sqlite3.connect("results/RNANet.db") as conn:
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             l = [ x[0] for x in sql_ask_database(conn, f"""SELECT COUNT(index_chain) 
                                                             FROM (
                                                                 SELECT chain_id 
@@ -238,8 +245,6 @@ def stats_len():
                                                             ) NATURAL JOIN nucleotide 
                                                             GROUP BY chain_id;""", warn_every=0) ]
         lengths.append(l) # list of chain lengths from the family
-
-        # notify(f"[{i+1}/{len(fam_list)}] Computed {f} chains lengths")
 
     # Plot the figure
     fig = plt.figure(figsize=(10,3))
@@ -267,7 +272,7 @@ def stats_len():
                 ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.5))
 
     # Save the figure
-    fig.savefig(f"results/figures/lengths_{res_thr}A.png")
+    fig.savefig(runDir + f"/results/figures/lengths_{res_thr}A.png")
     idxQueue.put(thr_idx) # replace the thread index in the queue
     # notify("Computed sequence length statistics and saved the figure.")
 
@@ -285,6 +290,7 @@ def format_percentage(tot, x):
 
 def stats_freq():
     """Computes base frequencies in all RNA families.
+    Uses all chains mapped to a family including copies, inferred or not.
 
     Outputs results/frequencies.csv
     REQUIRES tables chain, nucleotide up to date."""
@@ -293,17 +299,18 @@ def stats_freq():
     global idxQueue
     thr_idx = idxQueue.get()
 
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} stats_freq()")
+
     # Initialize a Counter object for each family
     freqs = {}
     for f in fam_list:
         freqs[f] = Counter()
 
     # List all nt_names happening within a RNA family and store the counts in the Counter
-    for i,f in enumerate(tqdm(fam_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Base frequencies", leave=False)):
-        with sqlite3.connect("results/RNANet.db") as conn:
+    for f in tqdm(fam_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Base frequencies", leave=False):
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             counts = dict(sql_ask_database(conn, f"SELECT nt_name, COUNT(nt_name) FROM (SELECT chain_id from chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY nt_name;", warn_every=0))
         freqs[f].update(counts)
-        # notify(f"[{i+1}/{len(fam_list)}] Computed {f} nucleotide frequencies.")
     
     # Create a pandas DataFrame, and save it to CSV.
     df = pd.DataFrame()
@@ -311,7 +318,7 @@ def stats_freq():
         tot = sum(freqs[f].values())
         df = pd.concat([ df, pd.DataFrame([[ format_percentage(tot, x) for x in freqs[f].values() ]], columns=list(freqs[f]), index=[f]) ])
     df = df.fillna(0)
-    df.to_csv("results/frequencies.csv")    
+    df.to_csv(runDir + "/results/frequencies.csv")    
     idxQueue.put(thr_idx) # replace the thread index in the queue
     # notify("Saved nucleotide frequencies to CSV file.")
 
@@ -327,11 +334,13 @@ def parallel_stats_pairs(f):
     global idxQueue
     thr_idx = idxQueue.get()
 
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} p_stats_pairs({f})")
+
     chain_id_list = mappings_list[f]
     data = []
     sqldata = []
     for cid in tqdm(chain_id_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} basepair types", leave=False):
-        with sqlite3.connect("results/RNANet.db") as conn:
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             # Get comma separated lists of basepairs per nucleotide
             interactions = pd.DataFrame(
                             sql_ask_database(conn, 
@@ -398,7 +407,7 @@ def parallel_stats_pairs(f):
         data.append(expanded_list)
 
     # Update the database
-    with sqlite3.connect("results/RNANet.db", isolation_level=None) as conn:
+    with sqlite3.connect(runDir + "/results/RNANet.db", isolation_level=None) as conn:
         conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
         sql_execute(conn, """UPDATE chain SET pair_count_cWW = ?, pair_count_cWH = ?, pair_count_cWS = ?, pair_count_cHH = ?,
                                 pair_count_cHS = ?, pair_count_cSS = ?, pair_count_tWW = ?, pair_count_tWH = ?, pair_count_tWS = ?, 
@@ -416,8 +425,8 @@ def parallel_stats_pairs(f):
 
     # Create an output DataFrame
     f_df = pd.DataFrame([[ x for x in cnt.values() ]], columns=list(cnt), index=[f])
-    f_df.to_csv(f"data/{f}_counts.csv")
-    expanded_list.to_csv(f"data/{f}_pairs.csv")
+    f_df.to_csv(runDir + f"/data/{f}_counts.csv")
+    expanded_list.to_csv(runDir + f"/data/{f}_pairs.csv")
     
     idxQueue.put(thr_idx) # replace the thread index in the queue
 
@@ -430,28 +439,34 @@ def to_dist_matrix(f):
     global idxQueue
     thr_idx = idxQueue.get()
 
-    # notify(f"Computing {f} distance matrix from alignment...")
-    command = f"esl-alipid --rna --noheader --informat stockholm {f}_3d_only.stk"
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} to_dist_matrix({f})")
 
     # Prepare a file
     with open(path_to_seq_data+f"/realigned/{f}++.afa") as al_file:
         al = AlignIO.read(al_file, "fasta")
         names = [ x.id for x in al if '[' in x.id ]
         al = al[-len(names):]
-    with open(f + "_3d_only.stk", "w") as only_3d:
-        only_3d.write(al.format("stockholm"))
+    with open(path_to_seq_data+f"/realigned/{f}_3d_only_tmp.stk", "w") as only_3d:
+        try:
+            only_3d.write(al.format("stockholm"))
+        except ValueError as e:
+            warn(e)
     del al
+    subprocess.run(["esl-reformat", "--informat", "stockholm", "--mingap", "-o", path_to_seq_data+f"/realigned/{f}_3d_only.stk", "stockholm",  path_to_seq_data+f"/realigned/{f}_3d_only_tmp.stk"])
 
     # Prepare the job
-    process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE)
+    process = subprocess.Popen(shlex.split(f"esl-alipid --rna --noheader --informat stockholm {path_to_seq_data}realigned/{f}_3d_only.stk"), 
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     id_matrix = np.zeros((len(names), len(names)))
 
     pbar = tqdm(total = len(names)*(len(names)-1)*0.5, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} idty matrix", leave=False)
-    while process.poll() is None:
-        output = process.stdout.readline()
+    cnt = 0
+    while not cnt or process.poll() is None:
+        output = process.stdout.read()
         if output:
             lines = output.strip().split(b'\n')
             for l in lines:
+                cnt += 1
                 line = l.split()
                 s1 = line[0].decode('utf-8')
                 s2 = line[1].decode('utf-8')
@@ -460,9 +475,14 @@ def to_dist_matrix(f):
                 id2 = names.index(s2)
                 id_matrix[id1, id2] = float(score)
                 pbar.update(1)
+    if cnt != len(names)*(len(names)-1)*0.5:
+        warn(f"{f} got {cnt} updates on {len(names)*(len(names)-1)*0.5}")
+    if process.poll() != 0:
+        l = process.stderr.read().strip().split(b'\n')
+        warn("\n".join([ line.decode('utf-8') for line in l ]))
     pbar.close()
 
-    subprocess.run(["rm", "-f", f + "_3d_only.stk"])
+    subprocess.run(["rm", "-f", f + "_3d_only_tmp.stk"])
     np.save("data/"+f+".npy", id_matrix)
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
@@ -471,21 +491,26 @@ def seq_idty():
     """Computes identity matrices for each of the RNA families.
     
     REQUIRES temporary results files in data/*.npy
-    REQUIRES tables chain, family un to date."""
+    REQUIRES tables chain, family up to date."""
 
     # load distance matrices
+    fams_to_plot = [ f for f in famlist if f not in ignored ]
     fam_arrays = []
-    for f in famlist:
+    for f in fams_to_plot:
         if path.isfile("data/"+f+".npy"):
-            fam_arrays.append(np.load("data/"+f+".npy"))
+            fam_arrays.append(np.load("data/"+f+".npy") / 100.0)  # normalize percentages in [0,1]
         else:
-            fam_arrays.append([])
+            warn("data/"+f+".npy not found !")
+            fam_arrays.append(np.array([]))
 
     # Update database with identity percentages
-    conn = sqlite3.connect("results/RNANet.db")
-    for f, D in zip(famlist, fam_arrays):
+    conn = sqlite3.connect(runDir + "/results/RNANet.db")
+    for f, D in zip(fams_to_plot, fam_arrays):
         if not len(D): continue
-        a = 1.0 - np.average(D + D.T) # Get symmetric matrix instead of lower triangle + convert from distance matrix to identity matrix
+        if D.shape[0] > 1:
+            a = np.sum(D) * 2 / D.shape[0] / (D.shape[0] - 1)    # SUM(D) / (n(n-1)/2)
+        else:
+            a = D[0][0]
         conn.execute(f"UPDATE family SET idty_percent = {round(float(a),2)} WHERE rfam_acc = '{f}';")
     conn.commit()
     conn.close()
@@ -495,10 +520,11 @@ def seq_idty():
     axs = axs.ravel()
     [axi.set_axis_off() for axi in axs]
     im = "" # Just to declare the variable, it will be set in the loop
-    for f, D, ax in zip(famlist, fam_arrays, axs):
-        if not len(D): continue
+    for f, D, ax in zip(fams_to_plot, fam_arrays, axs):
+        D = D + D.T         # Copy the lower triangle to upper, to get a symetrical matrix
         if D.shape[0] > 2:  # Cluster only if there is more than 2 sequences to organize
-            D = D + D.T     # Copy the lower triangle to upper, to get a symetrical matrix
+            D = 1.0 - D
+            np.fill_diagonal(D, 0.0)
             condensedD = squareform(D)
 
             # Compute basic dendrogram by Ward's method
@@ -507,15 +533,20 @@ def seq_idty():
 
             # Reorganize rows and cols
             idx1 = Z['leaves']
-            D = D[idx1,:]
+            D = D[idx1[::-1],:]
             D = D[:,idx1[::-1]]
-        im = ax.matshow(1.0 - D, vmin=0, vmax=1, origin='lower') # convert to identity matrix 1 - D from distance matrix D
-        ax.set_title(f + "\n(" + str(len(mappings_list[f]))+ " chains)", fontsize=10)
+            D = 1.0 - D
+        elif D.shape[0] == 2:
+            np.fill_diagonal(D, 1.0) # the diagonal has been ignored until now
+        ax.text(np.floor(D.shape[0]/2.0)-(0.5 if not D.shape[0]%2 else 0), -0.5, f + "\n(" + str(D.shape[0]) + " chains)", 
+                fontsize=9, horizontalalignment = 'center', verticalalignment='bottom')
+        im = ax.matshow(D, vmin=0, vmax=1)
+
     fig.tight_layout()
-    fig.subplots_adjust(wspace=0.1, hspace=0.3)
-    fig.colorbar(im, ax=axs[-1], shrink=0.8)
-    fig.savefig(f"results/figures/distances.png")
-    notify("Computed all identity matrices and saved the figure.")
+    fig.subplots_adjust(hspace=0.3, wspace=0.1)
+    fig.colorbar(im, ax=axs[-4], shrink=0.8)
+    fig.savefig(runDir + f"/results/figures/distances.png")
+    print("> Computed all identity matrices and saved the figure.", flush=True)
 
 def stats_pairs():
     """Counts occurrences of intra-chain base-pair types in RNA families
@@ -523,6 +554,8 @@ def stats_pairs():
     Creates a temporary results file in data/pair_counts.csv, and a results file in results/pairings.csv.
     REQUIRES tables chain, nucleotide up-to-date.""" 
     
+    setproctitle(f"RNANet statistics.py stats_pairs()")
+
     def line_format(family_data):
         return family_data.apply(partial(format_percentage, sum(family_data)))
 
@@ -530,12 +563,12 @@ def stats_pairs():
         results = []
         allpairs = []
         for f in fam_list:
-            newpairs = pd.read_csv(f"data/{f}_pairs.csv", index_col=0)
-            fam_df = pd.read_csv(f"data/{f}_counts.csv", index_col=0)
+            newpairs = pd.read_csv(runDir + f"/data/{f}_pairs.csv", index_col=0)
+            fam_df = pd.read_csv(runDir + f"/data/{f}_counts.csv", index_col=0)
             results.append(fam_df)
             allpairs.append(newpairs)
-            subprocess.run(["rm", "-f", f"data/{f}_pairs.csv"])
-            subprocess.run(["rm", "-f", f"data/{f}_counts.csv"])
+            subprocess.run(["rm", "-f", runDir + f"/data/{f}_pairs.csv"])
+            subprocess.run(["rm", "-f", runDir + f"/data/{f}_counts.csv"])
         all_pairs = pd.concat(allpairs)
         df = pd.concat(results).fillna(0)
         df.to_csv("data/pair_counts.csv")
@@ -573,14 +606,14 @@ def stats_pairs():
     crosstab = crosstab[["AU", "GC", "Wobble", "Other"]]
 
     # Save to CSV
-    df.to_csv("results/pair_types.csv")
+    df.to_csv(runDir + "/results/pair_types.csv")
 
     # Plot barplot of overall types
     ax = crosstab.plot(figsize=(8,5), kind='bar', stacked=True, log=False, fontsize=13)
     ax.set_ylabel("Number of observations (millions)", fontsize=13)
     ax.set_xlabel(None)
     plt.subplots_adjust(left=0.1, bottom=0.16, top=0.95, right=0.99)
-    plt.savefig("results/figures/pairings.png")
+    plt.savefig(runDir + "/results/figures/pairings.png")
 
     notify("Computed nucleotide statistics and saved CSV and PNG file.")
 
@@ -588,8 +621,10 @@ def per_chain_stats():
     """Computes per-chain frequencies and base-pair type counts.
 
     REQUIRES tables chain, nucleotide up to date. """
+    
+    setproctitle(f"RNANet statistics.py per_chain_stats()")
 
-    with sqlite3.connect("results/RNANet.db", isolation_level=None) as conn:
+    with sqlite3.connect(runDir + "/results/RNANet.db", isolation_level=None) as conn:
         # Compute per-chain nucleotide frequencies
         df = pd.read_sql("SELECT SUM(is_A) as A, SUM(is_C) AS C, SUM(is_G) AS G, SUM(is_U) AS U, SUM(is_other) AS O, chain_id FROM nucleotide GROUP BY chain_id;", conn)
         df["total"] = pd.Series(df.A + df.C + df.G + df.U + df.O, dtype=np.float64)
@@ -600,35 +635,143 @@ def per_chain_stats():
         conn.execute('pragma journal_mode=wal')
         sql_execute(conn, "UPDATE chain SET chain_freq_A = ?, chain_freq_C = ?, chain_freq_G = ?, chain_freq_U = ?, chain_freq_other = ? WHERE chain_id= ?;",
                           many=True, data=list(df.to_records(index=False)), warn_every=10)
-    notify("Updated the database with per-chain base frequencies")
+    print("> Updated the database with per-chain base frequencies", flush=True)
 
 def general_stats():
     """
     Number of structures as function of the resolution threshold
     Number of Rfam families as function of the resolution threshold
     """
-    with sqlite3.connect("results/RNANet.db") as conn:
-        df_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
-                                        FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                        WHERE rfam_acc = 'unmappd' AND ISSUE=0;""", conn)
-        df_mapped_unique = pd.read_sql(f"""SELECT distinct pdb_id, chain_name, exp_method, resolution
-                                            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""", conn)
-        df_mapped_copies = pd.read_sql(f"""SELECT pdb_id, chain_name, inferred, rfam_acc, pdb_start, pdb_end, exp_method, resolution
-                                            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
-                                            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""", conn)
-        df_inferred_only_unique = pd.read_sql(f"""SELECT DISTINCT pdb_id, c.chain_name, exp_method, resolution
-                                                    FROM (SELECT inferred, rfam_acc, pdb_start, pdb_end, chain.structure_id, chain.chain_name, r.redundancy, r.inf_redundancy
-                                                            FROM chain 
-                                                            JOIN (SELECT structure_id, chain_name, COUNT(distinct rfam_acc) AS redundancy, SUM(inferred) AS inf_redundancy 
-                                                                    FROM chain 
-                                                                    WHERE rfam_acc != 'unmappd' AND issue=0 
-                                                                    GROUP BY structure_id, chain_name
-                                                            ) AS r ON chain.structure_id=r.structure_id AND chain.chain_name = r.chain_name 
-                                                            WHERE r.redundancy=r.inf_redundancy AND rfam_acc != 'unmappd' and issue=0
-                                                    ) AS c
-                                                    JOIN structure ON c.structure_id=structure.pdb_id;""", conn)
-    print("> found", len(df_inferred_only_unique.index), "chains which are mapped only by inference using BGSU NR Lists.")
+
+    setproctitle(f"RNANet statistics.py general_stats()")
+
+    reqs = [
+        # unique unmapped chains with no issues
+        """ SELECT distinct pdb_id, chain_name, exp_method, resolution
+            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+            WHERE rfam_acc = 'unmappd' AND ISSUE=0;""",
+
+        # unique mapped chains with no issues
+        """ SELECT distinct pdb_id, chain_name, exp_method, resolution
+            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""",
+
+        # mapped chains with no issues
+        """ SELECT pdb_id, chain_name, inferred, rfam_acc, pdb_start, pdb_end, exp_method, resolution
+            FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+            WHERE rfam_acc != 'unmappd' AND ISSUE=0;""",
+
+        # mapped chains with no issues that are all inferred
+        """ SELECT DISTINCT pdb_id, c.chain_name, exp_method, resolution
+            FROM (
+                SELECT inferred, rfam_acc, pdb_start, pdb_end, chain.structure_id, chain.chain_name, r.redundancy, r.inf_redundancy
+                FROM chain 
+                JOIN (SELECT structure_id, chain_name, COUNT(distinct rfam_acc) AS redundancy, SUM(inferred) AS inf_redundancy 
+                        FROM chain 
+                        WHERE rfam_acc != 'unmappd' AND issue=0 
+                        GROUP BY structure_id, chain_name
+                ) AS r ON chain.structure_id=r.structure_id AND chain.chain_name = r.chain_name 
+                WHERE r.redundancy=r.inf_redundancy AND rfam_acc != 'unmappd' and issue=0
+            ) AS c
+            JOIN structure ON c.structure_id=structure.pdb_id;""",
+
+        # Number of mapped chains (not inferred)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 0);""",
+
+        # Number of unique mapped chains (not inferred)
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 0);""",
+
+        # Number of mapped chains (inferred)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 1);""",
+
+        # Number of unique mapped chains (inferred)
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 1);""",
+
+        # Number of mapped chains inferred once
+        """SELECT count(*) FROM (
+                SELECT structure_id, chain_name, COUNT(DISTINCT rfam_acc) as c 
+                FROM chain where rfam_acc!='unmappd' and inferred=1 
+                GROUP BY structure_id, chain_name
+            ) WHERE c=1;""",
+
+        # Number of mapped chains inferred twice
+        """select count(*) from (
+                select structure_id, chain_name, count(distinct rfam_acc) as c 
+                from chain where rfam_acc!='unmappd' and inferred=1 
+                group by structure_id, chain_name
+            ) where c=2;""",
+
+        # Number of mapped chains inferred 3 times or more
+        """select count(*) from (
+                select structure_id, chain_name, count(distinct rfam_acc) as c 
+                from chain where rfam_acc!='unmappd' and inferred=1 
+                group by structure_id, chain_name
+            ) where c>2;""",
+
+        # Number of chains both mapped with and without inferrence
+        """ SELECT COUNT(*) FROM (
+                SELECT structure_id, chain_name, sum(inferred) AS s, COUNT(rfam_acc) AS c 
+                FROM chain 
+                WHERE rfam_acc!='unmappd' 
+                GROUP BY structure_id, chain_name
+            ) 
+            WHERE s < c AND s > 0;""",
+        
+        # Number of mapped chains (total)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd');""",
+
+        # Number of unique mapped chains
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd');""",
+
+        # Number of unmapped chains
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc = 'unmappd');""",
+        
+        # Number of mapped chains without issues (not inferred)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 0 AND issue = 0);""",
+
+        # Number of unique mapped chains without issues (not inferred)
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 0 AND issue = 0);""",
+
+        # Number of mapped chains without issues (inferred)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 1 AND issue=0);""",
+
+        # Number of unique mapped chains without issues (inferred)
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND inferred = 1 AND issue=0);""",
+
+        # Number of mapped chains without issues (total)
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND issue=0);""",
+
+        # Number of unique mapped chains without issues
+        """SELECT count(*) FROM (SELECT DISTINCT structure_id, chain_name FROM chain WHERE rfam_acc != 'unmappd' AND issue=0);""",
+
+        # Number of unmapped chains without issues
+        """SELECT count(*) FROM (SELECT structure_id, chain_name FROM chain WHERE rfam_acc = 'unmappd' AND issue=0);"""
+    ]
+
+    answers = []
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        for r in reqs:
+            answers.append(pd.read_sql(r, conn))
+    df_unique = answers[0]
+    df_mapped_unique = answers[1]
+    df_mapped_copies = answers[2]
+    df_inferred_only_unique = answers[3]
+    print()
+    print("> found", answers[4].iloc[0][0], f"chains ({answers[5].iloc[0][0]} unique chains) that are mapped thanks to Rfam. Removing chains with issues, only {answers[15].iloc[0][0]} ({answers[16].iloc[0][0]} unique)")
+    if answers[4].iloc[0][0] != answers[5].iloc[0][0]:
+        print("\t> This happens because different parts of the same chain can be mapped to different families.")
+    print("> found", answers[6].iloc[0][0], f"chains ({answers[7].iloc[0][0]} unique chains) that are mapped by inferrence. Removing chains with issues, only {answers[17].iloc[0][0]} ({answers[18].iloc[0][0]} unique).")
+    print("\t> ", answers[8].iloc[0][0], "chains are mapped only once,")
+    print("\t> ", answers[9].iloc[0][0], "are mapped to 2 families,")
+    print("\t> ", answers[10].iloc[0][0], "are mapped to 3 or more.")
+    print("> Among them,", answers[11].iloc[0][0], "chains are mapped both with families found on Rfam and by inferrence.")
+    if answers[11].iloc[0][0]:
+        print("\t> this is normal if you used option -f (--full-inference). Otherwise, there might be a problem.")
+    print("> TOTAL:", answers[12].iloc[0][0], f"chains ({answers[13].iloc[0][0]} unique chains) mapped to a family. Removing chains with issues, only {answers[19].iloc[0][0]} ({answers[20].iloc[0][0]} unique).")
+    print("> TOTAL:", answers[14].iloc[0][0], f"unmapped chains. Removing chains with issues, {answers[21].iloc[0][0]}.")
+    if answers[14].iloc[0][0]:
+        print("\t> this is normal if you used option --no-homology. Otherwise, there might be a problem.")
+    print()
 
     ##########################################
     # plot N = f(resolution, exp_method)
@@ -642,7 +785,7 @@ def general_stats():
     df_inferred_only_unique.sort_values('resolution', inplace=True, ignore_index=True)
     df_mapped_copies.sort_values('resolution', inplace=True, ignore_index=True)
     max_res = max(df_unique.resolution)
-    max_structs = len(df_mapped_copies.index.tolist())
+    max_structs = max(len(df_mapped_copies.index), len(df_unique.index))
     colors = np.linspace(0,1,1+len(methods))
     plt.xticks( np.arange(0, max_res+2, 2.0).tolist(),  np.arange(0, max_res+2, 2.0).tolist() )
 
@@ -654,7 +797,7 @@ def general_stats():
     axs[0][0].set_ylabel("ALL", fontsize=14)
     axs[0][0].set_title("Number of unique RNA chains", fontsize=14)
     axs[0][0].set_ylim((0, max_structs * 1.05))
-    axs[0][0].legend(loc="best", fontsize=14)
+    axs[0][0].legend(loc="lower right", fontsize=14)
 
     axs[0][1].grid(axis='y', ls='dotted', lw=1)
     axs[0][1].set_yticklabels([])
@@ -663,9 +806,9 @@ def general_stats():
     axs[0][1].hist(df_inferred_only_unique.resolution, bins=np.arange(0, max_res, 0.5), fc=(0.2, 0, colors[0], 0.5), cumulative=True, label='only by inference')
     axs[0][1].text(0.95*max_res, 0.95*len(df_mapped_unique.resolution), "%d " %  len(df_mapped_unique.resolution), 
                          horizontalalignment='right', verticalalignment='top', fontsize=14)
-    axs[0][1].set_title("Number of unique RNA chains\nmapped to $\geq 1$ family", fontsize=14)
+    axs[0][1].set_title(r"Number of unique RNA chains\nmapped to $\geq 1$ family", fontsize=14)
     axs[0][1].set_ylim((0, max_structs * 1.05))
-    axs[0][1].legend(loc="best", fontsize=14)
+    axs[0][1].legend(loc="upper left", fontsize=14)
 
     axs[0][2].grid(axis='y', ls='dotted', lw=1)
     axs[0][2].set_yticklabels([])
@@ -675,7 +818,7 @@ def general_stats():
     axs[0][2].text(0.95*max_res, 0.95*len(df_mapped_copies.resolution), "%d " %  len(df_mapped_copies.resolution), 
                          horizontalalignment='right', verticalalignment='top', fontsize=14)
     axs[0][2].set_title("Number of RNA chains mapped to a\nfamily (with copies)", fontsize=14)
-    axs[0][2].legend(loc="right", fontsize=14)
+    axs[0][2].legend(loc="upper left", fontsize=14)
     axs[0][2].set_ylim((0, max_structs * 1.05))
 
     for i,m in enumerate(methods):
@@ -683,7 +826,7 @@ def general_stats():
         df_mapped_unique_m = df_mapped_unique[df_mapped_unique.exp_method == m]
         df_inferred_only_unique_m = df_inferred_only_unique[df_inferred_only_unique.exp_method == m]
         df_mapped_copies_m = df_mapped_copies[ df_mapped_copies.exp_method == m]
-        max_structs = len(df_mapped_copies_m.resolution.tolist())
+        max_structs = max(len(df_mapped_copies_m.index), len(df_unique_m.index))
         print("> found", max_structs, "structures with method", m, flush=True)
 
         axs[1+i][0].grid(axis='y', ls='dotted', lw=1)
@@ -693,7 +836,7 @@ def general_stats():
                          horizontalalignment='right', verticalalignment='top', fontsize=14)
         axs[1+i][0].set_ylim((0, max_structs * 1.05))
         axs[1+i][0].set_ylabel(m, fontsize=14)
-        axs[1+i][0].legend(loc="best", fontsize=14)
+        axs[1+i][0].legend(loc="lower right", fontsize=14)
 
         axs[1+i][1].grid(axis='y', ls='dotted', lw=1)
         axs[1+i][1].set_yticklabels([])
@@ -703,7 +846,7 @@ def general_stats():
         axs[1+i][1].text(0.95*max_res, 0.95*len(df_mapped_unique_m.resolution), "%d " %  len(df_mapped_unique_m.resolution), 
                          horizontalalignment='right', verticalalignment='top', fontsize=14)
         axs[1+i][1].set_ylim((0, max_structs * 1.05))
-        axs[1+i][1].legend(loc="best", fontsize=14)
+        axs[1+i][1].legend(loc="upper left", fontsize=14)
         
         axs[1+i][2].grid(axis='y', ls='dotted', lw=1)
         axs[1+i][2].set_yticklabels([])
@@ -713,7 +856,7 @@ def general_stats():
         axs[1+i][2].text(0.95*max_res, 0.95*len(df_mapped_copies_m.resolution), "%d " %  len(df_mapped_copies_m.resolution), 
                          horizontalalignment='right', verticalalignment='top', fontsize=14)
         axs[1+i][2].set_ylim((0, max_structs * 1.05))
-        axs[1+i][2].legend(loc="right", fontsize=14)
+        axs[1+i][2].legend(loc="upper left", fontsize=14)
     
     axs[-1][0].set_xlabel("Structure resolution\n(Angströms, lower is better)", fontsize=14)
     axs[-1][1].set_xlabel("Structure resolution\n(Angströms, lower is better)", fontsize=14)
@@ -722,7 +865,7 @@ def general_stats():
     fig.suptitle("Number of RNA chains by experimental method and resolution", fontsize=16)
     fig.subplots_adjust(left=0.07, right=0.98, wspace=0.05, 
                         hspace=0.05, bottom=0.05, top=0.92)
-    fig.savefig("results/figures/resolutions.png")
+    fig.savefig(runDir + "/results/figures/resolutions.png")
     plt.close()
 
     ##########################################
@@ -765,7 +908,7 @@ def general_stats():
     fig.suptitle("Number of RNA families used by experimental method and resolution", fontsize=16)
     fig.subplots_adjust(left=0.05, right=0.98, wspace=0.05, 
                         hspace=0.05, bottom=0.12, top=0.84)
-    fig.savefig("results/figures/Nfamilies.png")
+    fig.savefig(runDir + "/results/figures/Nfamilies.png")
     plt.close()
 
 def log_to_pbar(pbar):
@@ -776,8 +919,10 @@ def log_to_pbar(pbar):
 if __name__ == "__main__":
 
     # parse options
+    DELETE_OLD_DATA = False
+    DO_WADLEY_ANALYSIS = False
     try:
-        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "resolution=", "3d-folder=", "seq-folder=" ])
+        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "from-scratch", "wadley", "resolution=", "3d-folder=", "seq-folder=" ])
     except getopt.GetoptError as err:
         print(err)
         sys.exit(2)
@@ -795,6 +940,7 @@ if __name__ == "__main__":
                     "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
             print("--seq-folder=…\t\t\tPath to a folder containing the sequence and alignment files. Required subfolder:"
                     "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
+            print("--from-scratch\t\t\tDo not use precomputed results from past runs, recompute everything")
             sys.exit()
         elif opt == '--version':
             print("RNANet statistics 1.1 beta")
@@ -810,25 +956,37 @@ if __name__ == "__main__":
             path_to_seq_data = path.abspath(arg)
             if path_to_seq_data[-1] != '/':
                 path_to_seq_data += '/'
+        elif opt=='--from-scratch':
+            DELETE_OLD_DATA = True
+            DO_WADLEY_ANALYSIS = True
+            subprocess.run(["rm","-f", "data/wadley_kernel_eta.npz", "data/wadley_kernel_eta_prime.npz", "data/pair_counts.csv"])
+        elif opt=='--wadley':
+            DO_WADLEY_ANALYSIS = True
     
 
     # Load mappings
     print("Loading mappings list...")
-    with sqlite3.connect("results/RNANet.db") as conn:
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         fam_list = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from family ORDER BY rfam_acc ASC;") ]
         mappings_list = {}
         for k in fam_list:
-            mappings_list[k] = [ x[0] for x in sql_ask_database(conn, f"SELECT chain_id from chain WHERE rfam_acc='{k}' and issue=0;") ]
+            mappings_list[k] = [ x[0] for x in sql_ask_database(conn, f"SELECT chain_id from chain JOIN structure ON chain.structure_id=structure.pdb_id WHERE rfam_acc='{k}' AND issue=0 AND resolution <= {res_thr};") ]
 
     # List the families for which we will compute sequence identity matrices
-    with sqlite3.connect("results/RNANet.db") as conn:
-        famlist = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains > 0 ORDER BY rfam_acc ASC;") ]
-        ignored = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain GROUP BY rfam_acc) WHERE n_chains < 2 ORDER BY rfam_acc ASC;") ]
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        famlist = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain WHERE issue = 0 GROUP BY rfam_acc) WHERE n_chains > 0 ORDER BY rfam_acc ASC;") ]
+        ignored = [ x[0] for x in sql_ask_database(conn, "SELECT rfam_acc from (SELECT rfam_acc, COUNT(chain_id) as n_chains FROM family NATURAL JOIN chain WHERE issue = 0 GROUP BY rfam_acc) WHERE n_chains < 3 ORDER BY rfam_acc ASC;") ]
+        n_unmapped_chains = sql_ask_database(conn, "SELECT COUNT(*) FROM chain WHERE rfam_acc='unmappd' AND issue=0;")[0][0]
     if len(ignored):
         print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
     
+    if DELETE_OLD_DATA:
+        for f in fam_list:
+            subprocess.run(["rm","-f", runDir + f"/data/{f}.npy", runDir + f"/data/{f}_pairs.csv", runDir + f"/data/{f}_counts.csv"])
+
+
     # Prepare the multiprocessing execution environment
-    nworkers = max(read_cpu_number()-1, 32)
+    nworkers = min(read_cpu_number()-1, 32)
     thr_idx_mgr = Manager()
     idxQueue = thr_idx_mgr.Queue()
     for i in range(nworkers):
@@ -836,14 +994,15 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    # joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), 4.0)))   # res threshold is 4.0 Angstroms by default
-    # joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), 4.0)))   #
+    if n_unmapped_chains and DO_WADLEY_ANALYSIS:
+        joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), 20.0)))   # res threshold is 4.0 Angstroms by default
+        joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), 20.0)))   #
     joblist.append(Job(function=stats_len)) # Computes figures
-    # joblist.append(Job(function=stats_freq)) # updates the database
-    # for f in famlist:
-    #     joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
-    #     if f not in ignored:
-    #         joblist.append(Job(function=to_dist_matrix, args=(f,))) # updates the database
+    joblist.append(Job(function=stats_freq)) # updates the database
+    for f in famlist:
+        joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
+        if f not in ignored:
+            joblist.append(Job(function=to_dist_matrix, args=(f,))) # updates the database
 
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, leave=True)
@@ -867,7 +1026,8 @@ if __name__ == "__main__":
     print()
 
     # finish the work after the parallel portions
-    # per_chain_stats()
-    # seq_idty()
-    # stats_pairs()
-    general_stats()
+    per_chain_stats()
+    seq_idty()
+    stats_pairs()
+    if n_unmapped_chains:
+        general_stats()

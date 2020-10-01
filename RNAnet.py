@@ -1,24 +1,31 @@
 #!/usr/bin/python3.8
+import Bio
+import concurrent.futures
+import getopt
+import gzip
+import io
+import json
 import numpy as np
+import os
 import pandas as pd
-import concurrent.futures, getopt, gzip, io, json, os, pickle, psutil, re, requests, signal, sqlalchemy, sqlite3, subprocess, sys, time, traceback, warnings
-from Bio import AlignIO, SeqIO
-from Bio.PDB import MMCIFParser
-from Bio.PDB.mmcifio import MMCIFIO
-from Bio.PDB.MMCIF2Dict import MMCIF2Dict 
-from Bio.PDB.PDBExceptions import PDBConstructionWarning, BiopythonWarning
-from Bio.PDB.Dice import ChainSelector
-from Bio.Alphabet import generic_rna
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment, AlignInfo
-from collections import OrderedDict, defaultdict
+import pickle
+import psutil
+import re
+import requests
+import signal
+import sqlalchemy
+import sqlite3
+import subprocess
+import sys
+import time
+import traceback
+import warnings
 from functools import partial, wraps
-from os import path, makedirs
-from multiprocessing import Pool, Manager, set_start_method
+from multiprocessing import Pool, Manager
 from time import sleep
 from tqdm import tqdm
 from setproctitle import setproctitle
+
 
 def trace_unhandled_exceptions(func):
     @wraps(func)
@@ -27,7 +34,7 @@ def trace_unhandled_exceptions(func):
             return func(*args, **kwargs)
         except:
             s = traceback.format_exc()
-            with open(runDir +  "/errors.txt", "a") as f:
+            with open(runDir + "/errors.txt", "a") as f:
                 f.write("Exception in "+func.__name__+"\n")
                 f.write(s)
                 f.write("\n\n")
@@ -36,26 +43,30 @@ def trace_unhandled_exceptions(func):
             print(s)
     return wrapped_func
 
+
 pd.set_option('display.max_rows', None)
 sqlite3.enable_callback_tracebacks(True)
-sqlite3.register_adapter(np.int64, lambda val: int(val))    # Tell Sqlite what to do with <class numpy.int64> objects ---> convert to int
-sqlite3.register_adapter(np.float64, lambda val: float(val))    # Tell Sqlite what to do with <class numpy.int64> objects ---> convert to int
+sqlite3.register_adapter(np.int64, lambda val: int(val))        # Tell Sqlite what to do with <class numpy.int64> objects ---> convert to int
+sqlite3.register_adapter(np.float64, lambda val: float(val))    # Tell Sqlite what to do with <class numpy.float64> objects ---> convert to float
 
 m = Manager()
 running_stats = m.list()
-running_stats.append(0) # n_launched
-running_stats.append(0) # n_finished
-running_stats.append(0) # n_skipped
+running_stats.append(0)  # n_launched
+running_stats.append(0)  # n_finished
+running_stats.append(0)  # n_skipped
 path_to_3D_data = "tobedefinedbyoptions"
 path_to_seq_data = "tobedefinedbyoptions"
 validsymb = '\U00002705'
 warnsymb = '\U000026A0'
 errsymb = '\U0000274C'
 
-LSU_set = {"RF00002", "RF02540", "RF02541", "RF02543", "RF02546"}   # From Rfam CLAN 00112
-SSU_set = {"RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"}  # From Rfam CLAN 00111
+LSU_set = {"RF00002", "RF02540", "RF02541",
+           "RF02543", "RF02546"}   # From Rfam CLAN 00112
+SSU_set = {"RF00177", "RF02542",  "RF02545",
+           "RF01959", "RF01960"}  # From Rfam CLAN 00111
 no_nts_set = set()
 weird_mappings = set()
+
 
 class SelectivePortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
@@ -65,7 +76,7 @@ class SelectivePortionSelector(object):
 
     def __init__(self, model_id, chain_id, valid_resnums, khetatm):
         self.chain_id = chain_id
-        self.resnums = valid_resnums # list of strings, that are mostly ints
+        self.resnums = valid_resnums  # list of strings, that are mostly ints
         self.pdb_model_id = model_id
         self.hydrogen_regex = re.compile("[123 ]*H.*")
         self.keep_hetatm = khetatm
@@ -81,54 +92,54 @@ class SelectivePortionSelector(object):
 
         # Refuse waters and magnesium ions
         if hetatm_flag in ["W", "H_MG"]:
-            return int(self.keep_hetatm)      
+            return int(self.keep_hetatm)
 
         # Accept the residue if it is in the right interval:
         if icode == " " and len(self.resnums):
             return int(str(resseq) in self.resnums)
         elif icode != " " and len(self.resnums):
             return int(str(resseq)+icode in self.resnums)
-        else: # len(resnum) == 0, we don't use mappings (--no-homology option)
+        else:  # len(resnum) == 0, we don't use mappings (--no-homology option)
             return 1
 
     def accept_atom(self, atom):
 
         # Refuse hydrogens
         if self.hydrogen_regex.match(atom.get_id()):
-            return 0 
+            return 0
 
         # Accept all atoms otherwise.
         return 1
 
 
-class BufferingSummaryInfo(AlignInfo.SummaryInfo):
+class BufferingSummaryInfo(Bio.Align.AlignInfo.SummaryInfo):
 
     def get_pssm(self, family, index):
         """Create a position specific score matrix object for the alignment. 
- 
+
         This creates a position specific score matrix (pssm) which is an 
         alternative method to look at a consensus sequence. 
- 
+
         Returns: 
          - A PSSM (position specific score matrix) object. 
-        """ 
+        """
 
-        pssm_info = [] 
-        # now start looping through all of the sequences and getting info 
-        for residue_num in tqdm(range(self.alignment.get_alignment_length()), position=index+1, desc=f"Worker {index+1}: Count bases in fam {family}", leave=False): 
-            score_dict = self._get_base_letters("ACGUN") 
-            for record in self.alignment: 
-                this_residue = record.seq[residue_num].upper() 
-                if this_residue not in "-.": 
+        pssm_info = []
+        # now start looping through all of the sequences and getting info
+        for residue_num in tqdm(range(self.alignment.get_alignment_length()), position=index+1, desc=f"Worker {index+1}: Count bases in fam {family}", leave=False):
+            score_dict = self._get_base_letters("ACGUN")
+            for record in self.alignment:
+                this_residue = record.seq[residue_num].upper()
+                if this_residue not in "-.":
                     try:
-                        score_dict[this_residue] += 1.0 
+                        score_dict[this_residue] += 1.0
                     except KeyError:
                         # if this_residue in "acgun":
                         #     warn(f"Found {this_residue} in {family} alignment...")
                         score_dict[this_residue] = 1.0
             pssm_info.append(('*', score_dict))
 
-        return AlignInfo.PSSM(pssm_info)
+        return Bio.Align.AlignInfo.PSSM(pssm_info)
 
 
 class Chain:
@@ -147,7 +158,7 @@ class Chain:
         else:
             self.mapping = None
         self.eq_class = eq_class                # BGSU NR list class id
-        self.chain_label = chain_label          # chain pretty name 
+        self.chain_label = chain_label          # chain pretty name
         self.file = ""                          # path to the 3D PDB file
         self.seq = ""                           # sequence with modified nts
         self.seq_to_align = ""                  # sequence with modified nts replaced, but gaps can exist
@@ -156,10 +167,10 @@ class Chain:
         self.delete_me = False                  # an error occured during production/parsing
         self.error_messages = ""                # Error message(s) if any
         self.db_chain_id = -1                   # index of the RNA chain in the SQL database, table chain
-    
+
     def __str__(self):
         return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
-    
+
     def __eq__(self, other):
         return self.chain_label == other.chain_label and str(self) == str(other)
 
@@ -183,15 +194,15 @@ class Chain:
             notify(status, "using previous file")
             return
 
-        model_idx = self.pdb_model - (self.pdb_model > 0) # because arrays start at 0, models start at 1
-       
+        model_idx = self.pdb_model - (self.pdb_model > 0)   # because arrays start at 0, models start at 1
+
         with warnings.catch_warnings():
             # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
-            warnings.simplefilter('ignore', PDBConstructionWarning)  
-            warnings.simplefilter('ignore', BiopythonWarning)  
+            warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
+            warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
 
             # Load the whole mmCIF into a Biopython structure object:
-            mmcif_parser = MMCIFParser()
+            mmcif_parser = Bio.PDB.MMCIFParser()
             try:
                 s = mmcif_parser.get_structure(self.pdb_id, path_to_3D_data + "RNAcifs/"+self.pdb_id+".cif")
             except ValueError as e:
@@ -212,7 +223,7 @@ class Chain:
             sel = SelectivePortionSelector(model_idx, self.pdb_chain_id, valid_set, khetatm)
 
             # Save that selection on the mmCIF object s to file
-            ioobj = MMCIFIO()
+            ioobj = Bio.PDB.mmcifio.MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
 
@@ -223,7 +234,7 @@ class Chain:
         """ Maps DSSR annotations to the chain. """
 
         setproctitle(f"RNANet.py {self.chain_label} extract_3D_data()")
-        
+
         ############################################
         # Load the mmCIF annotations from file
         ############################################
@@ -236,7 +247,7 @@ class Chain:
             self.delete_me = True
             self.error_messages = f"Could not load existing {self.pdb_id}.json file: {e}"
             return None
-                
+
         # Print eventual warnings given by DSSR, and abort if there are some
         if "warning" in json_object.keys():
             warn(f"found DSSR warning in annotation {self.pdb_id}.json: {json_object['warning']}. Ignoring {self.chain_label}.")
@@ -251,9 +262,9 @@ class Chain:
         ############################################
         try:
             # Create the Pandas DataFrame for the nucleotides of the right chain
-            nts = json_object["nts"]                         # sub-json-object
-            df = pd.DataFrame(nts)                           # conversion to dataframe
-            df = df[ df.chain_name == self.pdb_chain_id ]    # keeping only this chain's nucleotides
+            nts = json_object["nts"]                        # sub-json-object
+            df = pd.DataFrame(nts)                          # conversion to dataframe
+            df = df[df.chain_name == self.pdb_chain_id]     # keeping only this chain's nucleotides
 
             # Assert nucleotides of the chain are found
             if df.empty:
@@ -265,13 +276,13 @@ class Chain:
 
             # Remove low pertinence or undocumented descriptors, convert angles values
             cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
-                "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
-                "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering" ]
+                            "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
+                            "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering"]
             df = df[cols_we_keep]
-            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4', # Conversion to radians
-                        'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] *= np.pi/180.0
-            df.loc[:,['alpha', 'beta','gamma','delta','epsilon','zeta','epsilon_zeta','chi','v0', 'v1', 'v2', 'v3', 'v4', # mapping [-pi, pi] into [0, 2pi]
-                        'eta','theta','eta_prime','theta_prime','eta_base','theta_base', 'phase_angle']] %= (2.0*np.pi)
+            df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # Conversion to radians
+                       'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] *= np.pi/180.0
+            df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # mapping [-pi, pi] into [0, 2pi]
+                       'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] %= (2.0*np.pi)
 
         except KeyError as e:
             warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
@@ -295,34 +306,34 @@ class Chain:
         # Duplicate residue numbers : shift numbering
         while True in df.duplicated(['nt_resnum']).values:
             i = df.duplicated(['nt_resnum']).values.tolist().index(True)
-            duplicates = df[df.nt_resnum == df.iloc[i,1]]
+            duplicates = df[df.nt_resnum == df.iloc[i, 1]]
             n_dup = len(duplicates.nt_resnum)
             index_last_dup = duplicates.index_chain.iloc[-1] - 1
             if self.mapping is not None:
                 self.mapping.log(f"Shifting nt_resnum numbering because of {n_dup} duplicate residues {df.iloc[i,1]}")
 
             try:
-                if i > 0 and index_last_dup +1 < len(df.index) and df.iloc[i,1] == df.iloc[i-1,1] and df.iloc[index_last_dup + 1, 1] - 1 > df.iloc[index_last_dup, 1]:
+                if i > 0 and index_last_dup + 1 < len(df.index) and df.iloc[i, 1] == df.iloc[i-1, 1] and df.iloc[index_last_dup + 1, 1] - 1 > df.iloc[index_last_dup, 1]:
                     # The redundant nts are consecutive in the chain (at the begining at least), and there is a gap at the end
 
                     if duplicates.iloc[n_dup-1, 0] - duplicates.iloc[0, 0] + 1 == n_dup:
                         # They are all contiguous in the chain
                         # 4v9n-DA case (and similar ones) : 610-611-611A-611B-611C-611D-611E-611F-611G-617-618...
-                        # there is a redundancy (611) followed by a gap (611-617). 
+                        # there is a redundancy (611) followed by a gap (611-617).
                         # We want the redundancy to fill the gap.
                         df.iloc[i:i+n_dup-1, 1] += 1
                     else:
                         # We solve the problem continous component by continuous component
                         for j in range(1, n_dup+1):
-                            if duplicates.iloc[j,0] == 1 + duplicates.iloc[j-1,0]: # continuous
-                                df.iloc[i+j-1,1] += 1
+                            if duplicates.iloc[j, 0] == 1 + duplicates.iloc[j-1, 0]:  # continuous
+                                df.iloc[i+j-1, 1] += 1
                             else:
                                 break
-                elif df.iloc[i,1] == df.iloc[i-1,1]:
+                elif df.iloc[i, 1] == df.iloc[i-1, 1]:
                     # Common 4v9q-DV case (and similar ones) : e.g. chains contains 17 and 17A which are both read 17 by DSSR.
                     # Solution : we shift the numbering of 17A (to 18) and the following residues.
                     df.iloc[i:, 1] += 1
-                elif duplicates.iloc[0,0] == 1 and df.iloc[i,0] == 3:
+                elif duplicates.iloc[0, 0] == 1 and df.iloc[i, 0] == 3:
                     # 4wzo_1_1J case, there is a residue numbered -1 and read as 1 before the number 0.
                     df.iloc[1:, 1] += 1
                     df.iloc[0, 1] = 0
@@ -340,17 +351,21 @@ class Chain:
 
         # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
-        while ( len(df.index_chain) and df.iloc[-1,2] not in ["A", "C", "G", "U"] and (
-                        (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
-                        or (df.iloc[[-1]].puckering=='').any()
-                    )
-                or  (   len(df.index_chain) >= 2 and df.iloc[-1,1] > 50 + df.iloc[-2,1]    ) # large nt_resnum gap between the two last residues
-                or  (   len(df.index_chain) and df.iloc[-1,2] in ["GNG", "E2C", "OHX", "IRI", "MPD", "8UZ"]   )
-              ):
+        while ( 
+                len(df.index_chain) and df.iloc[-1, 2] not in ["A", "C", "G", "U"] 
+                and (
+                    (df.iloc[[-1]][["alpha", "beta", "gamma", "delta", "epsilon",
+                                    "zeta", "v0", "v1", "v2", "v3", "v4"]].isna().values).all()
+                    or (df.iloc[[-1]].puckering == '').any()
+                )
+                # large nt_resnum gap between the two last residues
+                or (len(df.index_chain) >= 2 and df.iloc[-1, 1] > 50 + df.iloc[-2, 1])
+                or (len(df.index_chain) and df.iloc[-1, 2] in ["GNG", "E2C", "OHX", "IRI", "MPD", "8UZ"])
+        ):
             if self.mapping is not None:
                 self.mapping.log("Droping ligand:")
                 self.mapping.log(df.tail(1))
-            df = df.head(-1) 
+            df = df.head(-1)
 
         # Duplicates in index_chain : drop, they are ligands
         # e.g. 3iwn_1_B_1-91, ligand C2E has index_chain 1 (and nt_resnum 601)
@@ -360,7 +375,7 @@ class Chain:
                 warn(f"Found duplicated index_chain {df.iloc[i,0]} in {self.chain_label}. Keeping only the first.")
                 if self.mapping is not None:
                     self.mapping.log(f"Found duplicated index_chain {df.iloc[i,0]}. Keeping only the first.")
-            df = df.drop_duplicates("index_chain", keep="first") # drop doublons in index_chain
+            df = df.drop_duplicates("index_chain", keep="first")    # drop doublons in index_chain
 
         # drop eventual nts with index_chain < the first residue,
         # now negative because we renumber to 1 (usually, ligands)
@@ -371,9 +386,9 @@ class Chain:
                     self.mapping.log("Droping ligand:")
                     self.mapping.log(line)
             df = df.drop(ligands.index)
-        
-        # Find missing index_chain values 
-        # This happens because of resolved nucleotides that have a 
+
+        # Find missing index_chain values
+        # This happens because of resolved nucleotides that have a
         # strange nt_resnum value. Thanks, biologists ! :@ :(
         # e.g. 4v49-AA, position 5'- 1003 -> 2003 -> 1004 - 3'
         diff = set(range(df.shape[0])).difference(df['index_chain'] - 1)
@@ -382,7 +397,7 @@ class Chain:
             for i in sorted(diff):
                 # check if a nucleotide with the correct index_chain exists in the nts object
                 found = None
-                for nt in nts: # nts is the object from the loaded JSON and contains all nts
+                for nt in nts:  # nts is the object from the loaded JSON and contains all nts
                     if nt['chain_name'] != self.pdb_chain_id:
                         continue
                     if nt['index_chain'] == i + 1 + self.mapping.st:
@@ -390,17 +405,19 @@ class Chain:
                         break
                 if found:
                     self.mapping.log(f"Residue {i+1+self.mapping.st}-{self.mapping.st} = {i+1} has been saved and renumbered {df.iloc[i,1]} instead of {found['nt_id'].replace(found['chain_name']+ '.' + found['nt_name'], '').replace('^','')}")
-                    df_row = pd.DataFrame([found], index=[i])[df.columns.values]
-                    df_row.iloc[0,0] = i+1          # index_chain
-                    df_row.iloc[0,1] = df.iloc[i,1] # nt_resnum
-                    df = pd.concat([ df.iloc[:i], df_row, df.iloc[i:] ])
+                    df_row = pd.DataFrame([found], index=[i])[
+                        df.columns.values]
+                    df_row.iloc[0, 0] = i+1          # index_chain
+                    df_row.iloc[0, 1] = df.iloc[i, 1]  # nt_resnum
+                    df = pd.concat([df.iloc[:i], df_row, df.iloc[i:]])
                     df.iloc[i+1:, 1] += 1
                 else:
                     warn(f"Missing index_chain {i} in {self.chain_label} !")
-        
+
         # Assert some nucleotides still exist
         try:
-            l = df.iloc[-1,1] - df.iloc[0,1] + 1    # update length of chain from nt_resnum point of view
+            # update length of chain from nt_resnum point of view
+            l = df.iloc[-1, 1] - df.iloc[0, 1] + 1
         except IndexError:
             warn(f"Could not find real nucleotides of chain {self.pdb_chain_id} between {self.mapping.nt_start} and "
                  f"{self.mapping.nt_end} ({'not ' if not self.mapping.inferred else ''}inferred). Ignoring chain {self.chain_label}.")
@@ -413,27 +430,30 @@ class Chain:
         # Sometimes, the 3D structure is REALLY shorter than the family it's mapped to,
         # especially with inferred mappings (e.g. 6hcf chain 82 to RF02543)
         #
-        # There are several numbering scales in use here: 
+        # There are several numbering scales in use here:
         # nt_numbering: the residue numbers in the RNA molecule. It can be any range. Unresolved residues count for 1.
         # index_chain and self.length: the nucleotides positions within the 3D chain. It starts at 1, and unresolved residues are skipped.
         # pdb_start/pdb_end: the RNA molecule portion to extract and map to Rfam. it is related to the index_chain scale.
-        # 
+        #
         # example on 6hcf chain 82:
         # RNA molecule          1 |------------------------------------------- ... ----------| theoretic length of a large subunit.
         # portion solved in 3D  1 |--------------|79 85|------------| 156
         # Rfam mapping           3 |------------------------------------------ ... -------| 3353 (yes larger, 'cause it could be inferred)
         # nt resnum              3 |--------------------------------|  156
-        # index_chain            1 |-------------|77 83|------------|  154 
+        # index_chain            1 |-------------|77 83|------------|  154
         # expected data point    1 |--------------------------------|  154
         #
-        if l != len(df['index_chain']):         # if some residues are missing, len(df['index_chain']) < l
-            resnum_start = df.iloc[0,1]
-            diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)     # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
+        
+        if l != len(df['index_chain']): # if some residues are missing, len(df['index_chain']) < l
+            resnum_start = df.iloc[0, 1]
+            # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
+            diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)
             for i in sorted(diff):
                 # Add a row at position i
-                df = pd.concat([    df.iloc[:i], 
-                                    pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start, "nt_id":"not resolved", "nt_code":'-', "nt_name":'-'}, index=[i]), 
-                                    df.iloc[i:]       ])
+                df = pd.concat([df.iloc[:i],
+                                pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start,
+                                              "nt_id": "not resolved", "nt_code": '-', "nt_name": '-'}, index=[i]),
+                                df.iloc[i:]])
                 # Increase the index_chain of all following lines
                 df.iloc[i+1:, 0] += 1
             df = df.reset_index(drop=True)
@@ -444,27 +464,27 @@ class Chain:
         #######################################
 
         # Add a sequence column just for the alignments
-        df['nt_align_code'] = [ str(x).upper()
-                                    .replace('NAN', '-')      # Unresolved nucleotides are gaps
-                                    .replace('?', '-')        # Unidentified residues, let's delete them
-                                    .replace('T', 'U')        # 5MU are modified to t, which gives T
-                                    .replace('P', 'U')        # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
-                                for x in df['nt_code'] ]
+        df['nt_align_code'] = [str(x).upper()
+                               .replace('NAN', '-') # Unresolved nucleotides are gaps
+                               .replace('?', '-')   # Unidentified residues, let's delete them
+                               .replace('T', 'U')   # 5MU are modified to t, which gives T
+                               .replace('P', 'U')   # Pseudo-uridines, but it is not really right to change them to U, see DSSR paper, Fig 2
+                               for x in df['nt_code']]
 
         # One-hot encoding sequence
-        df["is_A"] = [ 1 if x=="A" else 0 for x in df["nt_code"] ]
-        df["is_C"] = [ 1 if x=="C" else 0 for x in df["nt_code"] ]
-        df["is_G"] = [ 1 if x=="G" else 0 for x in df["nt_code"] ]
-        df["is_U"] = [ 1 if x=="U" else 0 for x in df["nt_code"] ]
-        df["is_other"] = [ 0 if x in "ACGU" else 1 for x in df["nt_code"] ]
+        df["is_A"] = [1 if x == "A" else 0 for x in df["nt_code"]]
+        df["is_C"] = [1 if x == "C" else 0 for x in df["nt_code"]]
+        df["is_G"] = [1 if x == "G" else 0 for x in df["nt_code"]]
+        df["is_U"] = [1 if x == "U" else 0 for x in df["nt_code"]]
+        df["is_other"] = [0 if x in "ACGU" else 1 for x in df["nt_code"]]
         df["nt_position"] = [ float(i+1)/self.full_length for i in range(self.full_length) ]
 
         # Iterate over pairs to identify base-base interactions
-        res_ids = list(df['nt_id']) # things like "chainID.C4, chainID.U5"
-        paired = [ '' ] * self.full_length
-        pair_type_LW = [ '' ] * self.full_length
-        pair_type_DSSR = [ '' ] * self.full_length
-        interacts = [ 0 ] * self.full_length
+        res_ids = list(df['nt_id'])  # things like "chainID.C4, chainID.U5"
+        paired = [''] * self.full_length
+        pair_type_LW = [''] * self.full_length
+        pair_type_DSSR = [''] * self.full_length
+        interacts = [0] * self.full_length
         if "pairs" in json_object.keys():
             pairs = json_object["pairs"]
             for p in pairs:
@@ -487,12 +507,12 @@ class Chain:
                     if paired[nt1_idx] == "":
                         pair_type_LW[nt1_idx] = lw_pair
                         pair_type_DSSR[nt1_idx] = dssr_pair
-                        paired[nt1_idx] = str(nt2_idx + 1)          # index + 1 is actually index_chain.
+                        paired[nt1_idx] = str(nt2_idx + 1)  # index + 1 is actually index_chain.
                     else:
                         pair_type_LW[nt1_idx] += ',' + lw_pair
                         pair_type_DSSR[nt1_idx] += ',' + dssr_pair
                         paired[nt1_idx] += ',' + str(nt2_idx + 1)   # index + 1 is actually index_chain.
-                
+
                 # set nucleotide 2 with the opposite base-pair
                 if nt2 in res_ids:
                     interacts[nt2_idx] += 1
@@ -506,17 +526,19 @@ class Chain:
                         paired[nt2_idx] += ',' + str(nt1_idx + 1)
 
         # transform nt_id to shorter values
-        df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^','').replace('/','') for n, name in zip(df.nt_id, df.nt_name) ]
+        df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^', '').replace('/', '') for n, name in zip(df.nt_id, df.nt_name) ]
 
         df['paired'] = paired
         df['pair_type_LW'] = pair_type_LW
         df['pair_type_DSSR'] = pair_type_DSSR
         df['nb_interact'] = interacts
-        df = df.drop(['nt_id', 'nt_resnum'], axis=1) # remove now useless descriptors
+
+        # remove now useless descriptors
+        df = df.drop(['nt_id', 'nt_resnum'], axis=1)
 
         self.seq = "".join(df.nt_code)
         self.seq_to_align = "".join(df.nt_align_code)
-        self.length = len([ x for x in self.seq_to_align if x != "-" ])
+        self.length = len([x for x in self.seq_to_align if x != "-"])
 
         # Remove too short chains
         if self.length < 5:
@@ -549,43 +571,43 @@ class Chain:
                                                     pdb_end=excluded.pdb_end, 
                                                     eq_class=excluded.eq_class,
                                                     inferred=excluded.inferred, 
-                                                    issue=excluded.issue;""", 
-                                        data=(str(self.pdb_id), str(self.pdb_chain_id), 
-                                              int(self.mapping.nt_start), int(self.mapping.nt_end), 
-                                              str(self.mapping.rfam_acc), str(self.eq_class),
-                                              int(self.mapping.inferred), int(self.delete_me)))
+                                                    issue=excluded.issue;""",
+                            data=(str(self.pdb_id), str(self.pdb_chain_id),
+                                  int(self.mapping.nt_start), int(self.mapping.nt_end),
+                                  str(self.mapping.rfam_acc), str(self.eq_class),
+                                  int(self.mapping.inferred), int(self.delete_me)))
                 # get the chain id
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
-                                                    WHERE structure_id='{self.pdb_id}' 
-                                                    AND chain_name='{self.pdb_chain_id}' 
-                                                    AND rfam_acc='{self.mapping.rfam_acc}'
-                                                    AND eq_class='{self.eq_class}';""")[0][0]
+                                                                WHERE structure_id='{self.pdb_id}' 
+                                                                AND chain_name='{self.pdb_chain_id}' 
+                                                                AND rfam_acc='{self.mapping.rfam_acc}'
+                                                                AND eq_class='{self.eq_class}';"""
+                                                    )[0][0]
             else:
                 sql_execute(conn, """INSERT INTO chain (structure_id, chain_name, rfam_acc, eq_class, issue) VALUES (?, ?, 'unmappd', ?, ?) 
-                                   ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue, eq_class=excluded.eq_class;""", 
+                                   ON CONFLICT(structure_id, chain_name, rfam_acc) DO UPDATE SET issue=excluded.issue, eq_class=excluded.eq_class;""",
                             data=(str(self.pdb_id), str(self.pdb_chain_id), str(self.eq_class), int(self.delete_me)))
                 self.db_chain_id = sql_ask_database(conn, f"""SELECT (chain_id) FROM chain 
-                                                    WHERE structure_id='{self.pdb_id}' 
-                                                    AND chain_name='{self.pdb_chain_id}' 
-                                                    AND eq_class='{self.eq_class}'
-                                                    AND rfam_acc = 'unmappd';""")[0][0]
-            
+                                                                WHERE structure_id='{self.pdb_id}' 
+                                                                AND chain_name='{self.pdb_chain_id}' 
+                                                                AND eq_class='{self.eq_class}'
+                                                                AND rfam_acc = 'unmappd';"""
+                                                    )[0][0]
+
             # Add the nucleotides if the chain is not an issue
-            if df is not None and not self.delete_me:  # double condition is theoretically redundant here, but you never know
-                sql_execute(conn, f"""
-                INSERT OR IGNORE INTO nucleotide 
-                (chain_id, index_chain, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
-                epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
-                v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
-                old_nt_resnum, paired, pair_type_LW, pair_type_DSSR, nb_interact)
-                VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""", 
-                many=True, data=list(df.to_records(index=False)), warn_every=10)
+            if df is not None and not self.delete_me:   # double condition is theoretically redundant here, but you never know
+                sql_execute(conn, f"""INSERT OR IGNORE INTO nucleotide 
+                                        (chain_id, index_chain, nt_name, nt_code, dbn, alpha, beta, gamma, delta, epsilon, zeta,
+                                        epsilon_zeta, bb_type, chi, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+                                        v0, v1, v2, v3, v4, amplitude, phase_angle, puckering, nt_align_code, is_A, is_C, is_G, is_U, is_other, nt_position, 
+                                        old_nt_resnum, paired, pair_type_LW, pair_type_DSSR, nb_interact)
+                                        VALUES ({self.db_chain_id}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                            many=True, data=list(df.to_records(index=False)), warn_every=10)
 
     def remap(self, columns_to_save, s_seq):
         """Maps the object's sequence to its version in a MSA, to compute nucleotide frequencies at every position.
-        
+
         columns_to_save: a set of indexes in the alignment that are mapped to previous sequences in the alignment
         s_seq: the aligned version of self.seq_to_align
         """
@@ -598,52 +620,51 @@ class Chain:
         # Save colums in the appropriate positions
         i = 0
         j = 0
-        while i<self.full_length and j<alilen:
-            # Here we try to map self.seq_to_align (the sequence of the 3D chain, including gaps when residues are missing), 
+        while i < self.full_length and j < alilen:
+            # Here we try to map self.seq_to_align (the sequence of the 3D chain, including gaps when residues are missing),
             # with s_seq, the sequence aligned in the MSA, containing any of ACGU and two types of gaps, - and .
 
-            if self.seq_to_align[i] == s_seq[j].upper(): # alignment and sequence correspond (incl. gaps)
-                re_mappings.append( (self.db_chain_id, i+1, j+1) ) # because index_chain in table nucleotide is in [1,N], we use i+1 and j+1.
-                columns_to_save.add(j+1) # it's a set, doublons are automaticaly ignored
+            if self.seq_to_align[i] == s_seq[j].upper():    # alignment and sequence correspond (incl. gaps)
+                re_mappings.append((self.db_chain_id, i+1, j+1))    # because index_chain in table nucleotide is in [1,N], we use i+1 and j+1.
+                columns_to_save.add(j+1)    # it's a set, doublons are automaticaly ignored
                 i += 1
                 j += 1
-            elif self.seq_to_align[i] == '-': # gap in the chain, but not in the aligned sequence
-
+            elif self.seq_to_align[i] == '-':   # gap in the chain, but not in the aligned sequence
                 # search for a gap to the consensus nearby
-                k = 0 # Search must start at zero to assert the difference comes from '-' in front of '.'
-                while j+k<alilen and s_seq[j+k] == '.':
+                k = 0  # Search must start at zero to assert the difference comes from '-' in front of '.'
+                while j+k < alilen and s_seq[j+k] == '.':
                     k += 1
 
                 # if found, set j to that position
-                if j+k<alilen and s_seq[j+k] == '-':
-                    re_mappings.append( (self.db_chain_id, i+1, j+k+1) )
+                if j+k < alilen and s_seq[j+k] == '-':
+                    re_mappings.append((self.db_chain_id, i+1, j+k+1))
                     columns_to_save.add(j+k+1)
                     i += 1
                     j += k+1
                     continue
 
                 # if not, take the insertion gap if this is one
-                if j<alilen and s_seq[j] == '.':
-                    re_mappings.append( (self.db_chain_id, i+1, j+1) )
+                if j < alilen and s_seq[j] == '.':
+                    re_mappings.append((self.db_chain_id, i+1, j+1))
                     columns_to_save.add(j+1)
                     i += 1
                     j += 1
                     continue
 
                 # else, just mark the gap as unknown (there is an alignment mismatch)
-                re_mappings.append( (self.db_chain_id, i+1, 0) )
+                re_mappings.append((self.db_chain_id, i+1, 0))
                 i += 1
-            elif s_seq[j] in ['.', '-']: # gap in the alignment, but not in the real chain
-                j += 1 # ignore the column
-            else: # sequence mismatch which is not a gap...
-                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.seq_to_align[i-1:i+2]}) with seq[{j}] ({s_seq[j-3:j+4]}).", 
-                        self.seq_to_align, s_seq, sep='\n', flush=True)
+            elif s_seq[j] in ['.', '-']:  # gap in the alignment, but not in the real chain
+                j += 1  # ignore the column
+            else:  # sequence mismatch which is not a gap...
+                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.seq_to_align[i-1:i+2]}) with seq[{j}] ({s_seq[j-3:j+4]}).",
+                      self.seq_to_align, s_seq, sep='\n', flush=True)
                 raise Exception('Something is wrong with sequence alignment.')
         return re_mappings, columns_to_save
 
     def replace_gaps(self, conn):
         """ Replace gapped positions by the consensus sequence. 
-        
+
         REQUIRES align_column and re_mapping up to date
         """
 
@@ -658,7 +679,7 @@ class Chain:
             with open(runDir + "/errors.txt", "a") as errf:
                 errf.write(f"No homology data found in the database for {self.chain_label} ! Not replacing gaps.\n")
             return []
-        elif len(homology_data) !=  self.full_length:
+        elif len(homology_data) != self.full_length:
             with open(runDir + "/errors.txt", "a") as errf:
                 errf.write(f"Found {len(homology_data)} nucleotides for {self.chain_label} of length {self.full_length} ! Not replacing gaps.\n")
             return []
@@ -672,7 +693,7 @@ class Chain:
                 l = letters[freq.index(max(freq))]
                 c_seq_to_align[i] = l
                 c_seq[i] = l
-                gaps.append((l, l=='A', l=='C', l=='G', l=='U', l=='N', self.db_chain_id, i+1 ))
+                gaps.append((l, l == 'A', l == 'C', l == 'G', l == 'U', l == 'N', self.db_chain_id, i+1))
         self.seq_to_align = ''.join(c_seq_to_align)
         self.seq = ''.join(c_seq)
         return gaps
@@ -684,6 +705,7 @@ class Job:
     This could be a system command or the execution of a Python function.
     Time and memory usage of a job can be monitored.
     """
+
     def __init__(self, results="", command=[], function=None, args=[], how_many_in_parallel=0, priority=1, timeout=None, checkFunc=None, checkArgs=[], label=""):
         self.cmd_ = command             # A system command to run
         self.func_ = function           # A python function to run
@@ -709,7 +731,8 @@ class Job:
         if self.func_ is None:
             s = f"{self.priority_}({self.nthreads}) [{self.comp_time}]\t{self.label:25}" + " ".join(self.cmd_)
         else:
-            s = f"{self.priority_}({self.nthreads}) [{self.comp_time}]\t{self.label:25}{self.func_.__name__}(" + " ".join([str(a) for a in self.args_]) + ")"
+            s = f"{self.priority_}({self.nthreads}) [{self.comp_time}]\t{self.label:25}{self.func_.__name__}(" \
+                + " ".join([ str(a) for a in self.args_ ]) + ")"
         return s
 
 
@@ -750,7 +773,7 @@ class Monitor:
                     max_mem = mem
             # Wait 100 ms and loop
             sleep(0.1)
-        
+
         # The watch has ended
         return max_mem
 
@@ -767,16 +790,17 @@ class Downloader:
         print("> Fetching latest PDB mappings from Rfam..." + " " * 29, end='', flush=True)
         try:
             db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
-            mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;', con=db_connection)
+            mappings = pd.read_sql('SELECT rfam_acc, pdb_id, chain, pdb_start, pdb_end, bit_score, evalue_score, cm_start, cm_end, hex_colour FROM pdb_full_region WHERE is_significant=1;',
+                con=db_connection)
             mappings.to_csv(runDir + "/data/Rfam-PDB-mappings.csv")
             print(f"\t{validsymb}")
         except sqlalchemy.exc.OperationalError:  # Cannot connect :'(
             print(f"\t{errsymb}")
             # Check if a previous run succeeded (if file exists, use it)
-            if path.isfile(runDir + "/data/Rfam-PDB-mappings.csv"):
+            if os.path.isfile(runDir + "/data/Rfam-PDB-mappings.csv"):
                 print("\t> Using previous version.")
                 mappings = pd.read_csv(runDir + "/data/Rfam-PDB-mappings.csv")
-            else: # otherwise, abort.
+            else:  # otherwise, abort.
                 print("Can't do anything without data. Exiting.")
                 raise Exception("Can't reach mysql-rfam-public.ebi.ac.uk on port 4497. Is it open on your system ?")
 
@@ -784,14 +808,14 @@ class Downloader:
 
     def download_Rfam_cm(self):
         """ Download the covariance models from Rfam.
-        
+
         Does not download if already there.
         """
 
         setproctitle(f"RNANet.py download_Rfam_cm()")
 
-        print(f"\t> Download Rfam.cm.gz from Rfam..." + " " * 37, end='', flush=True) 
-        if not path.isfile(path_to_seq_data + "Rfam.cm"):
+        print(f"\t> Download Rfam.cm.gz from Rfam..." + " " * 37, end='', flush=True)
+        if not os.path.isfile(path_to_seq_data + "Rfam.cm"):
             try:
                 subprocess.run(["wget", "ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz", "-O", path_to_seq_data + "Rfam.cm.gz"])
                 print(f"\t{validsymb}", flush=True)
@@ -809,12 +833,11 @@ class Downloader:
         Family ID, number of sequences identified, maximum length of those sequences.
         SETS family in the database (partially)
         """
-        
+
         setproctitle(f"RNANet.py download_Rfam_family_stats()")
 
-        try: 
+        try:
             db_connection = sqlalchemy.create_engine('mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam')
-            
 
             # Prepare the SQL query. It computes the length of the chains and gets the maximum length by family.
             q = """SELECT stats.rfam_acc, k.description, stats.maxlength FROM
@@ -838,15 +861,17 @@ class Downloader:
             d = pd.read_sql(q, con=db_connection)
 
             # filter the results to families we are interested in
-            d = d[ d["rfam_acc"].isin(list_of_families) ]
+            d = d[d["rfam_acc"].isin(list_of_families)]
 
             print(d)
 
             with sqlite3.connect(runDir + "/results/RNANet.db", timeout=20.0) as conn:
-                sql_execute(conn, """
-                    INSERT OR REPLACE INTO family (rfam_acc, description, max_len)
-                    VALUES (?, ?, ?);""", many=True, data=list(d.to_records(index=False))
-                ) # We use the replace keyword to get the latest information
+                # We use the REPLACE keyword to get the latest information
+                sql_execute(conn, """INSERT OR REPLACE INTO family (rfam_acc, description, max_len)
+                                     VALUES (?, ?, ?);""", 
+                            many=True, 
+                            data=list(d.to_records(index=False))
+                            )  
 
         except sqlalchemy.exc.OperationalError:
             warn("Something's wrong with the SQL database. Check mysql-rfam-public.ebi.ac.uk status and try again later. Not printing statistics.")
@@ -858,10 +883,11 @@ class Downloader:
 
         setproctitle(f"RNANet.py download_Rfam_sequences({rfam_acc})")
 
-        if not path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):
-            for _ in range(10): # retry 100 times if it fails
+        if not os.path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):
+            for _ in range(10):  # retry 100 times if it fails
                 try:
-                    subprocess.run(["wget", f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz', "-O", path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"], stdout=subprocess.DEVNULL)
+                    subprocess.run(["wget", f'ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/{rfam_acc}.fa.gz', "-O",
+                                    path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     notify(f"Downloaded {rfam_acc}.fa.gz from Rfam")
                     return          # if it worked, no need to retry
                 except Exception as e:
@@ -881,8 +907,9 @@ class Downloader:
 
         setproctitle(f"RNANet.py download_BGSU_NR_list({res})")
 
-        nr_code = min([ i for i in [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 20.0] if i >= res ]) 
+        nr_code = min([i for i in [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 20.0] if i >= res])
         print(f"> Fetching latest list of RNA files at {nr_code} A resolution from BGSU website...", end='', flush=True)
+
         # Download latest BGSU non-redundant list
         try:
             s = requests.get(f"http://rna.bgsu.edu/rna3dhub/nrlist/download/current/{nr_code}A/csv").content
@@ -894,30 +921,31 @@ class Downloader:
             warn("Error downloading NR list !\t", error=True)
 
             # Try to read previous file
-            if path.isfile(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv"):
-                print("\t> Use of the previous version.\t", end = "", flush=True)
+            if os.path.isfile(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv"):
+                print("\t> Use of the previous version.\t", end="", flush=True)
             else:
                 return pd.DataFrame([], columns=["class", "class_members"])
 
         nrlist = pd.read_csv(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv")
-        full_structures_list = [ tuple(i[1]) for i in nrlist[['class','class_members']].iterrows() ]
+        full_structures_list = [ tuple(i[1]) for i in nrlist[['class', 'class_members']].iterrows() ]
         print(f"\t{validsymb}", flush=True)
 
         # The beginning of an adventure.
-        return full_structures_list # list of ( str (class), str (class_members) )
+        return full_structures_list     # list of ( str (class), str (class_members) )
 
     def download_from_SILVA(self, unit):
 
         setproctitle(f"RNANet.py download_from_SILVA({unit})")
 
-
-        if not path.isfile(path_to_seq_data + f"realigned/{unit}.arb"):
+        if not os.path.isfile(path_to_seq_data + f"realigned/{unit}.arb"):
             try:
                 print(f"Downloading {unit} from SILVA...", end='', flush=True)
-                if unit=="LSU":
-                    subprocess.run(["wget", "http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz", "-O", path_to_seq_data + "realigned/LSU.arb.gz"])
+                if unit == "LSU":
+                    subprocess.run(["wget", "-nv", "http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz",
+                                    "-O", path_to_seq_data + "realigned/LSU.arb.gz"])
                 else:
-                    subprocess.run(["wget", "http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz", "-O", path_to_seq_data + "realigned/SSU.arb.gz"])
+                    subprocess.run(["wget", "-nv", "http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz",
+                                    "-O", path_to_seq_data + "realigned/SSU.arb.gz"])
             except:
                 warn(f"Error downloading the {unit} database from SILVA", error=True)
                 exit(1)
@@ -941,39 +969,41 @@ class Mapping:
         """
         self.chain_label = chain_label
         self.rfam_acc = rfam_acc
-        self.nt_start = pdb_start # nt_resnum numbering
-        self.nt_end = pdb_end # nt_resnum numbering
+        self.nt_start = pdb_start  # nt_resnum numbering
+        self.nt_end = pdb_end  # nt_resnum numbering
         self.inferred = inferred
 
-        self.logs = [] # Events are logged when modifying the mapping
+        self.logs = []  # Events are logged when modifying the mapping
 
     def filter_df(self, df):
 
-        newdf = df.drop(df[(df.nt_resnum < self.nt_start) | (df.nt_resnum > self.nt_end)].index)
-       
+        newdf = df.drop(df[(df.nt_resnum < self.nt_start) |
+                           (df.nt_resnum > self.nt_end)].index)
+
         if len(newdf.index_chain) > 0:
-            # everything's okay 
+            # everything's okay
             df = newdf
         else:
             # There were nucleotides in this chain but we removed them all while
             # filtering the ones outside the Rfam mapping.
-            # This probably means that, for this chain, the mapping is relative to 
+            # This probably means that, for this chain, the mapping is relative to
             # index_chain and not nt_resnum.
             warn(f"Assuming mapping to {self.rfam_acc} is an absolute position interval.")
             weird_mappings.add(self.chain_label + "." + self.rfam_acc)
-            df = df.drop(df[(df.index_chain < self.nt_start) | (df.index_chain > self.nt_end)].index)
+            df = df.drop(df[(df.index_chain < self.nt_start) |
+                            (df.index_chain > self.nt_end)].index)
 
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
         self.st = 0
-        if len(df.index_chain) and df.iloc[0,0] != 1:
-            self.st = df.iloc[0,0] -1
+        if len(df.index_chain) and df.iloc[0, 0] != 1:
+            self.st = df.iloc[0, 0] - 1
             df.iloc[:, 0] -= self.st
             self.log(f"Shifting index_chain of {self.st}")
 
         # Check that some residues are not included by mistake:
         # e.g. 4v4t-AA.RF00382-20-55 contains 4 residues numbered 30 but actually far beyond the mapped part,
         # because the icode are not read by DSSR.
-        toremove = df[ df.index_chain > self.nt_end ]
+        toremove = df[df.index_chain > self.nt_end]
         if not toremove.empty:
             df = df.drop(toremove.index)
             self.log(f"Some nt_resnum values are likely to be wrong, not considering residues:")
@@ -989,11 +1019,11 @@ class Mapping:
 
     def to_file(self, filename):
         if self.logs == []:
-            return # Do not create a log file if there is nothing to log
+            return  # Do not create a log file if there is nothing to log
 
-        if not path.exists("logs"):
-            os.makedirs("logs", exist_ok=True)
-        with open("logs/"+filename, "w") as f:
+        if not os.path.exists(runDir+"/logs"):
+            os.makedirs(runDir+"/logs", exist_ok=True)
+        with open(runDir+"/logs/"+filename, "w") as f:
             f.writelines(self.logs)
 
 
@@ -1010,7 +1040,7 @@ class Pipeline:
         # Default options:
         self.CRYSTAL_RES = 4.0
         self.KEEP_HETATM = False
-        self.FILL_GAPS = True 
+        self.FILL_GAPS = True
         self.HOMOLOGY = True
         self.USE_KNOWN_ISSUES = True
         self.RUN_STATS = False
@@ -1019,20 +1049,23 @@ class Pipeline:
         self.SELECT_ONLY = None
         self.ARCHIVE = False
         self.SAVELOGS = True
+        self.FULLINFERENCE = False
 
     def process_options(self):
-        """Sets the paths and options of the pipeline"""
+        """Sets the paths and options of the pipeline
+        """
+        
         global path_to_3D_data
         global path_to_seq_data
 
         setproctitle("RNANet.py process_options()")
 
         try:
-            opts, _ = getopt.getopt( sys.argv[1:], "r:hs", 
-                                    [   "help", "resolution=", "keep-hetatm=", "from-scratch",
+            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs",
+                                    ["help", "resolution=", "keep-hetatm=", "from-scratch", "full-inference,"
                                         "fill-gaps=", "3d-folder=", "seq-folder=",
                                         "no-homology", "ignore-issues", "extract", "only=", "all", "no-logs",
-                                        "archive", "update-homologous" ])
+                                        "archive", "update-homologous"])
         except getopt.GetoptError as err:
             print(err)
             sys.exit(2)
@@ -1044,29 +1077,31 @@ class Pipeline:
                 exit()
 
             if opt == "-h" or opt == "--help":
-                print(  "RNANet, a script to build a multiscale RNA dataset from public data\n"
-                        "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
+                print("RNANet, a script to build a multiscale RNA dataset from public data\n"
+                      "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
                 print()
                 print("Options:")
                 print("-h [ --help ]\t\t\tPrint this help message")
                 print("--version\t\t\tPrint the program version")
                 print()
+                print("-f [ --full-inference ]\t\tInfer new mappings even if Rfam already provides some. Yields more copies of chains"
+                      "\n\t\t\t\tmapped to different families.")
                 print("-r 4.0 [ --resolution=4.0 ]\tMaximum 3D structure resolution to consider a RNA chain.")
                 print("-s\t\t\t\tRun statistics computations after completion")
                 print("--extract\t\t\tExtract the portions of 3D RNA chains to individual mmCIF files.")
                 print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
-                        "\n\t\t\t\tDoes not affect the descriptors.")
+                      "\n\t\t\t\tDoes not affect the descriptors.")
                 print("--fill-gaps=True\t\t(True | False) Replace gaps in nt_align_code field due to unresolved residues"
-                        "\n\t\t\t\tby the most common nucleotide at this position in the alignment.")
+                      "\n\t\t\t\tby the most common nucleotide at this position in the alignment.")
                 print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
-                        "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
-                        "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
-                        "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
-                print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files."
-                        "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
-                        "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
+                      "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
+                      "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
+                      "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
+                print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files. Subfolders will be:"
+                      "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
+                      "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
                 print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
-                        "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
+                      "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
                 print()
                 print("--all\t\t\t\tBuild chains even if they already are in the database.")
                 print("--only\t\t\t\tAsk to process a specific chain label only")
@@ -1077,31 +1112,31 @@ class Pipeline:
                 print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
                 print()
                 print("Typical usage:")
-                print(f"nohup bash -c 'time {runDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --archive' &") 
+                print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &")
                 sys.exit()
             elif opt == '--version':
                 print("RNANet 1.1 beta")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
-                assert float(arg) > 0.0 and float(arg) <= 20.0 
+                assert float(arg) > 0.0 and float(arg) <= 20.0
                 self.CRYSTAL_RES = float(arg)
             elif opt == "-s":
                 self.RUN_STATS = True
-            elif opt=="--keep-hetatm":
-                assert arg in [ "True", "False" ]
+            elif opt == "--keep-hetatm":
+                assert arg in ["True", "False"]
                 self.KEEP_HETATM = (arg == "True")
-            elif opt=="--fill-gaps":
-                assert arg in [ "True", "False" ]
+            elif opt == "--fill-gaps":
+                assert arg in ["True", "False"]
                 self.FILL_GAPS = (arg == "True")
-            elif opt=="--no-homology":
+            elif opt == "--no-homology":
                 self.HOMOLOGY = False
-            elif opt=='--3d-folder':
-                path_to_3D_data = path.abspath(arg)
+            elif opt == '--3d-folder':
+                path_to_3D_data = os.path.abspath(arg)
                 if path_to_3D_data[-1] != '/':
                     path_to_3D_data += '/'
                 print("> Storing 3D data into", path_to_3D_data)
-            elif opt=='--seq-folder':
-                path_to_seq_data = path.abspath(arg)
+            elif opt == '--seq-folder':
+                path_to_seq_data = os.path.abspath(arg)
                 if path_to_seq_data[-1] != '/':
                     path_to_seq_data += '/'
                 print("> Storing sequences into", path_to_seq_data)
@@ -1113,19 +1148,19 @@ class Pipeline:
                 self.SELECT_ONLY = arg
             elif opt == "--from-scratch":
                 warn("Deleting previous database and recomputing from scratch.")
-                subprocess.run(["rm", "-rf", 
+                subprocess.run(["rm", "-rf",
                                 # path_to_3D_data + "annotations",  # DEBUG : keep the annotations !
                                 # path_to_3D_data + "RNAcifs",      # DEBUG : keep the cifs !
                                 path_to_3D_data + "rna_mapped_to_Rfam",
                                 path_to_3D_data + "rnaonly",
                                 path_to_seq_data + "realigned",
                                 path_to_seq_data + "rfam_sequences",
-                                runDir + "/known_issues.txt", 
-                                runDir + "/known_issues_reasons.txt", 
+                                runDir + "/known_issues.txt",
+                                runDir + "/known_issues_reasons.txt",
                                 runDir + "/results/RNANet.db"])
             elif opt == "--update-homologous":
                 warn("Deleting previous sequence files and recomputing alignments.")
-                subprocess.run(["rm", "-rf", 
+                subprocess.run(["rm", "-rf",
                                 path_to_seq_data + "realigned",
                                 path_to_seq_data + "rfam_sequences"])
                 self.REUSE_ALL = True
@@ -1138,28 +1173,32 @@ class Pipeline:
                 self.ARCHIVE = True
             elif opt == "--no-logs":
                 self.SAVELOGS = False
+            elif opt == "-f" or opt == "--full-inference":
+                self.FULLINFERENCE = True
 
         if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
             print("See RNANet.py --help for more information.")
             exit(1)
-    
+
     @trace_unhandled_exceptions
     def list_available_mappings(self) -> None:
         """List 3D chains with available Rfam mappings.
 
         Return a list of Chain() objects with the mappings set up.        
-        If self.HOMOLOGY is set to False, simply returns a list of Chain() objects with available 3D chains."""
+        If self.HOMOLOGY is set to False, simply returns a list of Chain() objects with available 3D chains.
+        """
 
         setproctitle("RNANet.py list_available_mappings()")
 
         # List all 3D RNA chains below given resolution
-        full_structures_list = self.dl.download_BGSU_NR_list(self.CRYSTAL_RES) # list of tuples ( class, class_members )
+        full_structures_list = self.dl.download_BGSU_NR_list(
+            self.CRYSTAL_RES)  # list of tuples ( class, class_members )
 
         # Check for a list of known problems:
-        if path.isfile(runDir + "/known_issues.txt"):
+        if os.path.isfile(runDir + "/known_issues.txt"):
             with open(runDir + "/known_issues.txt", 'r') as issues:
-                self.known_issues = [ x[:-1] for x in issues.readlines() ]
+                self.known_issues = [x[:-1] for x in issues.readlines()]
             if self.USE_KNOWN_ISSUES:
                 print("\t> Ignoring known issues:")
                 for x in self.known_issues:
@@ -1175,10 +1214,19 @@ class Pipeline:
             p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores)
             try:
 
-                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1, desc="Eq. classes", bar_format="{desc}:{percentage:3.0f}%|{bar}|")
-                for _, newchains in enumerate(p.imap_unordered(partial(work_infer_mappings, not self.REUSE_ALL, allmappings), full_structures_list, chunksize=1)): 
+                pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1,
+                            desc="Eq. classes", bar_format="{desc}:{percentage:3.0f}%|{bar}|")
+                for _, newchains in enumerate(p.imap_unordered(partial(
+                                                                    work_infer_mappings, 
+                                                                    not self.REUSE_ALL, 
+                                                                    allmappings, 
+                                                                    self.FULLINFERENCE
+                                                              ), 
+                                                              full_structures_list, 
+                                                              chunksize=1)):
                     self.update += newchains
-                    pbar.update(1) # Everytime the iteration finishes, update the global progress bar
+                    
+                    pbar.update(1)  # Everytime the iteration finishes, update the global progress bar
 
                 pbar.close()
                 p.close()
@@ -1192,7 +1240,7 @@ class Pipeline:
         else:
             conn = sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0)
             for eq_class, codelist in tqdm(full_structures_list, desc="Eq. classes"):
-                codes = codelist.replace('+',',').split(',')
+                codes = codelist.replace('+', ',').split(',')
 
                 # Simply convert the list of codes to Chain() objects
                 for c in codes:
@@ -1201,45 +1249,53 @@ class Pipeline:
                     pdb_model = int(nr[1])
                     pdb_chain_id = nr[2].upper()
                     chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
-                    res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc = 'unmappd' AND issue=0""")
-                    if not len(res) or self.REUSE_ALL: # the chain is NOT yet in the database, or this is a known issue
+                    res = sql_ask_database(conn, f"""SELECT chain_id from chain 
+                                                        WHERE structure_id='{pdb_id}' 
+                                                        AND chain_name='{pdb_chain_id}' 
+                                                        AND rfam_acc = 'unmappd' 
+                                                        AND issue=0""")
+                    if not len(res) or self.REUSE_ALL:  # the chain is NOT yet in the database, or this is a known issue
                         self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
 
         if self.SELECT_ONLY is not None:
-            self.update = [ c for c in self.update if c.chain_label == self.SELECT_ONLY ]
+            self.update = [
+                c for c in self.update if c.chain_label == self.SELECT_ONLY]
 
         self.n_chains = len(self.update)
         print(str(self.n_chains) + " RNA chains of interest.")
-    
+
     @trace_unhandled_exceptions
-    def dl_and_annotate(self, retry=False, coeff_ncores = 0.75):
+    def dl_and_annotate(self, retry=False, coeff_ncores=0.75):
         """
         Gets mmCIF files from the PDB, and runs DSSR on them.
         Ignores a structure if the file already exists (not if we are retrying).
 
         REQUIRES the previous definition of self.update, so call list_available_mappings() before.
-        SETS table structure"""
+        SETS table structure
+        """
 
-        # setproctitle(f"RNANet.py dl_and_annotate(retry={retry})")
+        setproctitle(f"RNANet.py dl_and_annotate(retry={retry})")
 
         # Prepare the results folders
-        if not path.isdir(path_to_3D_data + "RNAcifs"):
-            os.makedirs(path_to_3D_data + "RNAcifs")        # for the whole structures
-        if not path.isdir(path_to_3D_data + "annotations"):
-            os.makedirs(path_to_3D_data + "annotations")    # for DSSR analysis of the whole structures
-        
+        if not os.path.isdir(path_to_3D_data + "RNAcifs"):
+            # for the whole structures
+            os.makedirs(path_to_3D_data + "RNAcifs")
+        if not os.path.isdir(path_to_3D_data + "annotations"):
+            # for DSSR analysis of the whole structures
+            os.makedirs(path_to_3D_data + "annotations")
+
         # Download and annotate
         print("> Downloading and annotating structures (or checking previous results if they exist)...", flush=True)
         if retry:
-            mmcif_list = sorted(set([ c.pdb_id for c in self.retry ]))
+            mmcif_list = sorted(set([c.pdb_id for c in self.retry]))
         else:
-            mmcif_list = sorted(set([ c.pdb_id for c in self.update ]))
+            mmcif_list = sorted(set([c.pdb_id for c in self.update]))
         try:
             p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores))
             pbar = tqdm(mmcif_list, maxinterval=1.0, miniters=1, desc="mmCIF files")
-            for _ in p.imap_unordered(work_mmcif, mmcif_list, chunksize=1): 
-                pbar.update(1) # Everytime the iteration finishes, update the global progress bar
+            for _ in p.imap_unordered(work_mmcif, mmcif_list, chunksize=1):
+                pbar.update(1)  # Everytime the iteration finishes, update the global progress bar
             pbar.close()
             p.close()
             p.join()
@@ -1253,18 +1309,21 @@ class Pipeline:
     def build_chains(self, retry=False, coeff_ncores=1.0):
         """ Extract the desired chain portions if asked,
         and extract their informations from the JSON files to the database.
-        
+
         REQUIRES the previous definition of self.update, so call list_available_mappings() before.
-        SETS self.loaded_chains"""
+        SETS self.loaded_chains
+        """
 
         setproctitle(f"RNANet.py build_chains(retry={retry})")
 
         # Prepare folders
         if self.EXTRACT_CHAINS:
-            if self.HOMOLOGY and not path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
-                os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam") # for the portions mapped to Rfam
-            if (not self.HOMOLOGY) and not path.isdir(path_to_3D_data + "rna_only"):
-                os.makedirs(path_to_3D_data + "rna_only") # extract chains of pure RNA
+            if self.HOMOLOGY and not os.path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
+                # for the portions mapped to Rfam
+                os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam")
+            if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "rna_only"):
+                # extract chains of pure RNA
+                os.makedirs(path_to_3D_data + "rna_only")
 
         # define and run jobs
         joblist = []
@@ -1274,10 +1333,10 @@ class Pipeline:
             clist = self.update
         for c in clist:
             if retry:
-                c.delete_me = False # give a second chance
+                c.delete_me = False  # give a second chance
             if (c.chain_label not in self.known_issues) or not self.USE_KNOWN_ISSUES:
-                joblist.append(Job(function=work_build_chain, how_many_in_parallel=int(coeff_ncores*ncores), 
-                                    args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry, self.SAVELOGS]))
+                joblist.append(Job(function=work_build_chain, how_many_in_parallel=int(coeff_ncores*ncores),
+                                   args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry, self.SAVELOGS]))
         try:
             results = execute_joblist(joblist)
         except:
@@ -1296,46 +1355,50 @@ class Pipeline:
                     issues += 1
                     issues_names.append(c[1].chain_label)
                     ki.write(c[1].chain_label + '\n')
-                    kir.write(c[1].chain_label + '\n' + c[1].error_messages + '\n\n')
+                    kir.write(c[1].chain_label + '\n' +
+                              c[1].error_messages + '\n\n')
                     with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
                         sql_execute(conn, f"UPDATE chain SET issue = 1 WHERE chain_id = ?;", data=(c[1].db_chain_id,))
         ki.close()
         kir.close()
         if issues:
             warn(f"Added {issues} newly discovered issues to known issues:")
-            print("\033[33m"+ " ".join(issues_names) + "\033[0m", flush=True)
-    
+            print("\033[33m" + " ".join(issues_names) + "\033[0m", flush=True)
+
         # Add successfully built chains to list
-        self.loaded_chains += [ c[1] for c in results if not c[1].delete_me ]
+        self.loaded_chains += [c[1] for c in results if not c[1].delete_me]
 
         # Identify errors due to empty JSON files (this happen when RAM is full, we believe).
         # Retrying often solves the issue... so retry once with half the cores to limit the RAM usage.
         self.to_retry = [ c[1] for c in results if "Could not load existing" in c[1].error_messages ]
-        
+
     def checkpoint_save_chains(self):
-        """Saves self.loaded_chains to data/loaded_chains.picke"""
-        with open(runDir + "/data/loaded_chains.pickle","wb") as pick:
+        """Saves self.loaded_chains to data/loaded_chains.picke
+        """
+        with open(runDir + "/data/loaded_chains.pickle", "wb") as pick:
             pickle.dump(self.loaded_chains, pick)
-    
+
     def checkpoint_load_chains(self):
-        """Load self.loaded_chains from data/loaded_chains.pickle"""
-        with open(runDir + "/data/loaded_chains.pickle","rb") as pick:
+        """Load self.loaded_chains from data/loaded_chains.pickle
+        """
+        with open(runDir + "/data/loaded_chains.pickle", "rb") as pick:
             self.loaded_chains = pickle.load(pick)
 
     def prepare_sequences(self):
         """Downloads homologous sequences and covariance models required to compute MSAs.
-        
+
         REQUIRES that self.loaded_chains is defined.
-        SETS family (partially, through call)"""
+        SETS family (partially, through call)
+        """
 
         setproctitle("RNANet.py prepare_sequences()")
 
         # Preparing a results folder
         if not os.access(path_to_seq_data + "realigned/", os.F_OK):
             os.makedirs(path_to_seq_data + "realigned/")
-        if not path.isdir(path_to_seq_data + "rfam_sequences/fasta/"):
+        if not os.path.isdir(path_to_seq_data + "rfam_sequences/fasta/"):
             os.makedirs(path_to_seq_data + "rfam_sequences/fasta/", exist_ok=True)
-    
+
         # Update the family table (rfam_acc, description, max_len)
         self.dl.download_Rfam_family_stats(self.fam_list)
 
@@ -1344,10 +1407,11 @@ class Pipeline:
 
         joblist = []
         for f in self.fam_list:
-            joblist.append(Job(function=work_prepare_sequences, how_many_in_parallel=ncores, args=[self.dl, f, rfam_acc_to_download[f]]))
+            joblist.append(Job(function=work_prepare_sequences, how_many_in_parallel=ncores, args=[
+                           self.dl, f, rfam_acc_to_download[f]]))
         try:
             execute_joblist(joblist)
-            
+
             if len(set(self.fam_list).intersection(SSU_set)):
                 self.dl.download_from_SILVA("SSU")
             if len(set(self.fam_list).intersection(LSU_set)):
@@ -1358,17 +1422,19 @@ class Pipeline:
 
     def realign(self):
         """Perform multiple sequence alignments.
-        
+
         REQUIRES self.fam_list to be defined
-        SETS family (partially)"""
+        SETS family (partially)
+        """
 
         setproctitle("RNANet.py realign()")
 
         # Prepare the job list
         joblist = []
         for f in self.fam_list:
-            joblist.append( Job(function=work_realign, args=[f], how_many_in_parallel=1, label=f))  # the function already uses all CPUs so launch them one by one
-        
+            # the function already uses all CPUs so launch them one by one (how_many_in_parallel=1)
+            joblist.append(Job(function=work_realign, args=[f], how_many_in_parallel=1, label=f))
+
         # Execute the jobs
         try:
             results = execute_joblist(joblist)
@@ -1379,38 +1445,39 @@ class Pipeline:
         # Update the database
         data = []
         for r in results:
-            align = AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
-            nb_3d_chains = len([ 1 for r in align if '[' in r.id ])
-            if r[0] in SSU_set: # SSU v138 is used
+            align = Bio.AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
+            nb_3d_chains = len([1 for r in align if '[' in r.id])
+            if r[0] in SSU_set:  # SSU v138 is used
                 nb_homologs = 2225272       # source: https://www.arb-silva.de/documentation/release-138/
                 nb_total_homol = nb_homologs + nb_3d_chains
-            elif r[0] in LSU_set: # LSU v132 is used
+            elif r[0] in LSU_set:  # LSU v132 is used
                 nb_homologs = 198843        # source: https://www.arb-silva.de/documentation/release-132/
                 nb_total_homol = nb_homologs + nb_3d_chains
             else:
                 nb_total_homol = len(align)
                 nb_homologs = nb_total_homol - nb_3d_chains
-            data.append( (nb_homologs, nb_3d_chains, nb_total_homol, r[2], r[3], r[0]) )
+            data.append((nb_homologs, nb_3d_chains, nb_total_homol, r[2], r[3], r[0]))
 
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             sql_execute(conn, """UPDATE family SET nb_homologs = ?, nb_3d_chains = ?, nb_total_homol = ?, comput_time = ?, comput_peak_mem = ? 
                                  WHERE rfam_acc = ?;""", many=True, data=data)
-    
+
     def remap(self):
         """Compute nucleotide frequencies of some alignments and save them in the database
-        
-        REQUIRES self.fam_list to be defined"""
+
+        REQUIRES self.fam_list to be defined
+        """
 
         setproctitle("RNANet.py remap()")
 
         print("Computing nucleotide frequencies in alignments...\nThis can be very long on slow storage devices (Hard-drive...)")
         print("Check your CPU and disk I/O activity before deciding if the job failed.")
-        nworkers =max(min(ncores, len(self.fam_list)), 1)
+        nworkers = max(min(ncores, len(self.fam_list)), 1)
 
         # Prepare the architecture of a shiny multi-progress-bars design
-                                                # Push the number of workers to a queue. 
+                                                # Push the number of workers to a queue.
         global idxQueue                         # ... Then each Pool worker will
-        for i in range(nworkers):               # ... pick a number from the queue when starting the computation for one family, 
+        for i in range(nworkers):               # ... pick a number from the queue when starting the computation for one family,
             idxQueue.put(i)                     # ... and replace it when the computation has ended so it could be picked up later.
 
         # Start a process pool to dispatch the RNA families,
@@ -1418,9 +1485,11 @@ class Pipeline:
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
 
         try:
-            fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True) 
-            for i, _ in enumerate(p.imap_unordered(partial(work_pssm, fill_gaps=self.FILL_GAPS), self.fam_list, chunksize=1)): # Apply work_pssm to each RNA family
-                fam_pbar.update(1) # Everytime the iteration finishes on a family, update the global progress bar over the RNA families
+            fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True)
+            # Apply work_pssm to each RNA family
+            for i, _ in enumerate(p.imap_unordered(partial(work_pssm, fill_gaps=self.FILL_GAPS), self.fam_list, chunksize=1)):
+                # Everytime the iteration finishes on a family, update the global progress bar over the RNA families
+                fam_pbar.update(1)
             fam_pbar.close()
             p.close()
             p.join()
@@ -1433,25 +1502,26 @@ class Pipeline:
 
     def output_results(self):
         """Produces CSV files, archive them, and additional metadata files
-        
-        REQUIRES self.loaded_chains (to output corresponding CSV files) and self.fam_list (for statistics)"""
-    
+
+        REQUIRES self.loaded_chains (to output corresponding CSV files) and self.fam_list (for statistics)
+        """
+
         setproctitle("RNANet.py output_results()")
 
         time_str = time.strftime("%Y%m%d")
 
-        #Prepare folders:
-        if not path.isdir(path_to_3D_data + "datapoints/"):
+        # Prepare folders:
+        if not os.path.isdir(path_to_3D_data + "datapoints/"):
             os.makedirs(path_to_3D_data + "datapoints/")
-        if not path.isdir(runDir + "/results/archive/"):
+        if not os.path.isdir(runDir + "/results/archive/"):
             os.makedirs(runDir + "/results/archive/")
 
         # Save to by-chain CSV files
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
         try:
-            pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True) 
-            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains, chunksize=2)):
-                pbar.update(1) 
+            pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True)
+            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
+                pbar.update(1)
             pbar.close()
             p.close()
             p.join()
@@ -1463,38 +1533,46 @@ class Pipeline:
             exit(1)
 
         # Run statistics
-        if  self.RUN_STATS:
+        if self.RUN_STATS:
             # Remove previous precomputed data
-            subprocess.run(["rm","-f", "data/wadley_kernel_eta.npz", "data/wadley_kernel_eta_prime.npz", "data/pair_counts.csv"])
+            subprocess.run(["rm", "-f", runDir + "/data/wadley_kernel_eta.npz", 
+                                        runDir + "/data/wadley_kernel_eta_prime.npz", 
+                                        runDir + "/data/pair_counts.csv"])
             for f in self.fam_list:
-                subprocess.run(["rm","-f", f"data/{f}.npy", f"data/{f}_pairs.csv", f"data/{f}_counts.csv"])
+                subprocess.run(["rm", "-f", runDir + f"/data/{f}.npy", 
+                                            runDir + f"/data/{f}_pairs.csv", 
+                                            runDir + f"/data/{f}_counts.csv"])
 
             # Run statistics files
-            os.chdir(runDir)
-            subprocess.run(["python3.8", "regression.py"])
-            subprocess.run(["python3.8", "statistics.py", path_to_3D_data, path_to_seq_data])
+            subprocess.run(["python3.8", fileDir+"/regression.py"])
+            subprocess.run(["python3.8", fileDir+"/statistics.py", "--3d-folder",  path_to_3D_data, 
+                            "--seq-folder", path_to_seq_data, "-r", str(self.CRYSTAL_RES)])
 
         # Save additional informations
         with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
-            pd.read_sql_query("SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem from family ORDER BY nb_3d_chains DESC;", 
-                            conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
-            pd.read_sql_query("""SELECT eq_class, structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue FROM structure 
-                                JOIN chain ON structure.pdb_id = chain.structure_id
-                                ORDER BY structure_id, chain_name, rfam_acc ASC;""", conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
+            pd.read_sql_query("""SELECT rfam_acc, description, idty_percent, nb_homologs, nb_3d_chains, nb_total_homol, max_len, comput_time, comput_peak_mem 
+                                 FROM family ORDER BY nb_3d_chains DESC;""",
+                              conn).to_csv(runDir + f"/results/archive/families_{time_str}.csv", float_format="%.2f", index=False)
+            pd.read_sql_query("""SELECT eq_class, structure_id, chain_name, pdb_start, pdb_end, rfam_acc, inferred, date, exp_method, resolution, issue 
+                                 FROM structure 
+                                 JOIN chain ON structure.pdb_id = chain.structure_id
+                                 ORDER BY structure_id, chain_name, rfam_acc ASC;""",
+                              conn).to_csv(runDir + f"/results/archive/summary_{time_str}.csv", float_format="%.2f", index=False)
 
         # Archive the results
-        if self.SELECT_ONLY is None:
-            os.makedirs("results/archive", exist_ok=True)
-            subprocess.run(["tar","-C", path_to_3D_data + "/datapoints","-czf",f"results/archive/RNANET_datapoints_{time_str}.tar.gz","."])
+        if self.ARCHIVE:
+            os.makedirs(runDir + "/results/archive", exist_ok=True)
+            subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf",
+                            runDir + f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", "."])
 
-        # Update shortcuts to latest versions
-        subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz", 
-                                    runDir + "/results/summary_latest.csv", 
-                                    runDir + "/results/families_latest.csv"
-                        ])
-        subprocess.run(['ln',"-s", runDir +f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
-        subprocess.run(['ln',"-s", runDir +f"/results/archive/summary_{time_str}.csv", runDir + "/results/summary_latest.csv"])
-        subprocess.run(['ln',"-s", runDir +f"/results/archive/families_{time_str}.csv", runDir + "/results/families_latest.csv"])
+            # Update shortcuts to latest versions
+            subprocess.run(["rm", "-f", runDir + "/results/RNANET_datapoints_latest.tar.gz",
+                            runDir + "/results/summary_latest.csv",
+                            runDir + "/results/families_latest.csv"
+                            ])
+            subprocess.run(['ln', "-s", runDir + f"/results/archive/RNANET_datapoints_{time_str}.tar.gz", runDir + "/results/RNANET_datapoints_latest.tar.gz"])
+            subprocess.run(['ln', "-s", runDir + f"/results/archive/summary_{time_str}.csv", runDir + "/results/summary_latest.csv"])
+            subprocess.run(['ln', "-s", runDir + f"/results/archive/families_{time_str}.csv", runDir + "/results/families_latest.csv"])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
@@ -1514,11 +1592,13 @@ class Pipeline:
         if len(r) and r[0][0] is not None:
             warn("Chains without referenced structures have been detected")
             print(" ".join([str(x[1])+'-'+str(x[0]) for x in r]))
-        
+
         if self.HOMOLOGY:
             # check if chains have been re_mapped:
             r = sql_ask_database(conn, """SELECT COUNT(DISTINCT chain_id) AS Count, rfam_acc FROM chain 
-                                          WHERE issue = 0 AND chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
+                                          WHERE issue = 0 
+                                                AND rfam_acc != 'unmappd'
+                                                AND chain_id NOT IN (SELECT DISTINCT chain_id FROM re_mapping)
                                           GROUP BY rfam_acc;""")
             try:
                 if len(r) and r[0][0] is not None:
@@ -1532,7 +1612,7 @@ class Pipeline:
                 exit()
             # # TODO : Optimize this (too slow)
             # # check if some columns are missing in the remappings:
-            # r = sql_ask_database(conn, """SELECT c.chain_id, c.structure_id, c.chain_name, c.rfam_acc, r.index_chain, r.index_ali 
+            # r = sql_ask_database(conn, """SELECT c.chain_id, c.structure_id, c.chain_name, c.rfam_acc, r.index_chain, r.index_ali
             #                                 FROM chain as c
             #                                 NATURAL JOIN re_mapping as r
             #                                 WHERE index_ali NOT IN (SELECT index_ali FROM align_column WHERE rfam_acc = c.rfam_acc);""")
@@ -1545,22 +1625,25 @@ class Pipeline:
 
 
 def read_cpu_number():
-    # As one shall not use os.cpu_count() on LXC containers,
-    # because it reads info from /sys wich is not the VM resources but the host resources.
-    # This function reads it from /proc/cpuinfo instead.
+    """This function reads the number of CPU cores available from /proc/cpuinfo.
+    One shall not use os.cpu_count() on LXC containers,
+    because it reads info from /sys wich is not the VM resources but the host resources.
+    """
     p = subprocess.run(['grep', '-Ec', '(Intel|AMD)', '/proc/cpuinfo'], stdout=subprocess.PIPE)
     return int(int(p.stdout.decode('utf-8')[:-1])/2)
+
 
 def init_worker(tqdm_lock=None):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     if tqdm_lock is not None:
         tqdm.set_lock(tqdm_lock)
 
+
 def warn(message, error=False):
     """Pretty-print warnings and error messages.
     """
     # Cut if too long
-    if len(message)>66:
+    if len(message) > 66:
         x = message.find(' ', 50, 66)
         if x != -1:
             warn(message[:x], error=error)
@@ -1574,10 +1657,12 @@ def warn(message, error=False):
     else:
         print(f"\t> \033[33mWARN: {message:64s}\033[0m\t{warnsymb}", flush=True)
 
+
 def notify(message, post=''):
     if len(post):
         post = '(' + post + ')'
     print(f"\t> {message:70s}\t{validsymb}\t{post}", flush=True)
+
 
 def sql_define_tables(conn):
     conn.executescript(
@@ -1684,29 +1769,32 @@ def sql_define_tables(conn):
          """)
     conn.commit()
 
+
 @trace_unhandled_exceptions
-def sql_ask_database(conn, sql, warn_every = 10):
+def sql_ask_database(conn, sql, warn_every=10):
     """
     Reads the SQLite database.
     Returns a list of tuples.
     """
     cursor = conn.cursor()
-    for _ in range(100): # retry 100 times if it fails
+    for _ in range(100):  # retry 100 times if it fails
         try:
             result = cursor.execute(sql).fetchall()
             cursor.close()
             return result         # if it worked, no need to retry
         except sqlite3.OperationalError as e:
             if warn_every and not (_+1) % warn_every:
-                warn(str(e) + ", retrying in 0.2s (worker " + str(os.getpid()) + f', try {_+1}/100)')
+                warn(str(e) + ", retrying in 0.2s (worker " +
+                     str(os.getpid()) + f', try {_+1}/100)')
             time.sleep(0.2)
     warn("Tried to reach database 100 times and failed. Aborting.", error=True)
     return []
 
+
 @trace_unhandled_exceptions
 def sql_execute(conn, sql, many=False, data=None, warn_every=10):
     conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
-    for _ in range(100): # retry 100 times if it fails
+    for _ in range(100):  # retry 100 times if it fails
         try:
             if many:
                 conn.executemany(sql, data)
@@ -1721,9 +1809,11 @@ def sql_execute(conn, sql, many=False, data=None, warn_every=10):
             return          # if it worked, no need to retry
         except sqlite3.OperationalError as e:
             if warn_every and not (_+1) % warn_every:
-                warn(str(e) + ", retrying in 0.2s (worker " + str(os.getpid()) + f', try {_+1}/100)')
+                warn(str(e) + ", retrying in 0.2s (worker " +
+                     str(os.getpid()) + f', try {_+1}/100)')
             time.sleep(0.2)
     warn("Tried to reach database 100 times and failed. Aborting.", error=True)
+
 
 @trace_unhandled_exceptions
 def execute_job(j, jobcount):
@@ -1736,12 +1826,13 @@ def execute_job(j, jobcount):
     m = -1
     monitor = Monitor(os.getpid())
 
-    if len(j.cmd_): # The job is a system command
+    if len(j.cmd_):  # The job is a system command
 
         print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
 
         # Add the command to logfile
-        logfile = open(runDir + "/log_of_the_run.sh", 'a')
+        os.makedirs(runDir+"/logs", exist_ok=True)
+        logfile = open(runDir + "/logs/log_of_the_run.sh", 'a')
         logfile.write(" ".join(j.cmd_))
         logfile.write("\n")
         logfile.close()
@@ -1750,10 +1841,11 @@ def execute_job(j, jobcount):
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             # put the monitor in a different thread
             assistant_future = executor.submit(monitor.check_mem_usage)
-            
+
             # run the command. subprocess.run will be a child of this process, and stays monitored.
             start_time = time.time()
-            r = subprocess.run(j.cmd_, timeout=j.timeout_, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            r = subprocess.run(j.cmd_, timeout=j.timeout_,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             end_time = time.time()
 
             # Stop the Monitor, then get its result
@@ -1782,13 +1874,14 @@ def execute_job(j, jobcount):
 
     # return time and memory statistics, plus the job results
     t = end_time - start_time
-    return (t,m,r)
+    return (t, m, r)
+
 
 def execute_joblist(fulljoblist):
     """ Run a list of job objects.
 
     The jobs in the list can have differente priorities and/or different number of threads.
-    
+
     Returns a tuple (label, actual_result, comp_time, peak_mem)
     """
 
@@ -1815,17 +1908,19 @@ def execute_joblist(fulljoblist):
 
     # Process the jobs from priority 1 to nprio
     results = []
-    for i in range(1,nprio+1):
-        if i not in jobs.keys(): continue # no job has the priority level i
+    for i in range(1, nprio+1):
+        if i not in jobs.keys():
+            continue  # no job has the priority level i
 
         print("processing jobs of priority", i)
         different_thread_numbers = sorted(jobs[i].keys())
-        
+
         # jobs should be processed 1 by 1, 2 by 2, or n by n depending on their definition
         for n in different_thread_numbers:
             # get the bunch of jobs of same priority and thread number
             bunch = jobs[i][n]
-            if not len(bunch): continue # no jobs should be processed n by n
+            if not len(bunch):
+                continue  # no jobs should be processed n by n
 
             print("using", n, "processes:")
             # execute jobs of priority i that should be processed n by n:
@@ -1841,15 +1936,16 @@ def execute_joblist(fulljoblist):
                 raise e
 
             for j, r in zip(bunch, raw_results):
-                j.comp_time = round(r[0], 2) # seconds
-                j.max_mem = int(r[1]/1000000) # MB
-                results.append( (j.label, r[2], round(r[0], 2), int(r[1]/1000000)))
-    
+                j.comp_time = round(r[0], 2)  # seconds
+                j.max_mem = int(r[1]/1000000)  # MB
+                results.append((j.label, r[2], round(r[0], 2), int(r[1]/1000000)))
+
     # throw back the money
     return results
 
+
 @trace_unhandled_exceptions
-def work_infer_mappings(update_only, allmappings, codelist) -> list:
+def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> list:
     """Given a list of PDB chains corresponding to an equivalence class from BGSU's NR list, 
     build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
     of any element of the list to all the list elements.
@@ -1862,54 +1958,54 @@ def work_infer_mappings(update_only, allmappings, codelist) -> list:
 
     # Split the comma-separated list of chain codes into chain codes:
     eq_class = codelist[0]
-    codes = codelist[1].replace('+',',').split(',')
+    codes = codelist[1].replace('+', ',').split(',')
 
     # Search for mappings that apply to an element of this PDB chains list:
     for c in codes:
         # search for Rfam mappings with this chain c:
         m_row_indices = allmappings.pdb_id + "|1|" + allmappings.chain == c[:4].lower()+c[4:]
-        m = allmappings.loc[m_row_indices].drop(['bit_score','evalue_score','cm_start','cm_end','hex_colour'], axis=1)
+        m = allmappings.loc[m_row_indices].drop(['bit_score', 'evalue_score', 'cm_start', 'cm_end', 'hex_colour'], axis=1)
         if len(m):
             # remove the found mappings from the dataframe
             allmappings = allmappings.loc[m_row_indices == False]
             # Add the found mappings to the list of found mappings for this class of equivalence
             known_mappings = pd.concat([known_mappings, m])
-    
+
     # Now infer mappings for chains that are not explicitely listed in Rfam-PDB mappings:
     if len(known_mappings):
-        
+
         families = set(known_mappings['rfam_acc'])
 
         # generalize
-        inferred_mappings = known_mappings.drop(['pdb_id','chain'], axis=1).drop_duplicates()
+        inferred_mappings = known_mappings.drop(['pdb_id', 'chain'], axis=1).drop_duplicates()
 
         # check for approximative redundancy:
         if len(inferred_mappings) != len(inferred_mappings.drop_duplicates(subset="rfam_acc")):
             # Then, there exists some mapping variants onto the same Rfam family CM,
-            # but varing in the start/end positions in the chain. 
+            # but varing in the start/end positions in the chain.
             # ==> Summarize them in one mapping but with the largest window.
             for rfam in families:
                 sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
-                thisfam_5_3 =  (inferred_mappings['rfam_acc'] == rfam ) & sel_5_to_3
-                thisfam_3_5 =  (inferred_mappings['rfam_acc'] == rfam ) & (sel_5_to_3 == False)
+                thisfam_5_3 = (inferred_mappings['rfam_acc'] == rfam) & sel_5_to_3
+                thisfam_3_5 = (inferred_mappings['rfam_acc'] == rfam) & (sel_5_to_3 == False)
 
                 if (
-                        len(inferred_mappings[thisfam_5_3]) !=  len(inferred_mappings[ inferred_mappings['rfam_acc'] == rfam ])
+                        len(inferred_mappings[thisfam_5_3]) != len(inferred_mappings[inferred_mappings['rfam_acc'] == rfam])
                     and len(inferred_mappings[thisfam_5_3]) > 0
                 ):
                     # there are mappings in both directions... wtf Rfam ?!
                     if (len(inferred_mappings[thisfam_5_3]) == len(inferred_mappings[thisfam_3_5]) == 1
-                        and int(inferred_mappings[thisfam_5_3].pdb_start) == int(inferred_mappings[thisfam_3_5].pdb_end)
-                        and int(inferred_mappings[thisfam_5_3].pdb_end) == int(inferred_mappings[thisfam_3_5].pdb_start)
-                    ):
+                                and int(inferred_mappings[thisfam_5_3].pdb_start) == int(inferred_mappings[thisfam_3_5].pdb_end)
+                                and int(inferred_mappings[thisfam_5_3].pdb_end) == int(inferred_mappings[thisfam_3_5].pdb_start)
+                            ):
                         # The two mappings are on the same nucleotide interval, but in each sense.
-                        # e.g. RF00254 6v5b and 6v5c... maybe a bug on their side ? 
+                        # e.g. RF00254 6v5b and 6v5c... maybe a bug on their side ?
                         # How can a chain match a CM in both senses ?
                         # We keep only the 5->3 sense.
                         inferred_mappings = inferred_mappings.drop(index=inferred_mappings.index[thisfam_3_5])
                         sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
-                        thisfam_5_3 =  (inferred_mappings['rfam_acc'] == rfam ) & sel_5_to_3
-                        thisfam_3_5 =  (inferred_mappings['rfam_acc'] == rfam ) & (sel_5_to_3 == False)
+                        thisfam_5_3 = (inferred_mappings['rfam_acc'] == rfam) & sel_5_to_3
+                        thisfam_3_5 = (inferred_mappings['rfam_acc'] == rfam) & (sel_5_to_3 == False)
                         print()
                         warn(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
                     else:
@@ -1919,35 +2015,35 @@ def work_infer_mappings(update_only, allmappings, codelist) -> list:
 
                 # Compute consensus for chains in 5' -> 3' sense
                 if len(inferred_mappings[thisfam_5_3]):
-                    pdb_start_min = min(inferred_mappings[ thisfam_5_3]['pdb_start'])
-                    pdb_end_max = max(inferred_mappings[ thisfam_5_3]['pdb_end']) 
-                    pdb_start_max = max(inferred_mappings[ thisfam_5_3]['pdb_start'])
-                    pdb_end_min = min(inferred_mappings[ thisfam_5_3]['pdb_end'])
+                    pdb_start_min = min(inferred_mappings[thisfam_5_3]['pdb_start'])
+                    pdb_end_max = max(inferred_mappings[thisfam_5_3]['pdb_end'])
+                    pdb_start_max = max(inferred_mappings[thisfam_5_3]['pdb_start'])
+                    pdb_end_min = min(inferred_mappings[thisfam_5_3]['pdb_end'])
                     if (pdb_start_max - pdb_start_min < 100) and (pdb_end_max - pdb_end_min < 100):
                         # the variation is only a few nucleotides, we take the largest window.
-                        inferred_mappings.loc[ thisfam_5_3, 'pdb_start'] = pdb_start_min
-                        inferred_mappings.loc[ thisfam_5_3, 'pdb_end'] = pdb_end_max
+                        inferred_mappings.loc[thisfam_5_3, 'pdb_start'] = pdb_start_min
+                        inferred_mappings.loc[thisfam_5_3, 'pdb_end'] = pdb_end_max
                     else:
                         # there probably is an outlier. We chose the median value in the whole list of known_mappings.
-                        known_sel_5_to_3 = (known_mappings['rfam_acc'] == rfam ) & (known_mappings['pdb_start'] < known_mappings['pdb_end'])
-                        inferred_mappings.loc[ thisfam_5_3, 'pdb_start'] = known_mappings.loc[known_sel_5_to_3, 'pdb_start'].median()
-                        inferred_mappings.loc[ thisfam_5_3, 'pdb_end'] = known_mappings.loc[known_sel_5_to_3, 'pdb_end'].median()
+                        known_sel_5_to_3 = (known_mappings['rfam_acc'] == rfam) & (known_mappings['pdb_start'] < known_mappings['pdb_end'])
+                        inferred_mappings.loc[thisfam_5_3, 'pdb_start'] = known_mappings.loc[known_sel_5_to_3, 'pdb_start'].median()
+                        inferred_mappings.loc[thisfam_5_3, 'pdb_end'] = known_mappings.loc[known_sel_5_to_3, 'pdb_end'].median()
 
                 #  Compute consensus for chains in 3' -> 5' sense
                 if len(inferred_mappings[thisfam_3_5]):
-                    pdb_start_min = min(inferred_mappings[ thisfam_3_5]['pdb_start'])
-                    pdb_end_max = max(inferred_mappings[ thisfam_3_5]['pdb_end']) 
-                    pdb_start_max = max(inferred_mappings[ thisfam_3_5]['pdb_start'])
-                    pdb_end_min = min(inferred_mappings[ thisfam_3_5]['pdb_end'])
+                    pdb_start_min = min(inferred_mappings[thisfam_3_5]['pdb_start'])
+                    pdb_end_max = max(inferred_mappings[thisfam_3_5]['pdb_end'])
+                    pdb_start_max = max(inferred_mappings[thisfam_3_5]['pdb_start'])
+                    pdb_end_min = min(inferred_mappings[thisfam_3_5]['pdb_end'])
                     if (pdb_start_max - pdb_start_min < 100) and (pdb_end_max - pdb_end_min < 100):
                         # the variation is only a few nucleotides, we take the largest window.
-                        inferred_mappings.loc[ thisfam_3_5, 'pdb_start'] = pdb_start_max
-                        inferred_mappings.loc[ thisfam_3_5, 'pdb_end'] = pdb_end_min
+                        inferred_mappings.loc[thisfam_3_5, 'pdb_start'] = pdb_start_max
+                        inferred_mappings.loc[thisfam_3_5, 'pdb_end'] = pdb_end_min
                     else:
                         # there probably is an outlier. We chose the median value in the whole list of known_mappings.
-                        known_sel_3_to_5 = (known_mappings['rfam_acc'] == rfam ) & (known_mappings['pdb_start'] > known_mappings['pdb_end'])
-                        inferred_mappings.loc[ thisfam_3_5, 'pdb_start'] = known_mappings.loc[known_sel_3_to_5, 'pdb_start'].median()
-                        inferred_mappings.loc[ thisfam_3_5, 'pdb_end'] = known_mappings.loc[known_sel_3_to_5, 'pdb_end'].median()
+                        known_sel_3_to_5 = (known_mappings['rfam_acc'] == rfam) & (known_mappings['pdb_start'] > known_mappings['pdb_end'])
+                        inferred_mappings.loc[thisfam_3_5, 'pdb_start'] = known_mappings.loc[known_sel_3_to_5, 'pdb_start'].median()
+                        inferred_mappings.loc[thisfam_3_5, 'pdb_end'] = known_mappings.loc[known_sel_3_to_5, 'pdb_end'].median()
             inferred_mappings.drop_duplicates(inplace=True)
 
         # Now build Chain() objects for the mapped chains
@@ -1958,33 +2054,46 @@ def work_infer_mappings(update_only, allmappings, codelist) -> list:
             pdb_chain_id = nr[2]
             for rfam in families:
                 # if a known mapping of this chain on this family exists, apply it
-                m = known_mappings.loc[ (known_mappings.pdb_id + "|1|" + known_mappings.chain == c[:4].lower()+c[4:]) & (known_mappings['rfam_acc'] == rfam ) ]
+                this_chain_idxs = (known_mappings.pdb_id + "|1|" + known_mappings.chain == c[:4].lower()+c[4:])
+                m = known_mappings.loc[this_chain_idxs & (known_mappings['rfam_acc'] == rfam)]
                 if len(m) and len(m) < 2:
                     pdb_start = int(m.pdb_start)
                     pdb_end = int(m.pdb_end)
                     inferred = False
-                elif len(m): 
+                elif len(m):
                     # two different parts of the same chain are mapped to the same family... (ex: 6ek0-L5)
                     # ==> map the whole chain to that family, not the parts
                     pdb_start = int(m.pdb_start.min())
                     pdb_end = int(m.pdb_end.max())
                     inferred = False
-                elif not(pdb_id in known_mappings.pdb_id and pdb_chain_id in known_mappings.chain): # if no known mapping on another family, use the inferred mapping
-                    pdb_start = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_start)
-                    pdb_end = int(inferred_mappings.loc[ (inferred_mappings['rfam_acc'] == rfam) ].pdb_end)
+                elif (fullinference or not(this_chain_idxs.any())): 
+                    # if no known mapping on another family, use the inferred mapping
+                    # idem if the user said to do so with --full-inference
+                    pdb_start = int(inferred_mappings.loc[(inferred_mappings['rfam_acc'] == rfam)].pdb_start)
+                    pdb_end = int(inferred_mappings.loc[(inferred_mappings['rfam_acc'] == rfam)].pdb_end)
                     inferred = True
+                else:
+                    # skip this family, we cannot map this chain to it.
+                    continue
                 chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}_{pdb_start}-{pdb_end}"
 
                 # Check if the chain exists in the database
                 if update_only:
                     with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
-                        res = sql_ask_database(conn, f"""SELECT chain_id from chain WHERE structure_id='{pdb_id}' AND chain_name='{pdb_chain_id}' AND rfam_acc='{rfam}' AND issue=0""")
-                    if not len(res): # the chain is NOT yet in the database, or this is a known issue
-                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+                        res = sql_ask_database(conn, f"""SELECT chain_id from chain 
+                                                         WHERE structure_id='{pdb_id}' 
+                                                         AND chain_name='{pdb_chain_id}' 
+                                                         AND rfam_acc='{rfam}' 
+                                                         AND issue=0""")
+                    if not len(res):  # the chain is NOT yet in the database, or this is a known issue
+                        newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class,
+                                               rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
                 else:
-                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class, rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
-    
+                    newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class,
+                                           rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
+
     return newchains
+
 
 @trace_unhandled_exceptions
 def work_mmcif(pdb_id):
@@ -1999,8 +2108,11 @@ def work_mmcif(pdb_id):
 
     # Attempt to download it if not present
     try:
-        if not path.isfile(final_filepath):
-            subprocess.run(["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not os.path.isfile(final_filepath):
+            subprocess.run(
+                ["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
     except:
         warn(f"Unable to download {pdb_id}.cif. Ignoring it.", error=True)
         return
@@ -2011,8 +2123,8 @@ def work_mmcif(pdb_id):
 
     # if not, read the CIF header and register the structure
     if not len(r):
-        # Load the MMCIF file with Biopython 
-        mmCif_info = MMCIF2Dict(final_filepath)
+        # Load the MMCIF file with Biopython
+        mmCif_info = Bio.PDB.MMCIF2Dict.MMCIF2Dict(final_filepath)
 
         # Get info about that structure
         try:
@@ -2032,16 +2144,16 @@ def work_mmcif(pdb_id):
             warn(f"Wtf, structure {pdb_id} has no resolution ?")
             warn(f"Check https://files.rcsb.org/header/{pdb_id}.cif to figure it out.")
             reso = 0.0
-        
+
         # Save into the database
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             sql_execute(conn, """INSERT OR REPLACE INTO structure (pdb_id, pdb_model, date, exp_method, resolution)
-                                VALUES (?, ?, DATE(?), ?, ?);""", data = (pdb_id, 1, date, exp_meth, reso))
+                                VALUES (?, ?, DATE(?), ?, ?);""", data=(pdb_id, 1, date, exp_meth, reso))
 
-    if not path.isfile(path_to_3D_data + "annotations/" + pdb_id + ".json"):
+    if not os.path.isfile(path_to_3D_data + "annotations/" + pdb_id + ".json"):
 
         # run DSSR (you need to have it in your $PATH, follow x3dna installation instructions)
-        output = subprocess.run(["x3dna-dssr", f"-i={final_filepath}", "--json", "--auxfile=no"], 
+        output = subprocess.run(["x3dna-dssr", f"-i={final_filepath}", "--json", "--auxfile=no"],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout = output.stdout.decode('utf-8')
         stderr = output.stderr.decode('utf-8')
@@ -2052,26 +2164,27 @@ def work_mmcif(pdb_id):
             return 1
 
         # save the analysis to file only if we can load it :/
-        json_file = open(path_to_3D_data + "annotations/" + pdb_id + ".json", "w")
+        json_file = open(path_to_3D_data + "annotations/" +
+                         pdb_id + ".json", "w")
         json_file.write(stdout)
         json_file.close()
 
     return 0
 
+
 @trace_unhandled_exceptions
 def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     """Reads information from JSON and save it to database.
     If asked, also extracts the 3D chains from their original structure files.
-
     """
 
     setproctitle(f"RNAnet.py work_build_chain({c.chain_label})")
 
-    if not path.isfile(path_to_3D_data + "annotations/" + c.pdb_id + ".json"):
+    if not os.path.isfile(path_to_3D_data + "annotations/" + c.pdb_id + ".json"):
         warn(f"Could not find annotations for {c.chain_label}, ignoring it.", error=True)
         c.delete_me = True
         c.error_messages += f"Could not download and/or find annotations for {c.chain_label}."
-    
+
     # extract the 3D descriptors
     if not c.delete_me:
         df = c.extract_3D_data(save_logs)
@@ -2094,45 +2207,47 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
 
     return c
 
+
 @trace_unhandled_exceptions
 def work_prepare_sequences(dl, rfam_acc, chains):
-    """Prepares FASTA files of homologous sequences to realign with cmalign or SINA."""
+    """Prepares FASTA files of homologous sequences to realign with cmalign or SINA.
+    """
 
     setproctitle("RNAnet.py work_prepare_sequences()")
 
-    if rfam_acc in LSU_set | SSU_set: # rRNA
-        if path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
+    if rfam_acc in LSU_set | SSU_set:  # rRNA
+        if os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
             # Detect doublons and remove them
-            existing_afa = AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
-            existing_ids = [ r.id for r in existing_afa ]
+            existing_afa = Bio.AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
+            existing_ids = [r.id for r in existing_afa]
             del existing_afa
-            new_ids = [ str(c) for c in chains ]
-            doublons = [ i for i in existing_ids if i in new_ids ]
+            new_ids = [str(c) for c in chains]
+            doublons = [i for i in existing_ids if i in new_ids]
             del existing_ids, new_ids
             if len(doublons):
-                fasta = path_to_seq_data + f"realigned/{rfam_acc}++.fa"
                 warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.fa and using their newest version")
-                seqfile = SeqIO.parse(fasta, "fasta")
+                fasta = path_to_seq_data + f"realigned/{rfam_acc}++.fa"
+                seqfile = Bio.SeqIO.parse(fasta, "fasta")
+                # remove it and rewrite it with its own content filtered
                 os.remove(fasta)
                 with open(fasta, 'w') as f:
                     for rec in seqfile:
                         if rec.id not in doublons:
                             f.write(rec.format("fasta"))
-            
+
         # Add the new sequences with previous ones, if any
         with open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "a") as f:
             for c in chains:
                 if len(c.seq_to_align):
-                    f.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U','T')+'\n') 
+                    f.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U', 'T')+'\n')
         status = f"{rfam_acc}: {len(chains)} new PDB sequences to align (with SINA)"
 
-
-    elif not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.stk"):
-        # there was no previous aligned sequences, and we use cmalign. 
+    elif not os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.stk"):
+        # there was no previous aligned sequences, and we use cmalign.
         # So, we need to download homologous sequences from Rfam.
 
         # Extracting covariance model for this family
-        if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
+        if not os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}.cm"):
             with open(path_to_seq_data + f"realigned/{rfam_acc}.cm", "w") as f:
                 subprocess.run(["cmfetch", path_to_seq_data + "Rfam.cm", rfam_acc], stdout=f)
             notify(f"Extracted {rfam_acc} covariance model (cmfetch)")
@@ -2141,8 +2256,8 @@ def work_prepare_sequences(dl, rfam_acc, chains):
         dl.download_Rfam_sequences(rfam_acc)
 
         # Prepare a FASTA file containing Rfamseq hits for that family
-        if path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"):    # test if download succeeded
-            
+        if os.path.isfile(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz"): # test if download succeeded
+
             # gunzip the file
             with gzip.open(path_to_seq_data + f"rfam_sequences/fasta/{rfam_acc}.fa.gz", 'rb') as gz:
                 file_content = gz.read()
@@ -2153,14 +2268,14 @@ def work_prepare_sequences(dl, rfam_acc, chains):
             with open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "w") as plusplus:
                 ids = set()
                 # Remove doublons from the Rfam hits
-                for r in SeqIO.parse(path_to_seq_data + f"realigned/{rfam_acc}.fa", "fasta"):
+                for r in Bio.SeqIO.parse(path_to_seq_data + f"realigned/{rfam_acc}.fa", "fasta"):
                     if r.id not in ids:
                         ids.add(r.id)
                         plusplus.write('> '+r.description+'\n'+str(r.seq)+'\n')
                 # Add the 3D chains sequences
                 for c in chains:
                     if len(c.seq_to_align):
-                        plusplus.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U','T')+'\n') 
+                        plusplus.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U', 'T')+'\n')
 
             del file_content
             # os.remove(path_to_seq_data + f"realigned/{rfam_acc}.fa")
@@ -2169,18 +2284,19 @@ def work_prepare_sequences(dl, rfam_acc, chains):
             raise Exception(rfam_acc + "sequences download failed !")
 
         status = f"{rfam_acc}: {len(ids)} hits + {len(chains)} PDB sequences to align (with cmalign)"
-         
-    else: # We are using cmalign and a previous alignment exists
+
+    else:  # We are using cmalign and a previous alignment exists
         # Add the new sequences to a separate FASTA file
         with open(path_to_seq_data + f"realigned/{rfam_acc}_new.fa", "w") as f:
             for c in chains:
                 if len(c.seq_to_align):
-                    f.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U','T')+'\n') 
+                    f.write(f"> {str(c)}\n"+c.seq_to_align.replace('-', '').replace('U', 'T')+'\n')
         status = f"{rfam_acc}: {len(chains)} new PDB sequences to realign (with existing cmalign alignment)"
-    
+
     # print some stats
     notify(status)
-     
+
+
 @trace_unhandled_exceptions
 def work_realign(rfam_acc):
     """ Runs multiple sequence alignements by RNA family.
@@ -2192,7 +2308,7 @@ def work_realign(rfam_acc):
 
     setproctitle(f"RNAnet.py work_realign({rfam_acc})")
 
-    if rfam_acc in LSU_set | SSU_set: 
+    if rfam_acc in LSU_set | SSU_set:
         # Ribosomal subunits deserve a special treatment.
         # They require too much RAM to be aligned with Infernal.
         # Then we will use SINA instead.
@@ -2209,10 +2325,10 @@ def work_realign(rfam_acc):
     else:
         # Align using Infernal for most RNA families
 
-        if path.isfile(path_to_seq_data + "realigned/" + rfam_acc + "++.stk"):
+        if os.path.isfile(path_to_seq_data + "realigned/" + rfam_acc + "++.stk"):
             # Alignment exists. We just want to add new sequences into it.
 
-            if not path.isfile(path_to_seq_data + f"realigned/{rfam_acc}_new.fa"):
+            if not os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}_new.fa"):
                 # there are no new sequences to align...
                 return
 
@@ -2221,32 +2337,33 @@ def work_realign(rfam_acc):
 
             # Align the new sequences
             with open(new_ali_path, 'w') as o:
-                p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm", 
-                                                path_to_seq_data + f"realigned/{rfam_acc}_new.fa"], 
+                p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm",
+                                     path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
                                     stdout=o, stderr=subprocess.PIPE)
             notify("Aligned new sequences together")
 
             # Detect doublons and remove them
-            existing_stk = AlignIO.read(existing_ali_path, "stockholm")
-            existing_ids = [ r.id for r in existing_stk ]
+            existing_stk = Bio.AlignIO.read(existing_ali_path, "stockholm")
+            existing_ids = [r.id for r in existing_stk]
             del existing_stk
-            new_stk = AlignIO.read(new_ali_path, "stockholm")
-            new_ids = [ r.id for r in new_stk ]
+            new_stk = Bio.AlignIO.read(new_ali_path, "stockholm")
+            new_ids = [r.id for r in new_stk]
             del new_stk
-            doublons = [ i for i in existing_ids if i in new_ids ]
+            doublons = [i for i in existing_ids if i in new_ids]
             del existing_ids, new_ids
             if len(doublons):
                 warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.stk and using their newest version")
                 with open(path_to_seq_data + "realigned/toremove.txt", "w") as toremove:
                     toremove.write('\n'.join(doublons)+'\n')
-                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path+"2", existing_ali_path], 
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                p = subprocess.run(["mv", existing_ali_path+"2", existing_ali_path], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path+"2", existing_ali_path],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                p = subprocess.run(["mv", existing_ali_path+"2", existing_ali_path],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 os.remove(path_to_seq_data + "realigned/toremove.txt")
 
             # And we merge the two alignments
-            p2= subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", 
-                                                "--rna", existing_ali_path, new_ali_path ], 
+            p2 = subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
+                                 "--rna", existing_ali_path, new_ali_path],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
             subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", existing_ali_path])
@@ -2259,14 +2376,14 @@ def work_realign(rfam_acc):
         else:
             # Alignment does not exist yet. We need to compute it from scratch.
             print(f"\t> Aligning {rfam_acc} sequences together (cmalign) ...", end='', flush=True)
-            
+
             p = subprocess.run(["cmalign", "--small", "--cyk", "--noprob", "--nonbanded", "--notrunc",
                                 '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
-                                path_to_seq_data + f"realigned/{rfam_acc}.cm", 
-                                path_to_seq_data + f"realigned/{rfam_acc}++.fa" ], 
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                                path_to_seq_data + f"realigned/{rfam_acc}.cm",
+                                path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             stderr = p.stderr.decode("utf-8")
-            
+
         if len(stderr):
             print('', flush=True)
             warn(f"Error during sequence alignment: {stderr}", error=True)
@@ -2277,7 +2394,9 @@ def work_realign(rfam_acc):
             print('\t'+validsymb, flush=True)
 
         # Convert Stockholm to aligned FASTA
-        subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", "--informat", "stockholm", "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
+        subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", 
+                        "--informat", "stockholm", 
+                        "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
         subprocess.run(["rm", "-f", "esltmp*"]) # We can, because we are not running in parallel for this part.
 
     # Assert everything worked, or save an error
@@ -2287,6 +2406,7 @@ def work_realign(rfam_acc):
             warn(f"Failed to realign {rfam_acc} (killed)", error=True)
             with open(runDir + "/errors.txt", "a") as er:
                 er.write(f"Failed to realign {rfam_acc} (killed)")
+
 
 def summarize_position(counts):
     """ Counts the number of nucleotides at a given position, given a "column" from a MSA.
@@ -2302,18 +2422,18 @@ def summarize_position(counts):
         if char not in ".-":
             N += counts[char]  # number of ungapped residues
 
-    if N: # prevent division by zero if the column is only gaps
-        return ( counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N) # other residues, or consensus (N, K, Y...)
+    if N:  # prevent division by zero if the column is only gaps
+        return (counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N)  # other residues, or consensus (N, K, Y...)
     else:
         return (0, 0, 0, 0, 0)
+
 
 @trace_unhandled_exceptions
 def work_pssm(f, fill_gaps):
     """ Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
-    
-    Also saves every chain of the family to file.
+
     Uses only 1 core, so this function can be called in parallel.
-    
+
     """
     setproctitle(f"RNAnet.py work_pssm({f})")
 
@@ -2322,18 +2442,17 @@ def work_pssm(f, fill_gaps):
     thr_idx = idxQueue.get()
 
     # get the chains of this family
-    list_of_chains =  rfam_acc_to_download[f]
-    chains_ids = [ str(c) for c in list_of_chains ]
+    list_of_chains = rfam_acc_to_download[f]
+    chains_ids = [str(c) for c in list_of_chains]
 
     # Open the alignment
     try:
-        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+        align = Bio.AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
     except:
         warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         with open(runDir + "/errors.txt", "a") as errf:
             errf.write(f"{f}'s alignment is wrong. Recompute it and retry.\n")
         return 1
-        
 
     # Compute statistics per column
     pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
@@ -2346,12 +2465,12 @@ def work_pssm(f, fill_gaps):
     pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Remap {f} chains", leave=False)
     pbar.update(0)
     for s in align:
-        if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
+        if not '[' in s.id:  # this is a Rfamseq entry, not a 3D chain
             continue
 
         try:
             # get the right 3D chain:
-            if '|' in s.id: 
+            if '|' in s.id:
                 # for some reason cmalign gets indexes|chainid in the FASTA headers sometimes.
                 # it is maybe when there are doublons ? Removing doublons takes too much time,
                 # it is easier to parse the index|id formats.
@@ -2359,7 +2478,7 @@ def work_pssm(f, fill_gaps):
             else:
                 idx = chains_ids.index(s.id)
 
-            # call its remap method 
+            # call its remap method
             new_mappings, columns_to_save = list_of_chains[idx].remap(columns_to_save, s.seq)
             re_mappings += new_mappings
 
@@ -2367,7 +2486,7 @@ def work_pssm(f, fill_gaps):
             # with open(runDir + "/errors.txt", "a") as errf:
             #     errf.write(f"Chain {s.id} not found in list of chains to process. ignoring.\n")
             pass
-        
+
         pbar.update(1)
     pbar.close()
 
@@ -2378,10 +2497,13 @@ def work_pssm(f, fill_gaps):
 
     # Save the re_mappings
     conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=20.0)
-    sql_execute(conn, "INSERT INTO re_mapping (chain_id, index_chain, index_ali) VALUES (?, ?, ?) ON CONFLICT(chain_id, index_chain) DO UPDATE SET index_ali=excluded.index_ali;", many=True, data=re_mappings)
+    sql_execute(conn, """INSERT INTO re_mapping (chain_id, index_chain, index_ali) 
+                         VALUES (?, ?, ?) 
+                         ON CONFLICT(chain_id, index_chain) DO UPDATE SET index_ali=excluded.index_ali;""",
+                many=True, data=re_mappings)
 
     # Save the useful columns in the database
-    data = [ (f, j) + frequencies[j-1] for j in sorted(columns_to_save) ]
+    data = [(f, j) + frequencies[j-1] for j in sorted(columns_to_save)]
     sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
                          VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
                          UPDATE SET freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, freq_other=excluded.freq_other;""", many=True, data=data)
@@ -2389,34 +2511,35 @@ def work_pssm(f, fill_gaps):
     sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
                           VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 1.0);""", data=(f,))
 
-    # Replace gaps by consensus 
+    # Replace gaps by consensus
     if fill_gaps:
         pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Replace {f} gaps", leave=False)
         pbar.update(0)
         gaps = []
         for s in align:
-            if not '[' in s.id: # this is a Rfamseq entry, not a 3D chain
+            if not '[' in s.id:  # this is a Rfamseq entry, not a 3D chain
                 continue
-            
+
             try:
                 # get the right 3D chain:
-                if '|' in s.id: 
+                if '|' in s.id:
                     idx = chains_ids.index(s.id.split('|')[1])
                 else:
                     idx = chains_ids.index(s.id)
 
                 gaps += list_of_chains[idx].replace_gaps(conn)
             except ValueError:
-                pass # We already printed a warning just above
+                pass  # We already printed a warning just above
             pbar.update(1)
         pbar.close()
         sql_execute(conn, f"""UPDATE nucleotide SET nt_align_code = ?, 
                               is_A = ?, is_C = ?, is_G = ?, is_U = ?, is_other = ?
-                              WHERE chain_id = ? AND index_chain = ?;""", many=True, data = gaps)
-    
+                              WHERE chain_id = ? AND index_chain = ?;""", many=True, data=gaps)
+
     conn.close()
-    idxQueue.put(thr_idx) # replace the thread index in the queue
+    idxQueue.put(thr_idx)  # replace the thread index in the queue
     return 0
+
 
 @trace_unhandled_exceptions
 def work_save(c, homology=True):
@@ -2434,8 +2557,8 @@ def work_save(c, homology=True):
                 (SELECT chain_id, rfam_acc from chain WHERE chain_id = {c.db_chain_id})
                 NATURAL JOIN re_mapping
                 NATURAL JOIN nucleotide
-                NATURAL JOIN align_column;""", 
-            conn)
+                NATURAL JOIN align_column;""",
+             conn)
         filename = path_to_3D_data + "datapoints/" + c.chain_label + '.' + c.mapping.rfam_acc
     else:
         df = pd.read_sql_query(f"""
@@ -2444,20 +2567,22 @@ def work_save(c, homology=True):
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 
-                nucleotide WHERE chain_id = {c.db_chain_id} ORDER BY index_chain ASC;""", 
+                nucleotide WHERE chain_id = {c.db_chain_id} ORDER BY index_chain ASC;""",
             conn)
         filename = path_to_3D_data + "datapoints/" + c.chain_label
     conn.close()
 
     df.to_csv(filename, float_format="%.2f", index=False)
 
+
 if __name__ == "__main__":
 
-    runDir = path.dirname(path.realpath(__file__))
+    runDir = os.getcwd()
+    fileDir = os.path.dirname(os.path.realpath(__file__))
     ncores = read_cpu_number()
     pp = Pipeline()
     pp.process_options()
-   
+
     # Prepare folders
     os.makedirs(runDir + "/results", exist_ok=True)
     os.makedirs(runDir + "/data", exist_ok=True)
@@ -2476,14 +2601,14 @@ if __name__ == "__main__":
     # ===========================================================================
 
     # Download and annotate new RNA 3D chains (Chain objects in pp.update)
-    pp.dl_and_annotate(coeff_ncores=0.5) 
+    pp.dl_and_annotate(coeff_ncores=0.5)
     print("Here we go.")
 
     # At this point, the structure table is up to date
     pp.build_chains(coeff_ncores=1.0)
 
     if len(pp.to_retry):
-        # Redownload and re-annotate 
+        # Redownload and re-annotate
         print("> Retrying to annotate some structures which just failed.", flush=True)
         pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
         pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
@@ -2501,8 +2626,7 @@ if __name__ == "__main__":
             work_save(c, homology=False)
         print("Completed.")
         exit(0)
-    
-    
+
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
 
@@ -2511,24 +2635,25 @@ if __name__ == "__main__":
     # ===========================================================================
 
     if pp.SELECT_ONLY is None:
-        pp.checkpoint_load_chains()  # If your job failed, you can comment all the "3D information" part and start from here.
+        # If your job failed, you can comment all the "3D information" part and start from here.
+        pp.checkpoint_load_chains()
 
     # Get the list of Rfam families found
     rfam_acc_to_download = {}
     for c in pp.loaded_chains:
         if c.mapping.rfam_acc not in rfam_acc_to_download:
-            rfam_acc_to_download[c.mapping.rfam_acc] = [ c ]
+            rfam_acc_to_download[c.mapping.rfam_acc] = [c]
         else:
             rfam_acc_to_download[c.mapping.rfam_acc].append(c)
 
     print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
     pp.fam_list = sorted(rfam_acc_to_download.keys())
-    
+
     if len(pp.fam_list):
         pp.prepare_sequences()
         pp.realign()
 
-        # At this point, the family table is up to date    
+        # At this point, the family table is up to date
 
         thr_idx_mgr = Manager()
         idxQueue = thr_idx_mgr.Queue()
@@ -2544,7 +2669,7 @@ if __name__ == "__main__":
     pp.sanitize_database()
     pp.output_results()
 
-    print("Completed.")  # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
+    print("Completed.") # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
 
-    # # so i can sleep for the end of the night
+    # so i can sleep for the end of the night
     # subprocess.run(["poweroff"])
