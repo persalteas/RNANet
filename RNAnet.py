@@ -1560,9 +1560,8 @@ class Pipeline:
         if self.ARCHIVE:
             os.makedirs(runDir + "/archive", exist_ok=True)
             datestr = time.strftime('%Y%m%d')
-            subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf",
-                            runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
-            subprocess.run(["ln", "-S", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
+            subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
+            subprocess.run(["ln", "-s", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
