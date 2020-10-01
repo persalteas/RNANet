@@ -11,8 +11,8 @@ Contents:
 * [Output files](#output-files)
 * [How to run](#how-to-run)
     * [Required computational resources](#required-computational-resources)
-    * [Dependencies](#dependencies)
-    * [Command line](#command-line)
+    * [Using Docker](#using-docker)
+    * [Using classical command line installation](#using-classical-command-line-installation)
     * [Post-computation task: estimate quality](#post-computation-task:-estimate-quality)
 * [How to further filter the dataset](#how-to-further-filter-the-dataset)
     * [Filter on 3D structure resolution](#filter-on-3D-structure-resolution)
@@ -63,7 +63,7 @@ Other folders are created and not deleted, which you might want to conserve to a
 * `path-to-3D-folder-you-passed-in-option/RNAcifs/` contains mmCIF structures directly downloaded from the PDB, which contain RNA chains,
 * `path-to-3D-folder-you-passed-in-option/annotations/` contains the raw JSON annotation files of the previous mmCIF structures. You may find additional information into them which is not properly supported by RNANet yet.
 
-# How to run
+# How to run (on Linux x86-64 only)
 
 ## Required computational resources
 - CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
@@ -77,17 +77,18 @@ Measured the 23rd of June 2020 on a 16-core AMD Ryzen 7 3700X CPU @3.60GHz, plus
 
 Update runs are much quicker, around 3 hours. It depends mostly on what RNA families are concerned by the update.
 
-## Dependencies
-You need to install:
-- DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/). 
-- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `esl-alimanip` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.You don't need the whole X3DNA suite of tools, just DSSR is fine. Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
-- SINA, follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
-- Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*)
-- The following Python packages: `python3.8 -m pip install numpy matplotlib pandas biopython psutil pymysql requests sqlalchemy sqlite3 tqdm`
+## Using Docker
 
-## Command line
-Run `./RNANet.py --3d-folder path/to/3D/data/folder --seq-folder path/to/sequence/data/folder [ - other options ]`. 
-It requires solid hardware to run. It takes around around 12 to 15 hours the first time, and 1 to 3h then, tested on a server with 32 cores and 48GB of RAM.
+* Step 1 : Download the [Docker container](#soon). Open a terminal and move to the appropriate directory.
+* Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
+```
+$ docker image import rnanet_v1.2_docker.tar rnanet
+```
+* Step 3 : Run the container, giving it 3 folders to mount as volumes: a first to store the 3D data, a second to store the sequence data and alignments, and a third to output the results, data and logs:
+```
+$ docker run -v path/to/3D/data/folder:/3D -v path/to/sequence/data/folder:/sequences -v path/to/experiment/results/folder:/runDir rnanet [ - other options ]
+```
+
 The detailed list of options is below:
 
 ```
@@ -121,17 +122,42 @@ The detailed list of options is below:
 --archive                       Create a tar.gz archive of the datapoints text files, and update the link to the latest archive
 --no-logs                       Do not save per-chain logs of the numbering modifications
 ```
+You may not use the --3d-folder and --seq-folder options, they are set by default to the paths you provide with the -v options when running Docker.
+
+## Using classical command line installation
+
+You need to install the dependencies:
+- DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/).  Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
+- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `esl-alimanip`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
+- SINA, follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
+- Sqlite 3, available under the name *sqlite* in every distro's package manager,
+- Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*)
+- The following Python packages: `python3.8 -m pip install biopython==1.76 matplotlib pandas psutil pymysql requests scipy setproctitle sqlalchemy tqdm`. Note that Biopython versions 1.77 or later do not work (yet) since they removed the alphabet system.
+
+Then, run it from the command line, preferably using nohup if your shell will be interrupted:
+```
+ ./RNANet.py --3d-folder path/to/3D/data/folder --seq-folder path/to/sequence/data/folder [ - other options ]
+```
+See the list of possible options juste above in the [Using Docker](#using-docker) section. Expect hours (maybe days) of computation.
 
 Typical usage:
 ```
-nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &
+nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences --no-logs -s' &
 ```
 
 ## Post-computation task: estimate quality
-The file statistics.py is supposed to give a summary on the produced dataset. See the results/ folder. It can be run automatically after RNANet if you pass the `-s` option.
+If your did not ask for automatic run of statistics over the produced dataset with the `-s` option, you can run them later using the file statistics.py. 
+```
+python3.8 statistics.py --3d-folder path/to/3D/data/folder --seq-folder path/to/sequence/data/folder -r 20.0
+```
+/!\ Beware, if not precised with option `-r`, no resolution threshold is applied and all the data in RNANet.db is used.
+
+If you have run RNANet twice, once with option `--no-homology`, and once without, you unlock new statistics over unmapped chains. You will also be allowed to use option `--wadley` to reproduce Wadley & al. (2007) results automatically.
 
 # How to further filter the dataset
 You may want to build your own sub-dataset by querying the results/RNANet.db file. Here are quick examples using Python3 and its sqlite3 package.
+
+*Note: you cannot install the sqlite3 package through pip. Install it using your OS' package manager, search for 'sqlite'.*
 
 ## Filter on 3D structure resolution
 
@@ -157,13 +183,16 @@ with sqlite3.connect("results/RNANet.db) as connection:
 Step 2 : Then, we define a template string, containing the SQL request we use to get all information of one RNA chain, with brackets { } at the place we will insert every chain_id. 
 You can remove fields you are not interested in.
 ```
-req = """SELECT index_chain, old_nt_resnum, position, nt_name, nt_code, nt_align_code, is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
-v0, v1, v2, v3, v4, amlitude, phase_angle, puckering 
-FROM 
-(SELECT chain_id, rfam_acc from chain WHERE chain_id = {})
-NATURAL JOIN re_mapping
-NATURAL JOIN nucleotide
-NATURAL JOIN align_column;"""
+req = """SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
+                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn,
+                paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
+                chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
+                v0, v1, v2, v3, v4, amplitude, phase_angle, puckering 
+                FROM 
+                (SELECT chain_id, rfam_acc from chain WHERE chain_id = {})
+                NATURAL JOIN re_mapping
+                NATURAL JOIN nucleotide
+                NATURAL JOIN align_column;"""
 ```
 
 Step 3 : Finally, we iterate over this list of chains and save their information in CSV files:
@@ -199,12 +228,13 @@ If you want just one example of each RNA 3D chain, use in Step 1:
 
 ```
 with sqlite3.connect("results/RNANet.db) as connection:
-    chain_list = pd.read_sql("""SELECT UNIQUE chain_id, structure_id, chain_name
+    chain_list = pd.read_sql("""SELECT DISTINCT chain_id, structure_id, chain_name
                                 FROM chain JOIN structure
                                 ON chain.structure_id = structure.pdb_id
                                 ORDER BY structure_id ASC;""",
                             con=connection)
 ```
+Then proceed to steps 2 and 3.
 
 # More about the database structure
 To help you design your own requests, here follows a description of the database tables and fields.
@@ -231,13 +261,12 @@ To help you design your own requests, here follows a description of the database
 * `chain_id`: A unique identifier
 * `structure_id`: The `pdb_id` where the chain comes from
 * `chain_name`: The chain label, extracted from the 3D file
+* `eq_class`: The BGSU equivalence class label containing this chain
+* `rfam_acc`: The family which the chain is mapped to (if not mapped, value is *unmappd*)
 * `pdb_start`: Position in the chain where the mapping to Rfam begins (absolute position, not residue number)
 * `pdb_end`: Position in the chain where the mapping to Rfam ends (absolute position, not residue number)
-* `pdb_start`: Position in the chain where the mapping to Rfam begins (absolute position, not residue number)
-* `pdb_start`: Position in the chain where the mapping to Rfam begins (absolute position, not residue number)
 * `reversed`: Wether the mapping numbering order differs from the residue numbering order in the mmCIF file (eg 4c9d, chains C and D)
-* `issue`: Wether an issue occurred with this structure while downloading, extracting, annotating or parsing the annotation. Chains with issues are removed from the dataset (Only one known to date: 1gsg, chain T, which is too short)
-* `rfam_acc`: The family which the chain is mapped to
+* `issue`: Wether an issue occurred with this structure while downloading, extracting, annotating or parsing the annotation. See the file known_issues_reasons.txt for more information about why your chain is marked as an issue.
 * `inferred`: Wether the mapping has been inferred using the redundancy list (value is 1) or just known from Rfam-PDB mappings (value is 0)
 * `chain_freq_A`, `chain_freq_C`, `chain_freq_G`, `chain_freq_U`, `chain_freq_other`: Nucleotide frequencies in the chain
 * `pair_count_cWW`, `pair_count_cWH`, ... `pair_count_tSS`: Counts of the non-canonical base-pair types in the chain (intra-chain counts only)

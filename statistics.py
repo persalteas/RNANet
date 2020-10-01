@@ -329,9 +329,7 @@ def parallel_stats_pairs(f):
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
             # Get comma separated lists of basepairs per nucleotide
             interactions = pd.DataFrame(
-                            sql_ask_database(conn, 
-                                            f"SELECT nt_code as nt1, index_chain, paired, pair_type_LW FROM (SELECT chain_id FROM chain WHERE chain_id='{cid}') NATURAL JOIN nucleotide;",
-                                            warn_every=0), 
+                            sql_ask_database(conn, f"SELECT nt_code as nt1, index_chain, paired, pair_type_LW FROM nucleotide WHERE chain_id='{cid}';"), 
                             columns = ["nt1", "index_chain", "paired", "pair_type_LW"]
                            )
         # expand the comma-separated lists in real lists
