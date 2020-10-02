@@ -27,7 +27,7 @@ Contents:
 # What it does
 The script follows these steps:
 * Gets a list of 3D structures containing RNA from BGSU's non-redundant list (but keeps the redundant structures /!\\),
-* Asks Rfam for mappings of these structures onto Rfam families (~ a half of structures have a direct mapping, some more are inferred using the redundancy list)
+* Asks Rfam for mappings of these structures onto Rfam families (~50% of structures have a direct mapping, some more are inferred using the redundancy list)
 * Downloads the corresponding 3D structures (mmCIFs)
 * If desired, extracts the right chain portions that map onto an Rfam family
 
@@ -35,7 +35,7 @@ Now, compute the features:
 
 * Extract the sequence for every 3D chain
 * Downloads Rfamseq ncRNA sequence hits for the concerned Rfam families
-* Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using cmalign, except for ribosomal LSU and SSU, where SINA is used)
+* Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using `cmalign --cyk`, except for ribosomal LSU and SSU, where SINA is used)
 * Computes nucleotide frequencies at every position for each alignment
 * For each aligned 3D chain, get the nucleotide frequencies in the corresponding RNA family for each residue
 
@@ -49,12 +49,10 @@ Finally, export this data from the SQLite database into flat CSV files.
 
 * `results/RNANet.db` is a SQLite database file containing several tables with all the information, which you can query yourself with your custom requests,
 * `3D-folder-you-passed-in-option/datapoints/*` are flat text CSV files, one for one RNA chain mapped to one RNA family, gathering the per-position nucleotide descriptors,
-* `results/RNANET_datapoints_latest.tar.gz` is a compressed archive of the above CSV files (only if you passed the --archive option)
-* `path-to-3D-folder-you-passed-in-option/rna_mapped_to_Rfam` If you used the --extract option, this folder contains one mmCIF file per RNA chain mapped to one RNA family, without other chains, proteins (nor ions and ligands by default)
-* `results/summary_latest.csv` summarizes information about the RNA chains
-* `results/families_latest.csv` summarizes information about the RNA families
-
-If you launch successive executions of RNANet, the previous tar.gz archive and the two summary CSV files are stored in the `results/archive/` folder.
+* `archive/RNANET_datapoints_{DATE}.tar.gz` is a compressed archive of the above CSV files (only if you passed the --archive option)
+* `path-to-3D-folder-you-passed-in-option/rna_mapped_to_Rfam` If you used the `--extract` option, this folder contains one mmCIF file per RNA chain mapped to one RNA family, without other chains, proteins (nor ions and ligands by default). If you used both `--extract` and `--no-homology`, this folder is called `rnaonly`.
+* `results/summary.csv` summarizes information about the RNA chains
+* `results/families.csv` summarizes information about the RNA families
 
 Other folders are created and not deleted, which you might want to conserve to avoid re-computations in later runs:
 
@@ -63,7 +61,8 @@ Other folders are created and not deleted, which you might want to conserve to a
 * `path-to-3D-folder-you-passed-in-option/RNAcifs/` contains mmCIF structures directly downloaded from the PDB, which contain RNA chains,
 * `path-to-3D-folder-you-passed-in-option/annotations/` contains the raw JSON annotation files of the previous mmCIF structures. You may find additional information into them which is not properly supported by RNANet yet.
 
-# How to run (on Linux x86-64 only)
+# How to run
+RNANet is availbale on Linux (x86-64) only. It could theoretically work on Mac using command line installation (*untested*).
 
 ## Required computational resources
 - CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
