@@ -1200,11 +1200,13 @@ class Pipeline:
         # Check for a list of known problems:
         if os.path.isfile(runDir + "/known_issues.txt"):
             with open(runDir + "/known_issues.txt", 'r') as issues:
-                self.known_issues = [x[:-1] for x in issues.readlines()]
+                if self.HOMOLOGY:
+                    self.known_issues = [ x[:-1] for x in issues.readlines() if '-' in x ]
+                else:
+                    self.known_issues = [ x[:-1] for x in issues.readlines() id not '-' in x ]
             if self.USE_KNOWN_ISSUES:
                 print("\t> Ignoring known issues:")
-                for x in self.known_issues:
-                    print("\t  ", x)
+                print(" ".join(self.known_issues")
 
         if self.HOMOLOGY:
             # Ask Rfam if some are mapped to Rfam families
@@ -1560,6 +1562,7 @@ class Pipeline:
         if self.ARCHIVE:
             os.makedirs(runDir + "/archive", exist_ok=True)
             datestr = time.strftime('%Y%m%d')
+            subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
             subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
             subprocess.run(["ln", "-s", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
 
