@@ -15,7 +15,7 @@ cp `which x3dna-dssr` $THISDIR
 
 ######################################################## Build Docker image ######################################################
 # Execute the Dockerfile and build the image
-docker build -t persalteas/rnanet ..
+docker build -t rnanet:latest ..
 
 ############################################################## Cleaning ##########################################################
 rm x3dna-dssr

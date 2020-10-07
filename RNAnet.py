@@ -1203,7 +1203,7 @@ class Pipeline:
                 if self.HOMOLOGY:
                     self.known_issues = [ x[:-1] for x in issues.readlines() if '-' in x ]
                 else:
-                    self.known_issues = [ x[:-1] for x in issues.readlines() id not '-' in x ]
+                    self.known_issues = [ x[:-1] for x in issues.readlines() if not '-' in x ]
             if self.USE_KNOWN_ISSUES:
                 print("\t> Ignoring known issues:")
                 print(" ".join(self.known_issues")

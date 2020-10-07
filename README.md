@@ -81,7 +81,7 @@ Update runs are much quicker, around 3 hours. It depends mostly on what RNA fami
 * Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/f/e5edece989884a7294a6/?dl=1). Open a terminal and move to the appropriate directory.
 * Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
 ```
-$ docker image import rnanet_v1.2_docker.tar rnanet
+$ docker load -i rnanet_v1.2_docker.tar
 ```
 * Step 3 : Run the container, giving it 3 folders to mount as volumes: a first to store the 3D data, a second to store the sequence data and alignments, and a third to output the results, data and logs:
 ```
