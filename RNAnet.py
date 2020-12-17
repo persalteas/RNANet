@@ -1206,7 +1206,7 @@ class Pipeline:
                     self.known_issues = [ x[:-1] for x in issues.readlines() if not '-' in x ]
             if self.USE_KNOWN_ISSUES:
                 print("\t> Ignoring known issues:")
-                print(" ".join(self.known_issues")
+                print(" ".join(self.known_issues))
 
         if self.HOMOLOGY:
             # Ask Rfam if some are mapped to Rfam families
@@ -1263,8 +1263,7 @@ class Pipeline:
             conn.close()
 
         if self.SELECT_ONLY is not None:
-            self.update = [
-                c for c in self.update if c.chain_label == self.SELECT_ONLY]
+            self.update = [ c for c in self.update if c.chain_label == self.SELECT_ONLY ]
 
         self.n_chains = len(self.update)
         print(str(self.n_chains) + " RNA chains of interest.")

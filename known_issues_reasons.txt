@@ -4837,3 +4837,39 @@ Sequence is too short. (< 5 resolved nts)
 5hjz_1_C
 Sequence is too short. (< 5 resolved nts)
 
+1qzb_1_B_1-73
+DSSR warning 1qzb.json: no nucleotides found. Ignoring 1qzb_1_B_1-73.
+
+1qza_1_B_1-73
+DSSR warning 1qza.json: no nucleotides found. Ignoring 1qza_1_B_1-73.
+
+5zzm_1_M_3-118
+DSSR warning 5zzm.json: no nucleotides found. Ignoring 5zzm_1_M_3-118.
+
+5zzm_1_N_1-2904
+DSSR warning 5zzm.json: no nucleotides found. Ignoring 5zzm_1_N_1-2904.
+
+3dg2_1_B_1-2904
+DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_B_1-2904.
+
+3dg0_1_B_1-2904
+DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_B_1-2904.
+
+3dg4_1_B_1-2904
+DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_B_1-2904.
+
+3dg5_1_B_1-2904
+DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_B_1-2904.
+
+3dg2_1_A_1-1542
+DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A_1-1542.
+
+3dg0_1_A_1-1542
+DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_A_1-1542.
+
+3dg4_1_A_1-1542
+DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_A_1-1542.
+
+3dg5_1_A_1-1542
+DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_A_1-1542.
+
