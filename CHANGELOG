@@ -1,0 +1,29 @@
+v 1.1 beta, January 2021
+
+The first uses of RNAnet by people from outside the development team happened between this December.
+A few feedback allowed to identify issues and useful information to add.
+
+FEATURE CHANGES
+    - Sequence alignments of the 3D structures mapped to a family are now provided. 
+    - Full alignements with Rfam sequences are not provided, but you can ask us for the files.
+    - Two new fields in table 'family': ali_length and ali_filtered_length. 
+    They are the MSA lengths of the alignment with and without the Rfam sequences. 
+
+TECHNICAL CHANGES
+    - SQLite connexions are now all in WAL mode by default (previously, only the writers used WAL mode)
+
+BUG CORRECTIONS
+    - When an alignment file is updated in a newer run of RNANet, all the re_mappings are now re-computed 
+    for this family. Previously, the remappings were computed only for the newly added sequences,
+    while the alignment actually changed even for chains added in past runs.
+    - Changed the ownership and permissions of files produced by the Docker container. 
+    They were previously owned by root and the user could not get access to them.
+    - Modified nucleotides were not always correctly transformed to N in the alignments (and nucleotide.nt_align_code fields).
+    Now, the alignments and nt_align_code only contain "ACGUN-" chars. 
+    Now, 'N' means 'other', while '-' means 'nothing'.
+
+COMING SOON
+    - Automated annotation of detected Recurrent Interaction Networks (RINs), see http://carnaval.lri.fr/ .
+    - Possibly, automated detection of HLs and ILs from the 3D Motif Atlas (BGSU). Maybe. Their own website already does the job.
+    - A field estimating the quality of the sequence alignment in table family.
+    - Possibly, more metrics about the alignments coming from Infernal.

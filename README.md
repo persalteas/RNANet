@@ -249,7 +249,9 @@ To help you design your own requests, here follows a description of the database
 * `nb_homologs`: The number of hits known to be homologous downloaded from Rfam to compute nucleotide frequencies
 * `nb_3d_chains`: The number of 3D RNA chains mapped to the family (from Rfam-PDB mappings, or inferred using the redundancy list)
 * `nb_total_homol`: Sum of the two previous fields, the number of sequences in the multiple sequence alignment, used to compute nucleotide frequencies
-* `max_len`: The longest RNA sequence among the homologs (in bases)
+* `max_len`: The longest RNA sequence among the homologs (in bases, unaligned)
+* `ali_len`: The aligned sequences length (in bases, aligned)
+* `ali_filtered_len`: The aligned sequences length when we filter the alignment to keep only the RNANet chains (which have a 3D structure) and remove the gap-only columns.
 * `comput_time`: Time required to compute the family's multiple sequence alignment in seconds,
 * `comput_peak_mem`: RAM (or swap) required to compute the family's multiple sequence alignment in megabytes,
 * `idty_percent`: Average identity percentage over pairs of the 3D chains' sequences from the family

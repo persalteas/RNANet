@@ -417,7 +417,10 @@ def parallel_stats_pairs(f):
 def to_id_matrix(f):
     """
     Extracts sequences of 3D chains from the family alignments to a distinct STK file,
-    then runs esl-alipid on it to get an identity matrix
+    then runs esl-alipid on it to get an identity matrix.
+
+    Side-effect : also produces the 3D_only family alignment as a separate file. 
+    So, we use this function to update 'ali_filtered_length' in the family table.
     """
     if path.isfile("data/"+f+".npy"):
         return 0
@@ -442,7 +445,14 @@ def to_id_matrix(f):
     subprocess.run(["esl-reformat", "--informat", "stockholm", "--mingap",              #
                     "-o", path_to_seq_data+f"/realigned/{f}_3d_only.stk",               # This run just deletes columns of gaps
                     "stockholm",  path_to_seq_data+f"/realigned/{f}_3d_only_tmp.stk"])  #
-    subprocess.run(["rm", "-f", f + "_3d_only_tmp.stk"])
+    subprocess.run(["rm", "-f", f + "_3d_only_tmp.stk", f + "_3d_only.stk"])
+    subprocess.run(["esl-reformat", "-o", path_to_seq_data+f"/realigned/{f}_3d_only.afa", "afa", path_to_seq_data+f"/realigned/{f}_3d_only.stk"])
+
+    # Out-of-scope task : update the database with the length of the filtered alignment:
+    align = AlignIO.read(path_to_seq_data+f"/realigned/{f}_3d_only.afa", "fasta")
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        sql_execute(conn, """UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;""", many=True, data=(align.get_alignment_length(), f))
+    del align
 
     # Prepare the job
     process = subprocess.Popen(shlex.split(f"esl-alipid --rna --noheader --informat stockholm {path_to_seq_data}realigned/{f}_3d_only.stk"), 
