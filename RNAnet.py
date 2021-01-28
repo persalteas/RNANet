@@ -2501,7 +2501,7 @@ def work_pssm_remap(f, fill_gaps):
                 many=True, data=re_mappings)
 
     # Delete alignment columns that are not used anymore from the database
-    current_family_columns = [ x[0] for x in sql_ask_database(conn, f"SELECT index_ali FROM align_column WHERE rfam_acc = {f}";)]
+    current_family_columns = [ x[0] for x in sql_ask_database(conn, f"SELECT index_ali FROM align_column WHERE rfam_acc = {f};")]
     unused = []
     for col in current_family_columns:
         if col not in columns_to_save:
