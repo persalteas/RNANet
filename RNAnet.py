@@ -1410,6 +1410,7 @@ class Pipeline:
 
         # Start a process pool to dispatch the RNA families,
         # over multiple CPUs (one family by CPU)
+        # p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=1)
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
 
         try:
@@ -2407,7 +2408,7 @@ def work_pssm_remap(f, fill_gaps):
             continue
 
         # Check if the chain existed before in the database
-        if chains_ids.index(s.id) in list_of_chains.keys():
+        if s.id in chains_ids:
             # a chain object is found in the update, this sequence is new
             this_chain = list_of_chains[chains_ids.index(s.id)]
             seq_to_align = this_chain.seq_to_align
@@ -2415,12 +2416,10 @@ def work_pssm_remap(f, fill_gaps):
             db_id = this_chain.db_chain_id
         else:
             # it existed in the database before.
-            this_chain = None
-
             # Get the chain id in the database
             conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=10.0)
             conn.execute('pragma journal_mode=wal')
-            db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = {s.id.split('[')[0]} AND chain_name = {s.id.split('-')[1]} AND rfam_acc = {f};")
+            db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = '{s.id.split('[')[0]}' AND chain_name = '{s.id.split('-')[1]}' AND rfam_acc = '{f}';")
             if len(db_id):
                 db_id = db_id[0][0]
             else:
@@ -2430,7 +2429,6 @@ def work_pssm_remap(f, fill_gaps):
                 continue
             seq_to_align = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;")])
             full_length = len(seq_to_align)
-
             conn.close()
 
         # Save colums in the appropriate positions
@@ -2501,7 +2499,7 @@ def work_pssm_remap(f, fill_gaps):
                 many=True, data=re_mappings)
 
     # Delete alignment columns that are not used anymore from the database
-    current_family_columns = [ x[0] for x in sql_ask_database(conn, f"SELECT index_ali FROM align_column WHERE rfam_acc = {f};")]
+    current_family_columns = [ x[0] for x in sql_ask_database(conn, f"SELECT index_ali FROM align_column WHERE rfam_acc = '{f}';")]
     unused = []
     for col in current_family_columns:
         if col not in columns_to_save:
@@ -2535,21 +2533,16 @@ def work_pssm_remap(f, fill_gaps):
         for s in align:
             if not '[' in s.id:  # this is a Rfamseq entry, not a 3D chain
                 continue
-
-            # get the right 3D chain:
-            if chains_ids.index(s.id) in list_of_chains.keys():
-                db_id = list_of_chains[chains_ids.index(s.id)].db_chain_id
-                seq = this_chain.seq
-                full_length = this_chain.full_length
+    
+            db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = '{s.id.split('[')[0]}' AND chain_name = '{s.id.split('-')[1]}' AND rfam_acc = '{f}';")
+            if len(db_id):
+                db_id = db_id[0][0]
             else:
-                db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = {s.id.split('[')[0]} AND chain_name = {s.id.split('-')[1]} AND rfam_acc = {f};")
-                if len(db_id):
-                    db_id = db_id[0][0]
-                else:
-                    pbar.update(1)
-                    continue
-                seq = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;") ])
-                full_length = len(seq)
+                pbar.update(1)
+                continue
+            seq = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;") ])
+            aliseq = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;") ])
+            full_length = len(seq)
 
             # detect gaps
             c_seq = list(seq)  # contains "ACGUNacgu-"
@@ -2638,47 +2631,47 @@ if __name__ == "__main__":
         sql_define_tables(conn)
     print("> Storing results into", runDir + "/results/RNANet.db")
 
-    # compute an update compared to what is in the table "chain" (comparison on structure_id + chain_name + rfam_acc).
-    # If --all was passed, all the structures are kept.
-    # Fills pp.update with Chain() objects.
-    pp.list_available_mappings()
+    # # compute an update compared to what is in the table "chain" (comparison on structure_id + chain_name + rfam_acc).
+    # # If --all was passed, all the structures are kept.
+    # # Fills pp.update with Chain() objects.
+    # pp.list_available_mappings()
 
     # ===========================================================================
     # 3D information
     # ===========================================================================
 
-    # Download and annotate new RNA 3D chains (Chain objects in pp.update)
-    # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
-    pp.dl_and_annotate(coeff_ncores=0.5)
-    print("Here we go.")
+    # # Download and annotate new RNA 3D chains (Chain objects in pp.update)
+    # # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
+    # pp.dl_and_annotate(coeff_ncores=0.5)
+    # print("Here we go.")
 
-    # At this point, the structure table is up to date.
-    # Now save the DSSR annotations to the database.
-    # Extract the 3D chains to separate structure files if asked with --extract.
-    pp.build_chains(coeff_ncores=1.0)
+    # # At this point, the structure table is up to date.
+    # # Now save the DSSR annotations to the database.
+    # # Extract the 3D chains to separate structure files if asked with --extract.
+    # pp.build_chains(coeff_ncores=1.0)
 
-    if len(pp.to_retry):
-        # Redownload and re-annotate
-        print("> Retrying to annotate some structures which just failed.", flush=True)
-        pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
-        pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
-    print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
-    if len(no_nts_set):
-        print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
-    if len(weird_mappings):
-        print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
-    if pp.SELECT_ONLY is None:
-        pp.checkpoint_save_chains()
+    # if len(pp.to_retry):
+    #     # Redownload and re-annotate
+    #     print("> Retrying to annotate some structures which just failed.", flush=True)
+    #     pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
+    #     pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
+    # print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
+    # if len(no_nts_set):
+    #     print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
+    # if len(weird_mappings):
+    #     print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
+    # if pp.SELECT_ONLY is None:
+    #     pp.checkpoint_save_chains()
 
-    if not pp.HOMOLOGY:
-        # Save chains to file
-        for c in pp.loaded_chains:
-            work_save(c, homology=False)
-        print("Completed.")
-        exit(0)
+    # if not pp.HOMOLOGY:
+    #     # Save chains to file
+    #     for c in pp.loaded_chains:
+    #         work_save(c, homology=False)
+    #     print("Completed.")
+    #     exit(0)
 
-    # At this point, structure, chain and nucleotide tables of the database are up to date.
-    # (Modulo some statistics computed by statistics.py)
+    # # At this point, structure, chain and nucleotide tables of the database are up to date.
+    # # (Modulo some statistics computed by statistics.py)
 
     # ===========================================================================
     # Homology information
@@ -2700,8 +2693,8 @@ if __name__ == "__main__":
     pp.fam_list = sorted(rfam_acc_to_download.keys())
 
     if len(pp.fam_list):
-        pp.prepare_sequences()
-        pp.realign()
+        # pp.prepare_sequences()
+        # pp.realign()
 
         # At this point, the family table is almost up to date 
         # (lacking idty_percent and ali_filtered_length, both set in statistics.py)

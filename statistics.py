@@ -1,4 +1,4 @@
-#!/usr/bin/python3.8
+#!/usr/bin/python3
 
 # This file computes additional statistics over the produced dataset.
 # Run this file if you want the base counts, pair-type counts, identity percents, etc
@@ -74,6 +74,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=2.0):
 
         # Extract the angle values of c2'-endo and c3'-endo nucleotides
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
             df = pd.read_sql(f"""SELECT {angle}, th{angle} 
                                  FROM (
                                     SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
@@ -188,8 +189,12 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=2.0):
         if show:
             fig.show()
         plt.close()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+
     # print(f"[{worker_nbr}]\tComputed joint distribution of angles (C{carbon}) and saved the figures.")
 
+@trace_unhandled_exceptions
 def stats_len():
     """Plots statistics on chain lengths in RNA families.
     Uses all chains mapped to a family including copies, inferred or not.
@@ -222,6 +227,7 @@ def stats_len():
 
         # Get the lengths of chains
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
             l = [ x[0] for x in sql_ask_database(conn, f"""SELECT COUNT(index_chain) 
                                                             FROM (
                                                                 SELECT chain_id 
@@ -259,6 +265,7 @@ def stats_len():
     # Save the figure
     fig.savefig(runDir + f"/results/figures/lengths_{res_thr}A.png")
     idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     # notify("Computed sequence length statistics and saved the figure.")
 
 def format_percentage(tot, x):
@@ -273,6 +280,7 @@ def format_percentage(tot, x):
             x = "<.01"
         return x + '%'
 
+@trace_unhandled_exceptions
 def stats_freq():
     """Computes base frequencies in all RNA families.
     Uses all chains mapped to a family including copies, inferred or not.
@@ -294,6 +302,7 @@ def stats_freq():
     # List all nt_names happening within a RNA family and store the counts in the Counter
     for f in tqdm(famlist, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Base frequencies", unit="family", leave=False):
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
             counts = dict(sql_ask_database(conn, f"SELECT nt_name, COUNT(nt_name) FROM (SELECT chain_id from chain WHERE rfam_acc='{f}') NATURAL JOIN nucleotide GROUP BY nt_name;", warn_every=0))
         freqs[f].update(counts)
     
@@ -305,6 +314,7 @@ def stats_freq():
     df = df.fillna(0)
     df.to_csv(runDir + "/results/frequencies.csv")    
     idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     # notify("Saved nucleotide frequencies to CSV file.")
 
 @trace_unhandled_exceptions
@@ -327,6 +337,7 @@ def parallel_stats_pairs(f):
     sqldata = []
     for cid in tqdm(chain_id_list, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} basepair types", unit="chain",leave=False):
         with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
             # Get comma separated lists of basepairs per nucleotide
             interactions = pd.DataFrame(
                             sql_ask_database(conn, f"SELECT nt_code as nt1, index_chain, paired, pair_type_LW FROM nucleotide WHERE chain_id='{cid}';"), 
@@ -413,7 +424,9 @@ def parallel_stats_pairs(f):
     expanded_list.to_csv(runDir + f"/data/{f}_pairs.csv")
     
     idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+@trace_unhandled_exceptions
 def to_id_matrix(f):
     """
     Extracts sequences of 3D chains from the family alignments to a distinct STK file,
@@ -451,7 +464,8 @@ def to_id_matrix(f):
     # Out-of-scope task : update the database with the length of the filtered alignment:
     align = AlignIO.read(path_to_seq_data+f"/realigned/{f}_3d_only.afa", "fasta")
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
-        sql_execute(conn, """UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;""", many=True, data=(align.get_alignment_length(), f))
+        conn.execute('pragma journal_mode=wal')
+        sql_execute(conn, "UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=[align.get_alignment_length(), f])
     del align
 
     # Prepare the job
@@ -484,8 +498,10 @@ def to_id_matrix(f):
     np.save("data/"+f+".npy", id_matrix)
 
     idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     return 0
 
+@trace_unhandled_exceptions
 def seq_idty():
     """Computes identity matrices for each of the RNA families.
     
@@ -504,6 +520,7 @@ def seq_idty():
 
     # Update database with identity percentages
     conn = sqlite3.connect(runDir + "/results/RNANet.db")
+    conn.execute('pragma journal_mode=wal')
     for f, D in zip(fams_to_plot, fam_arrays):
         if not len(D): continue
         if D.shape[0] > 1:
@@ -547,6 +564,7 @@ def seq_idty():
     fig.savefig(runDir + f"/results/figures/distances_{res_thr}.png")
     print("> Computed all identity matrices and saved the figure.", flush=True)
 
+@trace_unhandled_exceptions
 def stats_pairs():
     """Counts occurrences of intra-chain base-pair types in RNA families
 
@@ -614,8 +632,10 @@ def stats_pairs():
     plt.subplots_adjust(left=0.1, bottom=0.16, top=0.95, right=0.99)
     plt.savefig(runDir + f"/results/figures/pairings_{res_thr}.png")
 
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     notify("Computed nucleotide statistics and saved CSV and PNG file.")
 
+@trace_unhandled_exceptions
 def per_chain_stats():
     """Computes per-chain frequencies and base-pair type counts.
 
@@ -623,7 +643,8 @@ def per_chain_stats():
     
     setproctitle(f"RNANet statistics.py per_chain_stats()")
 
-    with sqlite3.connect(runDir + "/results/RNANet.db", isolation_level=None) as conn:
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
         # Compute per-chain nucleotide frequencies
         df = pd.read_sql("SELECT SUM(is_A) as A, SUM(is_C) AS C, SUM(is_G) AS G, SUM(is_U) AS U, SUM(is_other) AS O, chain_id FROM nucleotide GROUP BY chain_id;", conn)
         df["total"] = pd.Series(df.A + df.C + df.G + df.U + df.O, dtype=np.float64)
@@ -631,11 +652,11 @@ def per_chain_stats():
         df = df.drop("total", axis=1)
 
         # Set the values
-        conn.execute('pragma journal_mode=wal')
         sql_execute(conn, "UPDATE chain SET chain_freq_A = ?, chain_freq_C = ?, chain_freq_G = ?, chain_freq_U = ?, chain_freq_other = ? WHERE chain_id= ?;",
                           many=True, data=list(df.to_records(index=False)), warn_every=10)
     print("> Updated the database with per-chain base frequencies", flush=True)
 
+@trace_unhandled_exceptions
 def general_stats():
     """
     Number of structures as function of the resolution threshold
@@ -749,6 +770,7 @@ def general_stats():
 
     answers = []
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
         for r in reqs:
             answers.append(pd.read_sql(r, conn))
     df_unique = answers[0]
@@ -909,6 +931,7 @@ def general_stats():
                         hspace=0.05, bottom=0.12, top=0.84)
     fig.savefig(runDir + "/results/figures/Nfamilies.png")
     plt.close()
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
 def log_to_pbar(pbar):
     def update(r):
@@ -981,6 +1004,7 @@ if __name__ == "__main__":
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
     print("Loading mappings list...")
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
         n_unmapped_chains = sql_ask_database(conn, "SELECT COUNT(*) FROM chain WHERE rfam_acc='unmappd' AND issue=0;")[0][0]
         families = pd.read_sql(f"""SELECT rfam_acc, count(*) as n_chains 
                                     FROM chain JOIN structure
