@@ -1224,7 +1224,7 @@ if __name__ == "__main__":
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
 
-    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=0.6*nworkers)
+    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(0.7*nworkers))
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
 
     try:
