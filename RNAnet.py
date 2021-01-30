@@ -1483,7 +1483,7 @@ class Pipeline:
             os.makedirs(path_to_seq_data + "realigned/3D_only", exist_ok=True)
             subprocess.run(["cp", path_to_seq_data + "realigned/*_3d_only.afa", path_to_seq_data + "realigned/3d_only" ])
             subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
-            subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
+            subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3D_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""

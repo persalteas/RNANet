@@ -911,128 +911,150 @@ def general_stats():
     fig.savefig(runDir + "/results/figures/Nfamilies.png")
     plt.close()
 
-def get_matrix_euclidian_distance(cif_file, aligned_seq, consider_all_atoms):
-    """
-    This function
-    - loads the coordinates and the alignment, reconctructs the alignment but with coordinates, considering gaps, and 
-    - compute the matrix of euclidian distances.
+def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
+    
+    # Identify the right 3D file
+    filename = ''
+    for file in filelist:
+        if file.startswith(s.id.replace('-', '').replace('[', '_').replace(']', '_')):
+            filename = path_to_3D_data + "rna_mapped_to_Rfam/" + file
+            break
+    if not len(filename):
+        return None, None, None
+    
+    # Get the coordinates of every existing nt in the 3D file
+    try:
+        coordinates = nt_3d_centers(filename, consider_all_atoms)
+        if not len(coordinates):
+            # there is not nucleotides in the file, or no C1' atoms for example.
+            warn("No C1' atoms in " + filename)
+            return None, None, None
+    except FileNotFoundError:
+        return None, None, None
 
-    Returns:
-    The 2D np.array of euclidian distances between pairs of nucleotides, with np.NaNs in gap columns.
-    """
-    # Load the baricenter coordinates
-    coordinates = nt_3d_centers(cif_file, consider_all_atoms) 
 
-    # reconstruct the alignment but with coordinates
+    # Get the coordinates of every position in the alignment
     nb_gap = 0
     coordinates_with_gaps = []
-    for i in range(len(aligned_seq)):
-        if aligned_seq[i] == '.' or  aligned_seq[i] == '-':
-            nb_gap = nb_gap + 1
-            coordinates_with_gaps.append('NA')
+    for i, letter in enumerate(s.seq):
+        if letter in "-.":
+            nb_gap += 1
+            coordinates_with_gaps.append(np.nan)
         else:
             coordinates_with_gaps.append(coordinates[i - nb_gap])
-   
-    nb_nucleotides = len(coordinates_with_gaps)  # number of nucleotides
-    matrix = np.zeros((nb_nucleotides, nb_nucleotides))  # create a new empty matrix of size nxn
     
-    # Fill this new matrix with the euclidians distances between all amino acids considering gaps:
-    for i in range(nb_nucleotides):
-        for j in range(nb_nucleotides):
-            if coordinates_with_gaps[i] == 'NA' or coordinates_with_gaps[j] == 'NA':
-                matrix[i][j] = np.nan
+    # Build the pairwise distances
+    print("> Computing distances for", s.id)
+    d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float16)
+    for i in range(len(s.seq)):
+        for j in range(len(s.seq)):
+            if np.isnan(coordinates_with_gaps[i]).any() or np.isnan(coordinates_with_gaps[j]).any():
+                d[i,j] = np.nan
             else:
-                matrix[i][j] = round(get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j]),3)
-    return(matrix)
+                d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
+    
+    print("> finished.")
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
+    return 1-np.isnan(d).astype(int), np.nan_to_num(d), np.nan_to_num(d*d)
 
 @trace_unhandled_exceptions
-def get_avg_std_distance_matrix(f, consider_all_atoms):
-    # Get a worker number to position the progress bar
-    global idxQueue
-    thr_idx = idxQueue.get()
-
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} {f} residue distance matrices")
-
+def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     if consider_all_atoms:
         label = "base"
     else:
         label = "backbone"
 
+    if not multithread:
+        # This function call is for ONE worker.
+        # Get a worker number for it to position the progress bar
+        global idxQueue
+        thr_idx = idxQueue.get()
+        setproctitle(f"RNANet statistics.py Worker {thr_idx+1} {f} {label} distance matrices")
+
     os.makedirs(runDir + '/results/distance_matrices/' + f + '_' + label, exist_ok=True )   
 
-   
-    family_matrices = []
     align = AlignIO.read(path_to_seq_data + f"realigned/{f}_3d_only.afa", "fasta")
+    ncols = align.get_alignment_length()
+    counts = np.zeros((ncols, ncols))
+    avg = np.zeros((ncols, ncols))
+    std = np.zeros((ncols, ncols))
     found = 0
     notfound = 0
-    pbar = tqdm(total = len(align), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} {label} distance matrices", unit="chains", leave=False)
-    pbar.update(0)
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
         r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}';")
-        filelist = [ ''.join(list(x))+'.cif' for x in r ]
+        filelist = sorted([ ''.join(list(x))+'.cif' for x in r ])
     
-    for s in align:
-        filename = ''
-        for file in filelist:
-            if file.startswith(s.id.replace('-', '').replace('[', '_').replace(']', '_')):
-                filename = path_to_3D_data + "rna_mapped_to_Rfam/" + file
-                break
-        if len(filename):
-            found += 1
-            try:
-                euclidian_distance = get_matrix_euclidian_distance(filename, s.seq, consider_all_atoms)
-                np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', euclidian_distance, delimiter=",", fmt="%.3f")
-                family_matrices.append(euclidian_distance)
-            except FileNotFoundError:
-                found -= 1
+    if not multithread:
+        pbar = tqdm(total = len(align), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} {label} distance matrices", unit="chains", leave=False)
+        pbar.update(0)
+        for s in align:
+            contrib, d, dsquared = par_distance_matrix(filelist, f, label, consider_all_atoms, s)
+            if d is not None:
+                found += 1
+                counts += contrib
+                avg += d
+                std += dsquared
+            else:
                 notfound += 1
-        else:
-            notfound += 1
-        pbar.update(1)
+            pbar.update(1)
+        pbar.close()
+    else:
+        # We split the work for one family on multiple workers.
+        
+        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
+        try:
+            fam_pbar = tqdm(total=len(align), desc=f"{f} {label} pair distances", position=0, unit="chain", leave=True)
+            # Apply work_pssm_remap to each RNA family
+            for i, (contrib, d, dsquared) in enumerate(p.imap_unordered(partial(par_distance_matrix, filelist, f, label, consider_all_atoms), align, chunksize=1)):
+                if d is not None:
+                    found += 1
+                    counts += contrib
+                    avg += d
+                    std += dsquared
+                else:
+                    notfound += 1
+                fam_pbar.update(1)
+            fam_pbar.close()
+            p.close()
+            p.join()
+        except KeyboardInterrupt:
+            warn("KeyboardInterrupt, terminating workers.", error=True)
+            fam_pbar.close()
+            p.terminate()
+            p.join()
+            exit(1)
+
     
     # Calculation of the average matrix
-    avgarray = np.array(family_matrices)
-    if len(avgarray) == 0 or np.prod(avgarray.shape) == 0: 
-        warn(f"Something's wrong with the shapes: {avgarray.shape}", error=True)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        matrix_average_distances = np.nanmean(avgarray, axis=0 )
-    
-    if len(matrix_average_distances) != 0:
-        matrix_average_distances = np.nan_to_num(matrix_average_distances)
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , np.triu(matrix_average_distances), delimiter=",", fmt="%.3f")
+    avg = avg/counts
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
     
     fig, ax = plt.subplots()
-    im = ax.imshow(matrix_average_distances)
+    im = ax.imshow(avg)
     cbar = ax.figure.colorbar(im, ax=ax)
     cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-    ax.set_title("Average distance between residues (Angströms)")
+    ax.set_title(f"Average distance between {f} residues (Angströms)")
     fig.tight_layout()
     fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
     plt.close()
 
-    # Calculation of the standard deviation matrix
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=RuntimeWarning)
-        matrix_standard_deviation_distances = np.nanstd(avgarray, axis=0 )
-
-    if len(matrix_standard_deviation_distances) != 0:
-        matrix_standard_deviation_distances = np.nan_to_num(matrix_standard_deviation_distances)
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , np.triu(matrix_standard_deviation_distances), delimiter=",", fmt="%.3f")
+    # Calculation of the standard deviation matrix by the Huygens theorem
+    std = np.sqrt(std/counts - np.power(avg, 2))
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
     
     fig, ax = plt.subplots()
-    im = ax.imshow(matrix_standard_deviation_distances)
+    im = ax.imshow(std)
     cbar = ax.figure.colorbar(im, ax=ax)
     cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-    ax.set_title("Average distance between residues (Angströms)")
+    ax.set_title(f"Standard deviation of distances between {f} residues (Angströms)")
     fig.tight_layout()
     fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
     plt.close()
 
     # Save log
     with open(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '.log', 'a') as logfile:
-        logfile.write(str(found)+ " chains taken into account for computation. "+ str(notfound)+ " were not found.\n")
+        logfile.write(str(found)+ " chains taken into account for computation. "+ str(notfound)+ " were not found/without atoms.\n")
 
     # Save associated nucleotide frequencies (off-topic but convenient to do it here)
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
@@ -1040,10 +1062,9 @@ def get_avg_std_distance_matrix(f, consider_all_atoms):
         df = pd.read_sql_query(f"SELECT freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus FROM align_column WHERE rfam_acc = '{f}' AND index_ali > 0 ORDER BY index_ali ASC;", conn)
         df.to_csv(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_frequencies.csv', float_format="%.3f")
 
-    pbar.close()
-
-    idxQueue.put(thr_idx) # replace the thread index in the queue
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+    if not multithread:
+        idxQueue.put(thr_idx) # replace the thread index in the queue
+        setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     return 0
 
 def log_to_pbar(pbar):
@@ -1069,33 +1090,34 @@ def nt_3d_centers(cif_file, consider_all_atoms):
     """Return the nucleotides' coordinates, summarizing a nucleotide by only one point.
     If consider_all_atoms : barycentre is used
     else: C1' atom is the nucleotide
+
+    Some chains have no C1' (e.g. 4v7f-3), therefore, an empty result is returned.
     """
     result  =[]
     structure = MMCIFParser().get_structure(cif_file, cif_file)
     
-    if consider_all_atoms == True:
-        for model in structure:
-            for chain in model:
-                for residue in chain:
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                if consider_all_atoms:
                     temp_list = []
-                    res_isobaricentre = 0
                     for atom in residue:
                         temp_list.append(atom.get_coord())
                     lg = len(temp_list)
-                    
                     summ = np.sum(temp_list, axis = 0)
                     res_isobaricentre = [summ[0]/lg, summ[1]/lg, summ[2]/lg]
                     result.append([res_isobaricentre[0], res_isobaricentre[1], res_isobaricentre[2]])
-     
-    elif consider_all_atoms == False:
-        for model in structure:
-            for chain in model:
-                for residue in chain:
+                else:
+                    coordinates = None
                     for atom in residue:
                         if atom.get_name() == "C1'":
                             coordinates = atom.get_coord()
-                            res = [coordinates[0], coordinates[1], coordinates[2]]
-                            result.append(res)
+                    if coordinates is None:
+                        # Residue has no C1'
+                        res = np.nan
+                    else:
+                        res = [coordinates[0], coordinates[1], coordinates[2]]
+                    result.append(res)
     return(result)
 
 def get_euclidian_distance(L1, L2):
@@ -1214,9 +1236,9 @@ if __name__ == "__main__":
                 e2 = file.split('_')[1]
                 e3 = file.split('_')[2]
                 extracted_chains.append(e1 + '[' + e2 + ']' + '-' + e3)
-        for f in famlist:
-            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True)))
-            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False)))
+        for f in [ x for x in famlist if (x not in LSU_set and x not in SSU_set) ]:    # Process the rRNAs later only 3 by 3
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
     joblist.append(Job(function=stats_len)) # Computes figures
     joblist.append(Job(function=stats_freq)) # updates the database
     for f in famlist:
@@ -1224,7 +1246,7 @@ if __name__ == "__main__":
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
 
-    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(0.7*nworkers))
+    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
 
     try:
@@ -1241,6 +1263,15 @@ if __name__ == "__main__":
         exit(1)
     except:
         print("Something went wrong")
+
+    # Now process the memory-heavy tasks family by family
+    if DO_AVG_DISTANCE_MATRIX:
+        for f in LSU_set:
+            get_avg_std_distance_matrix(f, True, True)
+            get_avg_std_distance_matrix(f, False, True)
+        for f in SSU_set:
+            get_avg_std_distance_matrix(f, True, True)
+            get_avg_std_distance_matrix(f, False, True)
 
     print()
     print()
