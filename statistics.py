@@ -4,7 +4,7 @@
 # Run this file if you want the base counts, pair-type counts, identity percents, etc
 # in the database.
 
-import getopt, os, pickle, sqlite3, shlex, subprocess, sys
+import getopt, os, pickle, sqlite3, shlex, subprocess, sys, warnings
 import numpy as np
 import pandas as pd
 import threading as th
@@ -16,6 +16,7 @@ import scipy.cluster.hierarchy as sch
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio import AlignIO, SeqIO
+from Bio.PDB.MMCIFParser import MMCIFParser
 from functools import partial
 from multiprocessing import Pool, Manager
 from os import path
@@ -429,11 +430,7 @@ def parallel_stats_pairs(f):
 @trace_unhandled_exceptions
 def to_id_matrix(f):
     """
-    Extracts sequences of 3D chains from the family alignments to a distinct STK file,
-    then runs esl-alipid on it to get an identity matrix.
-
-    Side-effect : also produces the 3D_only family alignment as a separate file. 
-    So, we use this function to update 'ali_filtered_length' in the family table.
+    Runs esl-alipid on the filtered alignment to get an identity matrix.
     """
     if path.isfile("data/"+f+".npy"):
         return 0
@@ -444,35 +441,18 @@ def to_id_matrix(f):
 
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} to_id_matrix({f})")
 
-    # Prepare a file
-    with open(path_to_seq_data+f"/realigned/{f}++.afa") as al_file:
-        al = AlignIO.read(al_file, "fasta")
-        names = [ x.id for x in al if '[' in x.id ]
-        al = al[-len(names):]
-    with open(path_to_seq_data+f"/realigned/{f}_3d_only_tmp.stk", "w") as only_3d:
-        try:
-            only_3d.write(al.format("stockholm"))
-        except ValueError as e:
-            warn(e)
-    del al
-    subprocess.run(["esl-reformat", "--informat", "stockholm", "--mingap",              #
-                    "-o", path_to_seq_data+f"/realigned/{f}_3d_only.stk",               # This run just deletes columns of gaps
-                    "stockholm",  path_to_seq_data+f"/realigned/{f}_3d_only_tmp.stk"])  #
-    subprocess.run(["rm", "-f", f + "_3d_only_tmp.stk", f + "_3d_only.stk"])
-    subprocess.run(["esl-reformat", "-o", path_to_seq_data+f"/realigned/{f}_3d_only.afa", "afa", path_to_seq_data+f"/realigned/{f}_3d_only.stk"])
-
-    # Out-of-scope task : update the database with the length of the filtered alignment:
-    align = AlignIO.read(path_to_seq_data+f"/realigned/{f}_3d_only.afa", "fasta")
-    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
-        conn.execute('pragma journal_mode=wal')
-        sql_execute(conn, "UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=[align.get_alignment_length(), f])
+    if not path.isfile(f"{path_to_seq_data}/realigned/{f}_3d_only.stk"):
+        warn(f"File not found: {path_to_seq_data}/realigned/{f}_3d_only.stk")
+    align = AlignIO.read(f"{path_to_seq_data}/realigned/{f}_3d_only.stk", "stockholm")
+    names = [ x.id for x in align if '[' in x.id ]
     del align
-
-    # Prepare the job
-    process = subprocess.Popen(shlex.split(f"esl-alipid --rna --noheader --informat stockholm {path_to_seq_data}realigned/{f}_3d_only.stk"), 
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    id_matrix = np.zeros((len(names), len(names)))
+    
     pbar = tqdm(total = len(names)*(len(names)-1)*0.5, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} idty matrix", unit="comparisons", leave=False)
+    pbar.update(0)
+    
+    # Prepare the job
+    process = subprocess.Popen(shlex.split(f"esl-alipid --rna --noheader --informat stockholm {path_to_seq_data}/realigned/{f}_3d_only.stk"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    id_matrix = np.zeros((len(names), len(names)))
     cnt = 0
     while not cnt or process.poll() is None:
         output = process.stdout.read()
@@ -632,7 +612,6 @@ def stats_pairs():
     plt.subplots_adjust(left=0.1, bottom=0.16, top=0.95, right=0.99)
     plt.savefig(runDir + f"/results/figures/pairings_{res_thr}.png")
 
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     notify("Computed nucleotide statistics and saved CSV and PNG file.")
 
 @trace_unhandled_exceptions
@@ -931,7 +910,141 @@ def general_stats():
                         hspace=0.05, bottom=0.12, top=0.84)
     fig.savefig(runDir + "/results/figures/Nfamilies.png")
     plt.close()
+
+def get_matrix_euclidian_distance(cif_file, aligned_seq, consider_all_atoms):
+    """
+    This function
+    - loads the coordinates and the alignment, reconctructs the alignment but with coordinates, considering gaps, and 
+    - compute the matrix of euclidian distances.
+
+    Returns:
+    The 2D np.array of euclidian distances between pairs of nucleotides, with np.NaNs in gap columns.
+    """
+    # Load the baricenter coordinates
+    coordinates = nt_3d_centers(cif_file, consider_all_atoms) 
+
+    # reconstruct the alignment but with coordinates
+    nb_gap = 0
+    coordinates_with_gaps = []
+    for i in range(len(aligned_seq)):
+        if aligned_seq[i] == '.' or  aligned_seq[i] == '-':
+            nb_gap = nb_gap + 1
+            coordinates_with_gaps.append('NA')
+        else:
+            coordinates_with_gaps.append(coordinates[i - nb_gap])
+   
+    nb_nucleotides = len(coordinates_with_gaps)  # number of nucleotides
+    matrix = np.zeros((nb_nucleotides, nb_nucleotides))  # create a new empty matrix of size nxn
+    
+    # Fill this new matrix with the euclidians distances between all amino acids considering gaps:
+    for i in range(nb_nucleotides):
+        for j in range(nb_nucleotides):
+            if coordinates_with_gaps[i] == 'NA' or coordinates_with_gaps[j] == 'NA':
+                matrix[i][j] = np.nan
+            else:
+                matrix[i][j] = round(get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j]),3)
+    return(matrix)
+
+@trace_unhandled_exceptions
+def get_avg_std_distance_matrix(f, consider_all_atoms):
+    # Get a worker number to position the progress bar
+    global idxQueue
+    thr_idx = idxQueue.get()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} {f} residue distance matrices")
+
+    if consider_all_atoms:
+        label = "base"
+    else:
+        label = "backbone"
+
+    os.makedirs(runDir + '/results/distance_matrices/' + f + '_' + label, exist_ok=True )   
+
+   
+    family_matrices = []
+    align = AlignIO.read(path_to_seq_data + f"realigned/{f}_3d_only.afa", "fasta")
+    found = 0
+    notfound = 0
+    pbar = tqdm(total = len(align), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} {label} distance matrices", unit="chains", leave=False)
+    pbar.update(0)
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
+        r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}';")
+        filelist = [ ''.join(list(x))+'.cif' for x in r ]
+    
+    for s in align:
+        filename = ''
+        for file in filelist:
+            if file.startswith(s.id.replace('-', '').replace('[', '_').replace(']', '_')):
+                filename = path_to_3D_data + "rna_mapped_to_Rfam/" + file
+                break
+        if len(filename):
+            found += 1
+            try:
+                euclidian_distance = get_matrix_euclidian_distance(filename, s.seq, consider_all_atoms)
+                np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', euclidian_distance, delimiter=",", fmt="%.3f")
+                family_matrices.append(euclidian_distance)
+            except FileNotFoundError:
+                found -= 1
+                notfound += 1
+        else:
+            notfound += 1
+        pbar.update(1)
+    
+    # Calculation of the average matrix
+    avgarray = np.array(family_matrices)
+    if len(avgarray) == 0 or np.prod(avgarray.shape) == 0: 
+        warn(f"Something's wrong with the shapes: {avgarray.shape}", error=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        matrix_average_distances = np.nanmean(avgarray, axis=0 )
+    
+    if len(matrix_average_distances) != 0:
+        matrix_average_distances = np.nan_to_num(matrix_average_distances)
+        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , np.triu(matrix_average_distances), delimiter=",", fmt="%.3f")
+    
+    fig, ax = plt.subplots()
+    im = ax.imshow(matrix_average_distances)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+    ax.set_title("Average distance between residues (Angströms)")
+    fig.tight_layout()
+    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
+    plt.close()
+
+    # Calculation of the standard deviation matrix
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        matrix_standard_deviation_distances = np.nanstd(avgarray, axis=0 )
+
+    if len(matrix_standard_deviation_distances) != 0:
+        matrix_standard_deviation_distances = np.nan_to_num(matrix_standard_deviation_distances)
+        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , np.triu(matrix_standard_deviation_distances), delimiter=",", fmt="%.3f")
+    
+    fig, ax = plt.subplots()
+    im = ax.imshow(matrix_standard_deviation_distances)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+    ax.set_title("Average distance between residues (Angströms)")
+    fig.tight_layout()
+    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
+    plt.close()
+
+    # Save log
+    with open(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '.log', 'a') as logfile:
+        logfile.write(str(found)+ " chains taken into account for computation. "+ str(notfound)+ " were not found.\n")
+
+    # Save associated nucleotide frequencies (off-topic but convenient to do it here)
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
+        df = pd.read_sql_query(f"SELECT freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus FROM align_column WHERE rfam_acc = '{f}' AND index_ali > 0 ORDER BY index_ali ASC;", conn)
+        df.to_csv(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_frequencies.csv', float_format="%.3f")
+
+    pbar.close()
+
+    idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+    return 0
 
 def log_to_pbar(pbar):
     def update(r):
@@ -952,6 +1065,48 @@ def family_order(f):
     else:
         return 2
 
+def nt_3d_centers(cif_file, consider_all_atoms):
+    """Return the nucleotides' coordinates, summarizing a nucleotide by only one point.
+    If consider_all_atoms : barycentre is used
+    else: C1' atom is the nucleotide
+    """
+    result  =[]
+    structure = MMCIFParser().get_structure(cif_file, cif_file)
+    
+    if consider_all_atoms == True:
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    temp_list = []
+                    res_isobaricentre = 0
+                    for atom in residue:
+                        temp_list.append(atom.get_coord())
+                    lg = len(temp_list)
+                    
+                    summ = np.sum(temp_list, axis = 0)
+                    res_isobaricentre = [summ[0]/lg, summ[1]/lg, summ[2]/lg]
+                    result.append([res_isobaricentre[0], res_isobaricentre[1], res_isobaricentre[2]])
+     
+    elif consider_all_atoms == False:
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    for atom in residue:
+                        if atom.get_name() == "C1'":
+                            coordinates = atom.get_coord()
+                            res = [coordinates[0], coordinates[1], coordinates[2]]
+                            result.append(res)
+    return(result)
+
+def get_euclidian_distance(L1, L2):
+    """Returns the distance between two points (coordinates in lists)
+    """
+
+    e = 0
+    for i in range(len(L1)):
+        e += float(L1[i] - L2[i])**2
+    return np.sqrt(e)
+
 if __name__ == "__main__":
 
     os.makedirs(runDir + "/results/figures/", exist_ok=True)
@@ -959,8 +1114,9 @@ if __name__ == "__main__":
     # parse options
     DELETE_OLD_DATA = False
     DO_WADLEY_ANALYSIS = False
+    DO_AVG_DISTANCE_MATRIX = False
     try:
-        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "from-scratch", "wadley", "resolution=", "3d-folder=", "seq-folder=" ])
+        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "from-scratch", "wadley", "distance-matrices", "resolution=", "3d-folder=", "seq-folder=" ])
     except getopt.GetoptError as err:
         print(err)
         sys.exit(2)
@@ -979,9 +1135,12 @@ if __name__ == "__main__":
             print("--seq-folder=…\t\t\tPath to a folder containing the sequence and alignment files. Required subfolder:"
                     "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
             print("--from-scratch\t\t\tDo not use precomputed results from past runs, recompute everything")
+            print("--distance-matrices\t\tCompute average distance between nucleotide pairs for each family.")
+            print("--wadley\t\t\tReproduce Wadley & al 2007 clustering of pseudotorsions.")
+
             sys.exit()
         elif opt == '--version':
-            print("RNANet statistics 1.2")
+            print("RNANet statistics 1.3 beta")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert float(arg) > 0.0 and float(arg) <= 20.0 
@@ -997,6 +1156,8 @@ if __name__ == "__main__":
         elif opt=='--from-scratch':
             DELETE_OLD_DATA = True
             DO_WADLEY_ANALYSIS = True
+        elif opt=="--distance-matrices":
+            DO_AVG_DISTANCE_MATRIX = True
         elif opt=='--wadley':
             DO_WADLEY_ANALYSIS = True
     
@@ -1030,6 +1191,8 @@ if __name__ == "__main__":
             subprocess.run(["rm","-f", runDir + f"/data/{f}.npy", runDir + f"/data/{f}_pairs.csv", runDir + f"/data/{f}_counts.csv"])
         if DO_WADLEY_ANALYSIS:
             subprocess.run(["rm","-f", runDir + f"/data/wadley_kernel_eta_{res_thr}.npz", runDir + f"/data/wadley_kernel_eta_prime_{res_thr}.npz", runDir + f"/data/pair_counts_{res_thr}.csv"])
+        if DO_AVG_DISTANCE_MATRIX:
+            subprocess.run(["rm", "-rf", runDir + f"/results/distance_matrices/"])
 
     # Prepare the multiprocessing execution environment
     nworkers = min(read_cpu_number()-1, 32)
@@ -1043,6 +1206,17 @@ if __name__ == "__main__":
     if n_unmapped_chains and DO_WADLEY_ANALYSIS:
         joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
         joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
+    if DO_AVG_DISTANCE_MATRIX:
+        extracted_chains = []
+        for file in os.listdir(path_to_3D_data + "rna_mapped_to_Rfam"):
+            if os.path.isfile(os.path.join(path_to_3D_data + "rna_mapped_to_Rfam", file)):
+                e1 = file.split('_')[0]
+                e2 = file.split('_')[1]
+                e3 = file.split('_')[2]
+                extracted_chains.append(e1 + '[' + e2 + ']' + '-' + e3)
+        for f in famlist:
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True)))
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False)))
     joblist.append(Job(function=stats_len)) # Computes figures
     joblist.append(Job(function=stats_freq)) # updates the database
     for f in famlist:

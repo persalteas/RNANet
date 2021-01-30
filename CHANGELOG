@@ -1,16 +1,22 @@
-v 1.1 beta, January 2021
+v 1.3 beta, January 2021
 
 The first uses of RNAnet by people from outside the development team happened between this December.
 A few feedback allowed to identify issues and useful information to add.
 
 FEATURE CHANGES
-    - Sequence alignments of the 3D structures mapped to a family are now provided. 
+    - Sequence alignments of the 3D structures mapped to a family are now provided.
     - Full alignements with Rfam sequences are not provided, but you can ask us for the files.
     - Two new fields in table 'family': ali_length and ali_filtered_length. 
     They are the MSA lengths of the alignment with and without the Rfam sequences. 
+    - Gap replacement by consensus (--fill-gaps) has been removed. Now, the gap percentage and consensus are saved 
+    in the align_column table and the datapoints in CSV format, in separate columns. 
+    Consensus is one of ACGUN-, the gap being chosen if >75% of the sequences are gaps at this position. 
+    Otherwise, A/C/G/U is chosen if >50% of the non-gap positions are A/C/G/U. Otherwise, N is the consensus.
 
 TECHNICAL CHANGES
-    - SQLite connexions are now all in WAL mode by default (previously, only the writers used WAL mode)
+    - SQLite connexions are now all in WAL mode by default (previously, only the writers used WAL mode, but this is useless)
+    - Moved to Python3.9 for internal testing.
+    - Latest version of BioPython is now supported (1.78)
 
 BUG CORRECTIONS
     - When an alignment file is updated in a newer run of RNANet, all the re_mappings are now re-computed 
@@ -19,8 +25,8 @@ BUG CORRECTIONS
     - Changed the ownership and permissions of files produced by the Docker container. 
     They were previously owned by root and the user could not get access to them.
     - Modified nucleotides were not always correctly transformed to N in the alignments (and nucleotide.nt_align_code fields).
-    Now, the alignments and nt_align_code only contain "ACGUN-" chars. 
-    Now, 'N' means 'other', while '-' means 'nothing'.
+    Now, the alignments and nt_align_code (and consensus) only contain "ACGUN-" chars. 
+    Now, 'N' means 'other', while '-' means 'nothing' or 'unknown'.
 
 COMING SOON
     - Automated annotation of detected Recurrent Interaction Networks (RINs), see http://carnaval.lri.fr/ .

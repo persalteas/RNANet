@@ -125,36 +125,6 @@ class SelectivePortionSelector(object):
         return 1
 
 
-class BufferingSummaryInfo(AlignInfo.SummaryInfo):
-
-    def get_pssm(self, family, index):
-        """Create a position specific score matrix object for the alignment. 
-
-        This creates a position specific score matrix (pssm) which is an 
-        alternative method to look at a consensus sequence. 
-
-        Returns: 
-         - A PSSM (position specific score matrix) object. 
-        """
-
-        pssm_info = []
-        # now start looping through all of the sequences and getting info
-        for residue_num in tqdm(range(self.alignment.get_alignment_length()), position=index+1, desc=f"Worker {index+1}: Count bases in fam {family}", leave=False):
-            score_dict = self._get_base_letters("ACGUN")
-            for record in self.alignment:
-                this_residue = record.seq[residue_num].upper()
-                if this_residue not in "-.":
-                    try:
-                        score_dict[this_residue] += 1.0
-                    except KeyError:
-                        # if this_residue in "acgun":
-                        #     warn(f"Found {this_residue} in {family} alignment...")
-                        score_dict[this_residue] = 1.0
-            pssm_info.append(('*', score_dict))
-
-        return AlignInfo.PSSM(pssm_info)
-
-
 class Chain:
     """ 
     The object which stores all our data and the methods to process it.
@@ -963,7 +933,6 @@ class Pipeline:
         # Default options:
         self.CRYSTAL_RES = 4.0
         self.KEEP_HETATM = False
-        self.FILL_GAPS = True
         self.HOMOLOGY = True
         self.USE_KNOWN_ISSUES = True
         self.RUN_STATS = False
@@ -984,11 +953,9 @@ class Pipeline:
         setproctitle("RNANet.py process_options()")
 
         try:
-            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs",
-                                    ["help", "resolution=", "keep-hetatm=", "from-scratch", "full-inference,"
-                                        "fill-gaps=", "3d-folder=", "seq-folder=",
-                                        "no-homology", "ignore-issues", "extract", "only=", "all", "no-logs",
-                                        "archive", "update-homologous"])
+            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=",  "only=",
+                                                            "from-scratch", "full-inference", "no-homology", "ignore-issues", "extract", 
+                                                            "all", "no-logs", "archive", "update-homologous"])
         except getopt.GetoptError as err:
             print(err)
             sys.exit(2)
@@ -1014,8 +981,6 @@ class Pipeline:
                 print("--extract\t\t\tExtract the portions of 3D RNA chains to individual mmCIF files.")
                 print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
                       "\n\t\t\t\tDoes not affect the descriptors.")
-                print("--fill-gaps=True\t\t(True | False) Replace gaps in nt_align_code field due to unresolved residues"
-                      "\n\t\t\t\tby the most common nucleotide at this position in the alignment.")
                 print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
                       "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
                       "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
@@ -1038,7 +1003,7 @@ class Pipeline:
                 print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &")
                 sys.exit()
             elif opt == '--version':
-                print("RNANet 1.2, parallelized, Dockerized")
+                print("RNANet 1.3 beta, parallelized, Dockerized")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
                 assert float(arg) > 0.0 and float(arg) <= 20.0
@@ -1048,9 +1013,6 @@ class Pipeline:
             elif opt == "--keep-hetatm":
                 assert arg in ["True", "False"]
                 self.KEEP_HETATM = (arg == "True")
-            elif opt == "--fill-gaps":
-                assert arg in ["True", "False"]
-                self.FILL_GAPS = (arg == "True")
             elif opt == "--no-homology":
                 self.HOMOLOGY = False
             elif opt == '--3d-folder':
@@ -1410,13 +1372,12 @@ class Pipeline:
 
         # Start a process pool to dispatch the RNA families,
         # over multiple CPUs (one family by CPU)
-        # p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=1)
         p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
 
         try:
             fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True)
             # Apply work_pssm_remap to each RNA family
-            for i, _ in enumerate(p.imap_unordered(partial(work_pssm_remap, fill_gaps=self.FILL_GAPS), self.fam_list, chunksize=1)):
+            for i, _ in enumerate(p.imap_unordered(work_pssm_remap, self.fam_list, chunksize=1)):
                 # Everytime the iteration finishes on a family, update the global progress bar over the RNA families
                 fam_pbar.update(1)
             fam_pbar.close()
@@ -1492,6 +1453,12 @@ class Pipeline:
             subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
             subprocess.run(["ln", "-s", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
 
+            # gather the alignments
+            os.makedirs(path_to_seq_data + "realigned/3D_only", exist_ok=True)
+            subprocess.run(["cp", path_to_seq_data + "realigned/*_3d_only.afa", path_to_seq_data + "realigned/3d_only" ])
+            subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
+            subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
+
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
 
@@ -1539,6 +1506,20 @@ class Pipeline:
             #     warn("Missing positions in the re-mapping:")
             #     for x in r:
             #         print(x)
+
+            # check that filtered alignment have the same length than the number of saved alignment columns for a family
+            r = sql_ask_database(conn, """select family.rfam_acc, count, ali_filtered_len 
+                                          FROM family 
+                                          LEFT JOIN (
+                                              SELECT rfam_acc, count(distinct index_ali) as count from align_column where index_ali>0 group by rfam_acc
+                                          ) AS s ON family.rfam_acc=s.rfam_acc;""")
+            for f in r:
+                if f[1] is None or f[2] is None:
+                    warn(f"{f[0]} has incomplete alignement data: {f[1]} alignement columns saved, filtered alignment is of length {f[2]}")
+                    continue
+
+                if f[1] != f[2]:
+                    warn(f"{f[0]} has {f[1]} alignement columns saved, but its filtered alignment is of length {f[2]} !")
 
         conn.close()
 
@@ -1684,6 +1665,8 @@ def sql_define_tables(conn):
                 freq_G          REAL,
                 freq_U          REAL,
                 freq_other      REAL,
+                gap_percent     REAL,
+                consensus       CHAR(1),
                 PRIMARY KEY (rfam_acc, index_ali),
                 FOREIGN KEY(rfam_acc) REFERENCES family(rfam_acc)
             );
@@ -2158,7 +2141,7 @@ def work_prepare_sequences(dl, rfam_acc, chains):
                 with open(fasta, 'w') as f:
                     for rec in seqfile:
                         if rec.id not in doublons:
-                            f.write(rec.format("fasta"))
+                            f.write(format(rec, "fasta"))
 
         # Add the new sequences with previous ones, if any
         with open(path_to_seq_data + f"realigned/{rfam_acc}++.fa", "a") as f:
@@ -2333,28 +2316,8 @@ def work_realign(rfam_acc):
                 er.write(f"Failed to realign {rfam_acc} (killed)")
 
 
-def summarize_position(counts):
-    """ Counts the number of nucleotides at a given position, given a "column" from a MSA.
-    """
-
-    # Count modified nucleotides
-    chars = counts.keys()
-    known_chars_count = 0
-    N = 0
-    for char in chars:
-        if char in "ACGU":
-            known_chars_count += counts[char]
-        if char not in ".-":
-            N += counts[char]  # number of ungapped residues
-
-    if N:  # prevent division by zero if the column is only gaps
-        return (counts['A']/N, counts['C']/N, counts['G']/N, counts['U']/N, (N - known_chars_count)/N)  # other residues, or consensus (N, K, Y...)
-    else:
-        return (0, 0, 0, 0, 0)
-
-
 @trace_unhandled_exceptions
-def work_pssm_remap(f, fill_gaps):
+def work_pssm_remap(f):
     """Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
     This also remaps the 3D object sequence with the aligned sequence in the MSA.
     If asked, the 3D object sequence is completed by the consensus nucleotide when one of them is missing.
@@ -2385,11 +2348,54 @@ def work_pssm_remap(f, fill_gaps):
         with open(runDir + "/errors.txt", "a") as errf:
             errf.write(f"{f}'s alignment is wrong. Recompute it and retry.\n")
         return 1
+    nseqs = len(align)
+    ncols = align.get_alignment_length()
 
     # Compute statistics per column
-    pssm = BufferingSummaryInfo(align).get_pssm(f, thr_idx)
-    frequencies = [ summarize_position(pssm[i]) for i in range(align.get_alignment_length()) ]
-    del pssm
+    pssm_info = np.zeros((6, ncols))
+    res_index = {'A':0, 'C':1, 'G':2, 'U':3, 'N':4, '-':5}
+    letters = "ACGUN"
+    consensus = []
+    
+    for residue_num in tqdm(range(ncols), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Count bases in fam {f}", leave=False):
+        
+        # Count the bases (iterate lines)
+        for record in align:
+            letter = record.seq[residue_num].upper().replace('.','-')
+            try:
+                idx = res_index[letter]
+            except KeyError:
+                # warn(f"Unknown residue found in {family} family: {letter}", error=True)
+                # These are K, R, etc from Rfam. The RNANet sequences provided are pure ACGUN, but not the Rfam ones.
+                idx = 4 # consider it is N
+            pssm_info[idx,residue_num] += 1.0
+        
+        # Get the number of non-gap nucleotides
+        N = 0
+        for i in range(5):
+            N += pssm_info[i,residue_num]
+
+        if N>0:
+            # Divide base counts by number of non-gaps
+            for i in range(5):
+                pssm_info[i,residue_num] /= N
+        
+        # last line is for the gap percentage (Ngaps/Nlines)
+        pssm_info[5,residue_num] /= nseqs
+
+        # Define consensus base for this position:
+        if pssm_info[5,residue_num] > 0.7:
+            # gaps are in majority if over 75% (that's my definition)
+            consensus.append('-')
+        else:
+            idx = np.argmax(pssm_info[0:5,residue_num])
+            if pssm_info[idx, residue_num] > 0.5:
+                consensus.append(letters[idx])
+            else:
+                consensus.append('N')
+
+    # At this point, pssm_info is a numpy array containing the PSSM and consensus a list of consensus chars.
+
 
     ##########################################################################################
     #           Remap sequences of the 3D chains with sequences in the alignment
@@ -2397,60 +2403,51 @@ def work_pssm_remap(f, fill_gaps):
 
     setproctitle(f"RNAnet.py work_pssm_remap({f}) remap")
 
-    # For each sequence, find the right chain and remap chain residues with alignment columns
+    # For each sequence, remap chain residues with sequence alignment 
     columns_to_save = set()
     re_mappings = []
-    alilen = align.get_alignment_length()
-    pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Remap {f} chains", leave=False)
+    pbar = tqdm(total=nseqs, position=thr_idx+1, desc=f"Worker {thr_idx+1}: Remap {f} chains", leave=False)
     pbar.update(0)
     for s in align:
-        if not '[' in s.id:  # this is a Rfamseq entry, not a 3D chain
+        # skip Rfamseq entries
+        if not '[' in s.id:  
             continue
 
-        # Check if the chain existed before in the database
-        if s.id in chains_ids:
-            # a chain object is found in the update, this sequence is new
-            this_chain = list_of_chains[chains_ids.index(s.id)]
-            seq_to_align = this_chain.seq_to_align
-            full_length = this_chain.full_length
-            db_id = this_chain.db_chain_id
+        # Get the chain id in the database
+        conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=10.0)
+        conn.execute('pragma journal_mode=wal')
+        db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = '{s.id.split('[')[0]}' AND chain_name = '{s.id.split('-')[1]}' AND rfam_acc = '{f}';")
+        if len(db_id):
+            db_id = db_id[0][0]
         else:
-            # it existed in the database before.
-            # Get the chain id in the database
-            conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=10.0)
-            conn.execute('pragma journal_mode=wal')
-            db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = '{s.id.split('[')[0]}' AND chain_name = '{s.id.split('-')[1]}' AND rfam_acc = '{f}';")
-            if len(db_id):
-                db_id = db_id[0][0]
-            else:
-                conn.close()
-                warn(f"Bizarre... sequence {s.id} is not found in the database ! Cannot remap it ! Ignoring...")
-                pbar.update(1)
-                continue
-            seq_to_align = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;")])
-            full_length = len(seq_to_align)
             conn.close()
+            warn(f"Bizarre... sequence {s.id} is not found in the database ! Cannot remap it ! Ignoring...")
+            pbar.update(1)
+            continue
+        seq_to_align = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;")])
+        full_length = len(seq_to_align)
+        conn.close()
 
         # Save colums in the appropriate positions
         i = 0   # to iterate the object sequence
         j = 0   # to iterate the alignment sequence
-        while i < full_length and j < alilen:
+        while i < full_length and j < ncols:
             # Here we try to map seq_to_align (the sequence of the 3D chain, including gaps when residues are missing),
             # with s.seq, the sequence aligned in the MSA, containing any of ACGU and two types of gaps, - and .
 
-            if seq_to_align[i] == s.seq[j].upper():    # alignment and sequence correspond (incl. gaps)
+            if seq_to_align[i] == s.seq[j].upper():      # alignment and sequence correspond (incl. gaps)
                 re_mappings.append((db_id, i+1, j+1))    # because index_chain in table nucleotide is in [1,N], we use i+1 and j+1.
                 columns_to_save.add(j+1)    # it's a set, doublons are automaticaly ignored
                 i += 1
                 j += 1
-            elif seq_to_align[i] == '-':   # gap in the chain, but not in the aligned sequence
+            elif seq_to_align[i] == '-':   # '-' in the chain, but '.' or letter in the aligned sequence
                 # search for a gap to the consensus nearby
                 k = 0  # Search must start at zero to assert the difference comes from '-' in front of '.'
-                while j+k < alilen and s.seq[j+k] == '.':
+                while j+k < ncols and s.seq[j+k] == '.':
                     k += 1
 
                 # if found, set j to that position
-                if j+k < alilen and s.seq[j+k] == '-':
+                if j+k < ncols and s.seq[j+k] == '-':
                     re_mappings.append((db_id, i+1, j+k+1))
                     columns_to_save.add(j+k+1)
                     i += 1
@@ -2458,31 +2455,28 @@ def work_pssm_remap(f, fill_gaps):
                     continue
 
                 # if not, take the insertion gap if this is one
-                if j < alilen and s.seq[j] == '.':
+                if j < ncols and s.seq[j] == '.':
                     re_mappings.append((db_id, i+1, j+1))
                     columns_to_save.add(j+1)
                     i += 1
                     j += 1
                     continue
 
-                # else, just mark the gap as unknown (there is an alignment mismatch)
+                # else, just mark the gap as unknown (there is an alignment mismatch '-' in the 3D facing a letter in the alignment)
                 re_mappings.append((db_id, i+1, 0))
                 i += 1
             elif s.seq[j] in ['.', '-']:  # gap in the alignment, but not in the real chain
                 j += 1  # ignore the column
             else:  # sequence mismatch which is not a gap...
-                print(f"You are never supposed to reach this. Comparing {self.chain_label} in {i} ({self.seq_to_align[i-1:i+2]}) with seq[{j}] ({s.seq[j-3:j+4]}).",
-                      self.seq_to_align, s.seq, sep='\n', flush=True)
+                print(f"You are never supposed to reach this. Comparing {s.id} in {i} ({seq_to_align[i-1:i+2]}) with seq[{j}] ({s.seq[j-3:j+4]}).",
+                      seq_to_align, s.seq, sep='\n', flush=True)
                 raise Exception('Something is wrong with sequence alignment.')
 
         pbar.update(1)
     pbar.close()
 
-    # Check we found something
-    if not len(re_mappings):
-        warn(f"Chains were not found in {f}++.afa file: {chains_ids}", error=True)
-        return 1
-
+    # Get a sorted list from the set
+    columns = sorted(columns_to_save)
 
     ##########################################################################################
     #           Save the alignment columns and their mappings to the database
@@ -2505,75 +2499,48 @@ def work_pssm_remap(f, fill_gaps):
         if col not in columns_to_save:
             unused.append((f, col))
     sql_execute(conn, """DELETE FROM align_column WHERE rfam_acc = ? AND index_ali = ?;""", many=True, data=unused)
+    conn.commit()
+
     # Save the useful columns in the database
-    data = [(f, j) + frequencies[j-1] for j in sorted(columns_to_save)]
-    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
-                         VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
-                         UPDATE SET freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, freq_other=excluded.freq_other;""", many=True, data=data)
-    # Add an unknown values column, with index_ali 0
-    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other)
-                          VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 1.0);""", data=(f,))
+    data = [(f, j) + tuple(pssm_info[:,j-1]) + (consensus[j-1],) for j in sorted(columns_to_save)]
+    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
+                         UPDATE SET freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
+                                    freq_other=excluded.freq_other, gap_percent=excluded.gap_percent, consensus=excluded.consensus;""", many=True, data=data)
+    # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
+    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
+                          VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-');""", data=(f,))
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
     sql_execute(conn, f"UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=(len(columns_to_save), f))
     conn.close()
 
     ##########################################################################################
-    #           Replacing gaps in the 3D chains by consensus sequences
+    #               Saving the filtered alignement with only the saved positinos
     ##########################################################################################
 
-    setproctitle(f"RNAnet.py work_pssm_remap({f}) replace gaps")
+    setproctitle(f"RNAnet.py work_pssm_remap({f}) filtering alignment")
 
-    # Replace gaps by consensus
-    if fill_gaps:
-        pbar = tqdm(total=len(chains_ids), position=thr_idx+1, desc=f"Worker {thr_idx+1}: Replace {f} gaps", leave=False)
-        pbar.update(0)
-        gaps = []
-        conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=10.0)
-        conn.execute('pragma journal_mode=wal')
-        for s in align:
-            if not '[' in s.id:  # this is a Rfamseq entry, not a 3D chain
-                continue
-    
-            db_id = sql_ask_database(conn, f"SELECT chain_id FROM chain WHERE structure_id = '{s.id.split('[')[0]}' AND chain_name = '{s.id.split('-')[1]}' AND rfam_acc = '{f}';")
-            if len(db_id):
-                db_id = db_id[0][0]
-            else:
-                pbar.update(1)
-                continue
-            seq = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;") ])
-            aliseq = ''.join([ x[0] for x in sql_ask_database(conn, f"SELECT nt_align_code FROM nucleotide WHERE chain_id = {db_id} ORDER BY index_chain ASC;") ])
-            full_length = len(seq)
+    # filter the alignment
+    names = [ x.id for x in align if '[' in x.id ]
+    align = align[-len(names):]
+    filtered_alignment = align[:, 1:1] # all the lines, but no columns
+    for p in columns: 
+        filtered_alignment += align[:, p-1:p] # save columns one by one
 
-            # detect gaps
-            c_seq = list(seq)  # contains "ACGUNacgu-"
-            letters = ['A', 'C', 'G', 'U', 'N']
-            homology_data = sql_ask_database(conn, f"""SELECT freq_A, freq_C, freq_G, freq_U, freq_other FROM
-                                                    (SELECT chain_id, rfam_acc FROM chain WHERE chain_id={db_id})
-                                                    NATURAL JOIN re_mapping
-                                                    NATURAL JOIN align_column;
-                                                """)
-            if homology_data is None or not len(homology_data):
-                with open(runDir + "/errors.txt", "a") as errf:
-                    errf.write(f"No homology data found in the database for {s.id} ! Not replacing gaps.\n")
-                continue
-            elif len(homology_data) != full_length:
-                with open(runDir + "/errors.txt", "a") as errf:
-                    errf.write(f"Found {len(homology_data)} nucleotides for {s.id} of length {full_length} ! Not replacing gaps.\n")
-                continue
-            for i in range(full_length):
-                if c_seq[i] == '-':
-                    freq = homology_data[i]
-                    l = letters[freq.index(max(freq))]
-                    gaps.append((l, l == 'A', l == 'C', l == 'G', l == 'U', l == 'N', db_id, i+1))
-            pbar.update(1)
-        sql_execute(conn, f"""UPDATE nucleotide SET nt_align_code = ?, 
-                              is_A = ?, is_C = ?, is_G = ?, is_U = ?, is_other = ?
-                              WHERE chain_id = ? AND index_chain = ?;""", many=True, data=gaps)
-        conn.close()
-    idxQueue.put(thr_idx)  # replace the thread index in the queue
+    # write it to file in both STK and FASTA formats (STK required for distance matrices in statistics)
+    with open(path_to_seq_data+f"/realigned/{f}_3d_only.stk", "w") as only_3d:
+        try:
+            only_3d.write(format(filtered_alignment, "stockholm"))
+        except ValueError as e:
+            warn(e)
+    with open(path_to_seq_data+f"/realigned/{f}_3d_only.afa", "w") as only_3d:
+        try:
+            only_3d.write(format(filtered_alignment, "fasta"))
+        except ValueError as e:
+            warn(e)
 
     setproctitle(f"RNAnet.py work_pssm_remap({f}) finished")
-
+    idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
 
 
@@ -2587,7 +2554,7 @@ def work_save(c, homology=True):
     if homology:
         df = pd.read_sql_query(f"""
                 SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
-                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, dbn,
+                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, dbn,
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 
@@ -2631,9 +2598,9 @@ if __name__ == "__main__":
         sql_define_tables(conn)
     print("> Storing results into", runDir + "/results/RNANet.db")
 
-    # # compute an update compared to what is in the table "chain" (comparison on structure_id + chain_name + rfam_acc).
-    # # If --all was passed, all the structures are kept.
-    # # Fills pp.update with Chain() objects.
+    # compute an update compared to what is in the table "chain" (comparison on structure_id + chain_name + rfam_acc).
+    # If --all was passed, all the structures are kept.
+    # Fills pp.update with Chain() objects.
     # pp.list_available_mappings()
 
     # ===========================================================================
@@ -2642,7 +2609,8 @@ if __name__ == "__main__":
 
     # # Download and annotate new RNA 3D chains (Chain objects in pp.update)
     # # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
-    # pp.dl_and_annotate(coeff_ncores=0.5)
+    # # pp.dl_and_annotate(coeff_ncores=0.5)
+    # pp.dl_and_annotate(coeff_ncores=1.0)
     # print("Here we go.")
 
     # # At this point, the structure table is up to date.
@@ -2710,7 +2678,7 @@ if __name__ == "__main__":
     # Prepare the results
     # ==========================================================================================
 
-    pp.sanitize_database()
+    # pp.sanitize_database()
     pp.output_results()
 
     print("Completed.") # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
