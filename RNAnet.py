@@ -2601,45 +2601,45 @@ if __name__ == "__main__":
     # compute an update compared to what is in the table "chain" (comparison on structure_id + chain_name + rfam_acc).
     # If --all was passed, all the structures are kept.
     # Fills pp.update with Chain() objects.
-    # pp.list_available_mappings()
+    pp.list_available_mappings()
 
     # ===========================================================================
     # 3D information
     # ===========================================================================
 
-    # # Download and annotate new RNA 3D chains (Chain objects in pp.update)
-    # # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
-    # # pp.dl_and_annotate(coeff_ncores=0.5)
-    # pp.dl_and_annotate(coeff_ncores=1.0)
-    # print("Here we go.")
+    # Download and annotate new RNA 3D chains (Chain objects in pp.update)
+    # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
+    # pp.dl_and_annotate(coeff_ncores=0.5)
+    pp.dl_and_annotate(coeff_ncores=1.0)
+    print("Here we go.")
 
-    # # At this point, the structure table is up to date.
-    # # Now save the DSSR annotations to the database.
-    # # Extract the 3D chains to separate structure files if asked with --extract.
-    # pp.build_chains(coeff_ncores=1.0)
+    # At this point, the structure table is up to date.
+    # Now save the DSSR annotations to the database.
+    # Extract the 3D chains to separate structure files if asked with --extract.
+    pp.build_chains(coeff_ncores=1.0)
 
-    # if len(pp.to_retry):
-    #     # Redownload and re-annotate
-    #     print("> Retrying to annotate some structures which just failed.", flush=True)
-    #     pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
-    #     pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
-    # print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
-    # if len(no_nts_set):
-    #     print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
-    # if len(weird_mappings):
-    #     print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
-    # if pp.SELECT_ONLY is None:
-    #     pp.checkpoint_save_chains()
+    if len(pp.to_retry):
+        # Redownload and re-annotate
+        print("> Retrying to annotate some structures which just failed.", flush=True)
+        pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
+        pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
+    print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
+    if len(no_nts_set):
+        print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
+    if len(weird_mappings):
+        print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
+    if pp.SELECT_ONLY is None:
+        pp.checkpoint_save_chains()
 
-    # if not pp.HOMOLOGY:
-    #     # Save chains to file
-    #     for c in pp.loaded_chains:
-    #         work_save(c, homology=False)
-    #     print("Completed.")
-    #     exit(0)
+    if not pp.HOMOLOGY:
+        # Save chains to file
+        for c in pp.loaded_chains:
+            work_save(c, homology=False)
+        print("Completed.")
+        exit(0)
 
-    # # At this point, structure, chain and nucleotide tables of the database are up to date.
-    # # (Modulo some statistics computed by statistics.py)
+    # At this point, structure, chain and nucleotide tables of the database are up to date.
+    # (Modulo some statistics computed by statistics.py)
 
     # ===========================================================================
     # Homology information
@@ -2661,8 +2661,8 @@ if __name__ == "__main__":
     pp.fam_list = sorted(rfam_acc_to_download.keys())
 
     if len(pp.fam_list):
-        # pp.prepare_sequences()
-        # pp.realign()
+        pp.prepare_sequences()
+        pp.realign()
 
         # At this point, the family table is almost up to date 
         # (lacking idty_percent and ali_filtered_length, both set in statistics.py)
@@ -2678,7 +2678,7 @@ if __name__ == "__main__":
     # Prepare the results
     # ==========================================================================================
 
-    # pp.sanitize_database()
+    pp.sanitize_database()
     pp.output_results()
 
     print("Completed.") # This part of the code is supposed to release some serotonin in the modeller's brain, do not remove
