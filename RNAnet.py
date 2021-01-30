@@ -9,7 +9,6 @@ if a[0] != "3.8":
     print("Please use version 3.8 or newer.")
     exit(1)
 
-import Bio
 import Bio.PDB as pdb
 import concurrent.futures
 import getopt
@@ -37,7 +36,10 @@ from time import sleep
 from tqdm import tqdm
 from setproctitle import setproctitle
 from Bio import AlignIO, SeqIO
-from Bio.Align import AlignInfo
+from Bio.SeqIO.FastaIO import FastaIterator, SimpleFastaParser
+from Bio.Seq import MutableSeq
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 
 def trace_unhandled_exceptions(func):
     @wraps(func)
@@ -79,6 +81,30 @@ SSU_set = {"RF00177", "RF02542",  "RF02545",
            "RF01959", "RF01960"}  # From Rfam CLAN 00111
 no_nts_set = set()
 weird_mappings = set()
+
+
+class MutableFastaIterator(FastaIterator):
+    """
+    Same as Biopython's FastaIterator, but uses Bio.Seq.MutableSeq objects instead of Bio.Seq.Seq.
+    """
+    def iterate(self, handle):
+        """Parse the file and generate SeqRecord objects."""
+        title2ids = self.title2ids
+        if title2ids:
+            for title, sequence in SimpleFastaParser(handle):
+                id, name, descr = title2ids(title)
+                yield SeqRecord(MutableSeq(sequence), id=id, name=name, description=descr)
+        else:
+            for title, sequence in SimpleFastaParser(handle):
+                try:
+                    first_word = title.split(None, 1)[0]
+                except IndexError:
+                    assert not title, repr(title)
+                    # Should we use SeqRecord default for no ID?
+                    first_word = ""
+                yield SeqRecord(
+                    MutableSeq(sequence), id=first_word, name=first_word, description=title,
+                )
 
 
 class SelectivePortionSelector(object):
@@ -1532,12 +1558,10 @@ def read_cpu_number():
     p = subprocess.run(['grep', '-Ec', '(Intel|AMD)', '/proc/cpuinfo'], stdout=subprocess.PIPE)
     return int(int(p.stdout.decode('utf-8')[:-1])/2)
 
-
 def init_worker(tqdm_lock=None):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     if tqdm_lock is not None:
         tqdm.set_lock(tqdm_lock)
-
 
 def warn(message, error=False):
     """Pretty-print warnings and error messages.
@@ -1557,12 +1581,32 @@ def warn(message, error=False):
     else:
         print(f"\t> \033[33mWARN: {message:64s}\033[0m\t{warnsymb}", flush=True)
 
-
 def notify(message, post=''):
     if len(post):
         post = '(' + post + ')'
     print(f"\t> {message:70s}\t{validsymb}\t{post}", flush=True)
 
+def _mutable_SeqIO_to_alignment_iterator(handle):
+    records = list(MutableFastaIterator(handle))
+    if records:
+        yield MultipleSeqAlignment(records)
+
+def parse(handle):
+    with open(handle, 'r') as fp:
+        yield from _mutable_SeqIO_to_alignment_iterator(fp)
+
+def read(handle):
+    iterator = parse(handle)
+    try:
+        alignment = next(iterator)
+    except StopIteration:
+        raise ValueError("No records found in handle") from None
+    try:
+        next(iterator)
+        raise ValueError("More than one record found in handle")
+    except StopIteration:
+        pass
+    return alignment
 
 def sql_define_tables(conn):
     conn.executescript(
@@ -1673,7 +1717,6 @@ def sql_define_tables(conn):
          """)
     conn.commit()
 
-
 @trace_unhandled_exceptions
 def sql_ask_database(conn, sql, warn_every=10):
     """
@@ -1694,7 +1737,6 @@ def sql_ask_database(conn, sql, warn_every=10):
     cursor.close()
     warn("Tried to reach database 100 times and failed. Aborting.", error=True)
     return []
-
 
 @trace_unhandled_exceptions
 def sql_execute(conn, sql, many=False, data=None, warn_every=10):
@@ -1717,7 +1759,6 @@ def sql_execute(conn, sql, many=False, data=None, warn_every=10):
                      str(os.getpid()) + f', try {_+1}/100)')
             time.sleep(0.2)
     warn("Tried to reach database 100 times and failed. Aborting.", error=True)
-
 
 @trace_unhandled_exceptions
 def execute_job(j, jobcount):
@@ -1779,7 +1820,6 @@ def execute_job(j, jobcount):
     # return time and memory statistics, plus the job results
     t = end_time - start_time
     return (t, m, r)
-
 
 def execute_joblist(fulljoblist):
     """ Run a list of job objects.
@@ -1846,7 +1886,6 @@ def execute_joblist(fulljoblist):
 
     # throw back the money
     return results
-
 
 @trace_unhandled_exceptions
 def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> list:
@@ -1999,7 +2038,6 @@ def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> li
 
     return newchains
 
-
 @trace_unhandled_exceptions
 def work_mmcif(pdb_id):
     """ Look for a CIF file (with all chains) from RCSB
@@ -2078,7 +2116,6 @@ def work_mmcif(pdb_id):
 
     return 0
 
-
 @trace_unhandled_exceptions
 def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     """Reads information from JSON and save it to database.
@@ -2114,7 +2151,6 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
         c.extract(df, khetatm)
 
     return c
-
 
 @trace_unhandled_exceptions
 def work_prepare_sequences(dl, rfam_acc, chains):
@@ -2203,7 +2239,6 @@ def work_prepare_sequences(dl, rfam_acc, chains):
 
     # print some stats
     notify(status)
-
 
 @trace_unhandled_exceptions
 def work_realign(rfam_acc):
@@ -2315,7 +2350,6 @@ def work_realign(rfam_acc):
             with open(runDir + "/errors.txt", "a") as er:
                 er.write(f"Failed to realign {rfam_acc} (killed)")
 
-
 @trace_unhandled_exceptions
 def work_pssm_remap(f):
     """Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
@@ -2330,10 +2364,6 @@ def work_pssm_remap(f):
     global idxQueue
     thr_idx = idxQueue.get()
 
-    # get the chains of this family in the update
-    list_of_chains = rfam_acc_to_download[f]
-    chains_ids = [str(c) for c in list_of_chains]
-
     ##########################################################################################
     #                           Compute frequencies in the alignment
     ##########################################################################################
@@ -2342,7 +2372,7 @@ def work_pssm_remap(f):
 
     # Open the alignment
     try:
-        align = AlignIO.read(path_to_seq_data + f"realigned/{f}++.afa", "fasta")
+        align = read(path_to_seq_data + f"realigned/{f}++.afa") # This is our custom AlignIO overload which uses MutableSeq instead of Seq
     except:
         warn(f"{f}'s alignment is wrong. Recompute it and retry.", error=True)
         with open(runDir + "/errors.txt", "a") as errf:
@@ -2458,6 +2488,7 @@ def work_pssm_remap(f):
                 if j < ncols and s.seq[j] == '.':
                     re_mappings.append((db_id, i+1, j+1))
                     columns_to_save.add(j+1)
+                    s.seq[j] = '-' # We replace the insertion gap by a real gap (thanks to MutableSeqs)
                     i += 1
                     j += 1
                     continue
@@ -2542,7 +2573,6 @@ def work_pssm_remap(f):
     setproctitle(f"RNAnet.py work_pssm_remap({f}) finished")
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
-
 
 @trace_unhandled_exceptions
 def work_save(c, homology=True):
