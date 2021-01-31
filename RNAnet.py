@@ -979,9 +979,9 @@ class Pipeline:
         setproctitle("RNANet.py process_options()")
 
         try:
-            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=",  "only=",
+            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=",  "only=", "maxcores=",
                                                             "from-scratch", "full-inference", "no-homology", "ignore-issues", "extract", 
-                                                            "all", "no-logs", "archive", "update-homologous"])
+                                                            "all", "no-logs", "archive", "update-homologous", "version"])
         except getopt.GetoptError as err:
             print(err)
             sys.exit(2)
@@ -1000,13 +1000,19 @@ class Pipeline:
                 print("-h [ --help ]\t\t\tPrint this help message")
                 print("--version\t\t\tPrint the program version")
                 print()
-                print("-f [ --full-inference ]\t\tInfer new mappings even if Rfam already provides some. Yields more copies of chains"
-                      "\n\t\t\t\tmapped to different families.")
-                print("-r 4.0 [ --resolution=4.0 ]\tMaximum 3D structure resolution to consider a RNA chain.")
+                print("Select what to do:")
+                print("--------------------------------------------------------------------------------------------------------------")
+                print("-f [ --full-inference ]\t\tInfer new mappings even if Rfam already provides some. Yields more copies of"
+                      "\n\t\t\t\t chains mapped to different families.")
                 print("-s\t\t\t\tRun statistics computations after completion")
                 print("--extract\t\t\tExtract the portions of 3D RNA chains to individual mmCIF files.")
                 print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
-                      "\n\t\t\t\tDoes not affect the descriptors.")
+                      "\n\t\t\t\t Does not affect the descriptors.")
+                print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
+                      "\n\t\t\t\t Allows to yield more 3D data (consider chains without a Rfam mapping).")
+                print()
+                print("Select how to do it:")
+                print("--------------------------------------------------------------------------------------------------------------")
                 print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
                       "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
                       "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
@@ -1014,22 +1020,28 @@ class Pipeline:
                 print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files. Subfolders will be:"
                       "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
                       "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
-                print("--no-homology\t\t\tDo not try to compute PSSMs and do not align sequences."
-                      "\n\t\t\t\tAllows to yield more 3D data (consider chains without a Rfam mapping).")
+                print("--maxcores=…\t\t\tLimit the number of cores to use in parallel portions to reduce the simultaneous"
+                      "\n\t\t\t\t need of RAM. Should be a number between 1 and your number of CPUs. Note that portions"
+                      "\n\t\t\t\t of the pipeline already limit themselves to 50% or 70% of that number by default.")
+                print("--archive\t\t\tCreate tar.gz archives of the datapoints text files and the alignments,"
+                      "\n\t\t\t\t and update the link to the latest archive. ")
+                print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
                 print()
+                print("Select which data we are interested in:")
+                print("--------------------------------------------------------------------------------------------------------------")
+                print("-r 4.0 [ --resolution=4.0 ]\tMaximum 3D structure resolution to consider a RNA chain.")
                 print("--all\t\t\t\tBuild chains even if they already are in the database.")
                 print("--only\t\t\t\tAsk to process a specific chain label only")
                 print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them")
                 print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
-                print("--archive\t\t\tCreate a tar.gz archive of the datapoints text files, and update the link to the latest archive")
-                print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
                 print()
                 print("Typical usage:")
-                print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s' &")
+                print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --no-logs' &")
                 sys.exit()
             elif opt == '--version':
-                print("RNANet 1.3 beta, parallelized, Dockerized")
+                print("RNANet v1.3 beta, parallelized, Dockerized")
+                print("Last revision : Jan 2021")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
                 assert float(arg) > 0.0 and float(arg) <= 20.0
@@ -1084,6 +1096,9 @@ class Pipeline:
                 self.ARCHIVE = True
             elif opt == "--no-logs":
                 self.SAVELOGS = False
+            elif opt == "--maxcores":
+                global ncores
+                ncores = min(ncores, int(arg))
             elif opt == "-f" or opt == "--full-inference":
                 self.FULLINFERENCE = True
 
@@ -2614,9 +2629,9 @@ if __name__ == "__main__":
     runDir = os.getcwd()
     fileDir = os.path.dirname(os.path.realpath(__file__))
     ncores = read_cpu_number()
-    print(f"> Running {python_executable} on {ncores} CPU cores in folder {runDir}.")
     pp = Pipeline()
     pp.process_options()
+    print(f"> Running {python_executable} on {ncores} CPU cores in folder {runDir}.")
 
     # Prepare folders
     os.makedirs(runDir + "/results", exist_ok=True)
@@ -2639,8 +2654,7 @@ if __name__ == "__main__":
 
     # Download and annotate new RNA 3D chains (Chain objects in pp.update)
     # If the original cif file and/or the Json DSSR annotation file already exist, they are not redownloaded/recomputed.
-    # pp.dl_and_annotate(coeff_ncores=0.5)
-    pp.dl_and_annotate(coeff_ncores=1.0)
+    pp.dl_and_annotate(coeff_ncores=0.5)
     print("Here we go.")
 
     # At this point, the structure table is up to date.
@@ -2652,7 +2666,7 @@ if __name__ == "__main__":
         # Redownload and re-annotate
         print("> Retrying to annotate some structures which just failed.", flush=True)
         pp.dl_and_annotate(retry=True, coeff_ncores=0.3)  #
-        pp.build_chains(retry=True, coeff_ncores=1.0)     # Use half the cores to reduce required amount of memory
+        pp.build_chains(retry=True, coeff_ncores=0.5)     # Use half the cores to reduce required amount of memory
     print(f"> Loaded {len(pp.loaded_chains)} RNA chains ({len(pp.update) - len(pp.loaded_chains)} ignored/errors).")
     if len(no_nts_set):
         print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)

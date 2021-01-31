@@ -40,6 +40,13 @@ RUN apk update && apk add --no-cache \
         musl-dev \
         py3-pip py3-wheel \
         freetype-dev zlib-dev
+RUN addgroup -S appgroup -g 1000 && \
+    adduser -S appuser -u 1000 -G appgroup && \
+    chown -R appuser:appgroup /3D && \
+    chown -R appuser:appgroup /sequences && \
+    mkdir /runDir && \
+    chown -R appuser:appgroup /runDir
+USER appuser
 VOLUME ["/3D", "/sequences", "/runDir"]
 WORKDIR /runDir
 ENTRYPOINT ["/RNANet/RNAnet.py", "--3d-folder", "/3D", "--seq-folder", "/sequences" ]
