@@ -1072,8 +1072,8 @@ class Pipeline:
             elif opt == "--from-scratch":
                 warn("Deleting previous database and recomputing from scratch.")
                 subprocess.run(["rm", "-rf",
-                                # path_to_3D_data + "annotations",  # DEBUG : keep the annotations !
-                                # path_to_3D_data + "RNAcifs",      # DEBUG : keep the cifs !
+                                path_to_3D_data + "annotations",
+                                path_to_3D_data + "RNAcifs",
                                 path_to_3D_data + "rna_mapped_to_Rfam",
                                 path_to_3D_data + "rnaonly",
                                 path_to_seq_data + "realigned",

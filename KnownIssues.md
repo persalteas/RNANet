@@ -21,3 +21,4 @@
 * [UPCOMING] Possibly, automated detection of HLs and ILs from the 3D Motif Atlas (BGSU). Maybe. Their own website already does the job.
 * A field estimating the quality of the sequence alignment in table family.
 * Possibly, more metrics about the alignments coming from Infernal.
+* Move to SILVA LSU release 138
