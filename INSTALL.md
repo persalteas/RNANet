@@ -60,13 +60,19 @@ The detailed list of options is below:
 -h [ --help ]                   Print this help message
 --version                       Print the program version
 
--f [ --full-inference ]         Infer new mappings even if Rfam already provides some. Yields more copies of chains
-                                mapped to different families.
--r 4.0 [ --resolution=4.0 ]     Maximum 3D structure resolution to consider a RNA chain.
+Select what to do:
+--------------------------------------------------------------------------------------------------------------
+-f [ --full-inference ]         Infer new mappings even if Rfam already provides some. Yields more copies of
+                                 chains mapped to different families.
 -s                              Run statistics computations after completion
 --extract                       Extract the portions of 3D RNA chains to individual mmCIF files.
 --keep-hetatm=False             (True | False) Keep ions, waters and ligands in produced mmCIF files. 
-                                Does not affect the descriptors.
+                                 Does not affect the descriptors.
+--no-homology                   Do not try to compute PSSMs and do not align sequences.
+                                 Allows to yield more 3D data (consider chains without a Rfam mapping).
+
+Select how to do it:
+--------------------------------------------------------------------------------------------------------------
 --3d-folder=…                   Path to a folder to store the 3D data files. Subfolders will contain:
                                         RNAcifs/                Full structures containing RNA, in mmCIF format
                                         rna_mapped_to_Rfam/     Extracted 'pure' RNA chains
@@ -74,16 +80,22 @@ The detailed list of options is below:
 --seq-folder=…                  Path to a folder to store the sequence and alignment files. Subfolders will be:
                                         rfam_sequences/fasta/   Compressed hits to Rfam families
                                         realigned/              Sequences, covariance models, and alignments by family
---no-homology                   Do not try to compute PSSMs and do not align sequences.
-                                Allows to yield more 3D data (consider chains without a Rfam mapping).
+--maxcores=…                    Limit the number of cores to use in parallel portions to reduce the simultaneous
+                                 need of RAM. Should be a number between 1 and your number of CPUs. Note that portions
+                                 of the pipeline already limit themselves to 50% or 70% of that number by default.
+--archive                       Create tar.gz archives of the datapoints text files and the alignments,
+                                 and update the link to the latest archive. 
+--no-logs                       Do not save per-chain logs of the numbering modifications
 
+Select which data we are interested in:
+--------------------------------------------------------------------------------------------------------------
+-r 4.0 [ --resolution=4.0 ]     Maximum 3D structure resolution to consider a RNA chain.
 --all                           Build chains even if they already are in the database.
 --only                          Ask to process a specific chain label only
 --ignore-issues                 Do not ignore already known issues and attempt to compute them
 --update-homologous             Re-download Rfam and SILVA databases, realign all families, and recompute all CSV files
 --from-scratch                  Delete database, local 3D and sequence files, and known issues, and recompute.
---archive                       Create a tar.gz archive of the datapoints text files, and update the link to the latest archive
---no-logs                       Do not save per-chain logs of the numbering modifications
+
 ```
 Options --3d-folder and --seq-folder are mandatory for command-line installations, but should not be used for installations with Docker. In the Docker container, they are set by default to the paths you provide with the -v options.
 
