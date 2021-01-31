@@ -944,7 +944,6 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
             coordinates_with_gaps.append(coordinates[i - nb_gap])
     
     # Build the pairwise distances
-    print("> Computing distances for", s.id)
     d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float16)
     for i in range(len(s.seq)):
         for j in range(len(s.seq)):
@@ -953,7 +952,6 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
             else:
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
-    print("> finished.")
     np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
     return 1-np.isnan(d).astype(int), np.nan_to_num(d), np.nan_to_num(d*d)
 
@@ -1026,31 +1024,32 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
             exit(1)
 
     
-    # Calculation of the average matrix
-    avg = avg/counts
-    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
-    
-    fig, ax = plt.subplots()
-    im = ax.imshow(avg)
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-    ax.set_title(f"Average distance between {f} residues (Angströms)")
-    fig.tight_layout()
-    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
-    plt.close()
+    if (counts > 1).all():
+        # Calculation of the average matrix
+        avg = avg/counts
+        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
+        
+        fig, ax = plt.subplots()
+        im = ax.imshow(avg)
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+        ax.set_title(f"Average distance between {f} residues (Angströms)")
+        fig.tight_layout()
+        fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
+        plt.close()
 
-    # Calculation of the standard deviation matrix by the Huygens theorem
-    std = np.sqrt(std/counts - np.power(avg, 2))
-    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
-    
-    fig, ax = plt.subplots()
-    im = ax.imshow(std)
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-    ax.set_title(f"Standard deviation of distances between {f} residues (Angströms)")
-    fig.tight_layout()
-    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
-    plt.close()
+        # Calculation of the standard deviation matrix by the Huygens theorem
+        std = np.sqrt(std/counts - np.power(avg, 2))
+        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
+        
+        fig, ax = plt.subplots()
+        im = ax.imshow(std)
+        cbar = ax.figure.colorbar(im, ax=ax)
+        cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+        ax.set_title(f"Standard deviation of distances between {f} residues (Angströms)")
+        fig.tight_layout()
+        fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
+        plt.close()
 
     # Save log
     with open(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '.log', 'a') as logfile:
