@@ -944,7 +944,7 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
             coordinates_with_gaps.append(coordinates[i - nb_gap])
     
     # Build the pairwise distances
-    d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float16)
+    d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float32)
     for i in range(len(s.seq)):
         for j in range(len(s.seq)):
             if np.isnan(coordinates_with_gaps[i]).any() or np.isnan(coordinates_with_gaps[j]).any():
@@ -1024,10 +1024,16 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
             p.join()
             exit(1)
 
-    
-    if (counts > 1).all():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("error")
+
         # Calculation of the average matrix
-        avg = avg/counts
+        try:
+            avg = avg/counts
+            assert (counts >0).all()
+        except RuntimeWarning as e:
+            # there will be division by 0 if count is 0 at some position = gap only column
+            pass
         np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
         
         fig, ax = plt.subplots()
@@ -1040,7 +1046,12 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
         plt.close()
 
         # Calculation of the standard deviation matrix by the Huygens theorem
-        std = np.sqrt(std/counts - np.power(avg, 2))
+        try:
+            std = np.sqrt(std/counts - np.power(avg/counts, 2))
+            assert (counts >0).all()
+        except RuntimeWarning as e:
+            # there will be division by 0 if count is 0 at some position = gap only column
+            pass
         np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
         
         fig, ax = plt.subplots()

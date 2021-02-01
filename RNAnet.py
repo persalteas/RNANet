@@ -41,6 +41,8 @@ from Bio.Seq import MutableSeq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 
+runDir = os.getcwd()
+
 def trace_unhandled_exceptions(func):
     @wraps(func)
     def wrapped_func(*args, **kwargs):
@@ -2626,7 +2628,6 @@ def work_save(c, homology=True):
 
 if __name__ == "__main__":
 
-    runDir = os.getcwd()
     fileDir = os.path.dirname(os.path.realpath(__file__))
     ncores = read_cpu_number()
     pp = Pipeline()
