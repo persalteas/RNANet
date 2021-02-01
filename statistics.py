@@ -952,7 +952,8 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
             else:
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
-    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
+    if f not in LSU_set an f not in SSU_set:
+        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
     return 1-np.isnan(d).astype(int), np.nan_to_num(d), np.nan_to_num(d*d)
 
 @trace_unhandled_exceptions
