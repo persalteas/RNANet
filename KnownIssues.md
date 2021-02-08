@@ -19,6 +19,8 @@
 * [DONE] Get an option to limit the number of cores 
 * [UPCOMING] Automated annotation of detected Recurrent Interaction Networks (RINs), see http://carnaval.lri.fr/ .
 * [UPCOMING] Possibly, automated detection of HLs and ILs from the 3D Motif Atlas (BGSU). Maybe. Their own website already does the job.
+* [UPCOMING] Weight sequences in alignment to give more importance to rarer sequences 
+* [UPCOMING] Give both gap_percent and insertion_gap_percent
 * A field estimating the quality of the sequence alignment in table family.
 * Possibly, more metrics about the alignments coming from Infernal.
 * Move to SILVA LSU release 138
