@@ -845,14 +845,14 @@ class Downloader:
             if os.path.isfile(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv"):
                 print("\t> Use of the previous version.\t", end="", flush=True)
             else:
-                return pd.DataFrame([], columns=["class", "class_members"])
+                return pd.DataFrame([], columns=["class","representative","class_members"])
 
         nrlist = pd.read_csv(path_to_3D_data + f"latest_nr_list_{nr_code}A.csv")
-        full_structures_list = [ tuple(i[1]) for i in nrlist[['class', 'class_members']].iterrows() ]
+        full_structures_list = [ tuple(i[1]) for i in nrlist[["class","representative","class_members"]].iterrows() ]
         print(f"\t{validsymb}", flush=True)
 
         # The beginning of an adventure.
-        return full_structures_list     # list of ( str (class), str (class_members) )
+        return full_structures_list     # list of ( str (class), str(representative),str (class_members) )
 
     def download_from_SILVA(self, unit):
 
@@ -966,6 +966,7 @@ class Pipeline:
         self.RUN_STATS = False
         self.EXTRACT_CHAINS = False
         self.REUSE_ALL = False
+        self.REDUNDANT = False
         self.SELECT_ONLY = None
         self.ARCHIVE = False
         self.SAVELOGS = True
@@ -982,7 +983,7 @@ class Pipeline:
 
         try:
             opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=",  "only=", "maxcores=",
-                                                            "from-scratch", "full-inference", "no-homology", "ignore-issues", "extract", 
+                                                            "from-scratch", "full-inference", "no-homology","redundant", "ignore-issues", "extract", 
                                                             "all", "no-logs", "archive", "update-homologous", "version"])
         except getopt.GetoptError as err:
             print(err)
@@ -1006,6 +1007,7 @@ class Pipeline:
                 print("--------------------------------------------------------------------------------------------------------------")
                 print("-f [ --full-inference ]\t\tInfer new mappings even if Rfam already provides some. Yields more copies of"
                       "\n\t\t\t\t chains mapped to different families.")
+                print("--redundant\t\t\t\tStore the class members in the database thoughts to be redundant for predictions.")
                 print("-s\t\t\t\tRun statistics computations after completion")
                 print("--extract\t\t\tExtract the portions of 3D RNA chains to individual mmCIF files.")
                 print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
@@ -1103,6 +1105,8 @@ class Pipeline:
                 ncores = min(ncores, int(arg))
             elif opt == "-f" or opt == "--full-inference":
                 self.FULLINFERENCE = True
+            elif opt=="--redundant":
+                self.REDUNDANT=True
 
         if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
@@ -1151,7 +1155,8 @@ class Pipeline:
                                                                     work_infer_mappings, 
                                                                     not self.REUSE_ALL, 
                                                                     allmappings, 
-                                                                    self.FULLINFERENCE
+                                                                    self.FULLINFERENCE,
+                                                                    self.REDUNDANT
                                                               ), 
                                                               full_structures_list, 
                                                               chunksize=1)):
@@ -1905,7 +1910,7 @@ def execute_joblist(fulljoblist):
     return results
 
 @trace_unhandled_exceptions
-def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> list:
+def work_infer_mappings(update_only, allmappings, fullinference,redundant, codelist) -> list:
     """Given a list of PDB chains corresponding to an equivalence class from BGSU's NR list, 
     build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
     of any element of the list to all the list elements.
@@ -1919,7 +1924,7 @@ def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> li
     # Split the comma-separated list of chain codes into chain codes:
     eq_class = codelist[0]
     codes = codelist[1].replace('+', ',').split(',')
-
+    representative=codelist[1].replace('+', ',').split(',')[0]
     # Search for mappings that apply to an element of this PDB chains list:
     for c in codes:
         # search for Rfam mappings with this chain c:
@@ -2008,6 +2013,13 @@ def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> li
 
         # Now build Chain() objects for the mapped chains
         for c in codes:
+
+            if not redundant and c!=representative:
+                '''
+                by default save only the representative member
+                if redundant is passed then save all the chains of the class members
+                '''
+                continue
             nr = c.split('|')
             pdb_id = nr[0].lower()
             pdb_model = int(nr[1])
