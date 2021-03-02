@@ -1923,7 +1923,7 @@ def work_infer_mappings(update_only, allmappings, fullinference,redundant, codel
 
     # Split the comma-separated list of chain codes into chain codes:
     eq_class = codelist[0]
-    codes = codelist[1].replace('+', ',').split(',')
+    codes = codelist[2].replace('+', ',').split(',')
     representative=codelist[1].replace('+', ',').split(',')[0]
     # Search for mappings that apply to an element of this PDB chains list:
     for c in codes:
