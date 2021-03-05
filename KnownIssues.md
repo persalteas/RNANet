@@ -24,3 +24,5 @@
 * A field estimating the quality of the sequence alignment in table family.
 * Possibly, more metrics about the alignments coming from Infernal.
 * Move to SILVA LSU release 138
+* Run cmscan ourselves from the NDB instead of using Rfam-PDB mappings ? (Iff this actually makes a real difference, untested yet)
+* Use and save Infernal alignment bounds and truncation information
