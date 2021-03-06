@@ -862,10 +862,10 @@ class Downloader:
             try:
                 print(f"Downloading {unit} from SILVA...", end='', flush=True)
                 if unit == "LSU":
-                    subprocess.run(["wget", "-nv", "http://www.arb-silva.de/fileadmin/arb_web_db/release_132/ARB_files/SILVA_132_LSURef_07_12_17_opt.arb.gz",
+                    subprocess.run(["wget", "-nv", "https://www.arb-silva.de/fileadmin/arb_web_db/release_138_1/ARB_files/SILVA_138.1_LSURef_opt.arb.gz",
                                     "-O", path_to_seq_data + "realigned/LSU.arb.gz"])
                 else:
-                    subprocess.run(["wget", "-nv", "http://www.arb-silva.de/fileadmin/silva_databases/release_138/ARB_files/SILVA_138_SSURef_05_01_20_opt.arb.gz",
+                    subprocess.run(["wget", "-nv", "https://www.arb-silva.de/fileadmin/arb_web_db/release_138_1/ARB_files/SILVA_138.1_SSURef_opt.arb.gz",
                                     "-O", path_to_seq_data + "realigned/SSU.arb.gz"])
             except:
                 warn(f"Error downloading the {unit} database from SILVA", error=True)
@@ -1379,11 +1379,11 @@ class Pipeline:
         for r in results:
             align = AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
             nb_3d_chains = len([1 for r in align if '[' in r.id])
-            if r[0] in SSU_set:  # SSU v138 is used
-                nb_homologs = 2225272       # source: https://www.arb-silva.de/documentation/release-138/
+            if r[0] in SSU_set:  # SSU v138.1 is used
+                nb_homologs = 2224740 	    # source: https://www.arb-silva.de/documentation/release-1381/
                 nb_total_homol = nb_homologs + nb_3d_chains
-            elif r[0] in LSU_set:  # LSU v132 is used
-                nb_homologs = 198843        # source: https://www.arb-silva.de/documentation/release-132/
+            elif r[0] in LSU_set:  # LSU v138.1 is used
+                nb_homologs = 227331        # source: https://www.arb-silva.de/documentation/release-1381/
                 nb_total_homol = nb_homologs + nb_3d_chains
             else:
                 nb_total_homol = len(align)
@@ -1433,6 +1433,32 @@ class Pipeline:
             p.join()
             exit(1)
 
+    def extractCMs(self):
+        """
+        Extracts Rfam CMs of the families for which we have 3D structures and compresses
+        them for later use with cmscan.
+        """
+
+        # Retrieve the list of families and write them to a "keys file"
+        allfams = []
+        with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
+            conn.execute('pragma journal_mode=wal')
+            allfams = sql_ask_database(conn, "SELECT DISTINCT rfam_acc FROM chain ORDER BY rfam_acc ASC;")
+            allfams = [ r[0]+"\n" for r in allfams ]
+        if not len(allfams):
+            return
+        with open(runDir + "/results/available_families.txt", "w") as f:
+            f.writelines(allfams)
+
+        # Extract the families from Rfam.cm
+        os.makedirs(runDir + "/results/cm/", exist_ok=True)
+        subprocess.run(["cmfetch", "-f", "-o", runDir + "/results/cm/RNANet.cm", path_to_seq_data + "Rfam.cm", runDir + "/results/available_families.txt"])
+        os.remove(runDir + "/results/available_families.txt")
+
+        # Compress the cm database for use with cmscan
+        subprocess.run(["rm", "-f", runDir + "/results/cm/RNANet.cm.i1p", runDir + "/results/cm/RNANet.cm.i1i", runDir + "/results/cm/RNANet.cm.i1m", runDir + "/results/cm/RNANet.cm.i1f"])
+        subprocess.run(["cmpress", runDir + "/results/cm/RNANet.cm"])
+    
     def output_results(self):
         """Produces CSV files, archive them, and additional metadata files
 
@@ -1665,8 +1691,8 @@ def sql_define_tables(conn):
                 pair_count_tSS  SMALLINT,
                 pair_count_other SMALLINT,
                 UNIQUE (structure_id, chain_name, rfam_acc),
-                FOREIGN KEY(structure_id) REFERENCES structure(pdb_id),
-                FOREIGN KEY(rfam_acc) REFERENCES family(rfam_acc)
+                FOREIGN KEY(structure_id) REFERENCES structure(pdb_id) ON DELETE CASCADE,
+                FOREIGN KEY(rfam_acc) REFERENCES family(rfam_acc) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS nucleotide (
                 chain_id        INT,
@@ -1721,6 +1747,7 @@ def sql_define_tables(conn):
             CREATE TABLE IF NOT EXISTS align_column (
                 rfam_acc        CHAR(7) NOT NULL,
                 index_ali       INT NOT NULL,
+                cm_coord        INT,
                 freq_A          REAL,
                 freq_C          REAL,
                 freq_G          REAL,
@@ -1728,11 +1755,16 @@ def sql_define_tables(conn):
                 freq_other      REAL,
                 gap_percent     REAL,
                 consensus       CHAR(1),
+                cons_sec_struct CHAR(1),
                 PRIMARY KEY (rfam_acc, index_ali),
-                FOREIGN KEY(rfam_acc) REFERENCES family(rfam_acc)
+                FOREIGN KEY(rfam_acc) REFERENCES family(rfam_acc) ON DELETE CASCADE
             );
          """)
     conn.commit()
+
+    # Prepare the WAL files while we're in single thread, otherwise it sometimes fails 
+    # at the first access in WAL mode
+    conn.execute("pragma journal_mode=wal")
 
 @trace_unhandled_exceptions
 def sql_ask_database(conn, sql, warn_every=10):
@@ -1966,12 +1998,12 @@ def work_infer_mappings(update_only, allmappings, fullinference, codelist) -> li
                         sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
                         thisfam_5_3 = (inferred_mappings['rfam_acc'] == rfam) & sel_5_to_3
                         thisfam_3_5 = (inferred_mappings['rfam_acc'] == rfam) & (sel_5_to_3 == False)
-                        print()
-                        warn(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
+                        # print()
+                        # warn(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
                     else:
                         warn(f"There are mappings for {rfam} in both directions:", error=True)
                         print(inferred_mappings)
-                        exit(1)
+                        # exit(1)
 
                 # Compute consensus for chains in 5' -> 3' sense
                 if len(inferred_mappings[thisfam_5_3]):
@@ -2297,8 +2329,10 @@ def work_realign(rfam_acc):
 
             # Align the new sequences
             with open(new_ali_path, 'w') as o:
-                p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm",
-                                     path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
+                p1 = subprocess.run(["cmalign", "--nonbanded", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
+                                    "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
+                                    path_to_seq_data + f"realigned/{rfam_acc}.cm", 
+                                    path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
                                     stdout=o, stderr=subprocess.PIPE)
             notify("Aligned new sequences together")
 
@@ -2337,8 +2371,8 @@ def work_realign(rfam_acc):
             # Alignment does not exist yet. We need to compute it from scratch.
             print(f"\t> Aligning {rfam_acc} sequences together (cmalign) ...", end='', flush=True)
 
-            p = subprocess.run(["cmalign", "--small", "--cyk", "--noprob", "--nonbanded", "--notrunc",
-                                '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+            p = subprocess.run(["cmalign", "--nonbanded", '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+                                "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
                                 path_to_seq_data + f"realigned/{rfam_acc}.cm",
                                 path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -2532,6 +2566,30 @@ def work_pssm_remap(f):
 
     setproctitle(f"RNAnet.py work_pssm_remap({f}) saving")
 
+    # Get back the information of match/insertion states from the STK file
+    alignstk = AlignIO.read(path_to_seq_data + "realigned/" + f + "++.stk", "stockholm")
+    consensus_2d = alignstk.column_annotations["secondary_structure"]
+    del alignstk
+    cm_coord = 1
+    cm_coords = []
+    cm_2d = []
+    for x in consensus_2d:
+        if x == ".":
+            cm_coords.append(None)
+            cm_2d.append(None)
+        else:
+            cm_coords.append(cm_coord)
+            if x in "[(<{":
+                cm_2d.append("(")
+            elif x in "])>}":
+                cm_2d.append(")")
+            elif x in ",_-:":
+                cm_2d.append(".")
+            else:
+                warn("Unsupported WUSS secondary structure symbol : "+x)
+                cm_2d.append(".")
+            cm_coord += 1
+
     # Save the re_mappings
     conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=20.0)
     conn.execute('pragma journal_mode=wal') # Allow multiple other readers to ask things while we execute this writing query
@@ -2550,20 +2608,20 @@ def work_pssm_remap(f):
     conn.commit()
 
     # Save the useful columns in the database
-    data = [(f, j) + tuple(pssm_info[:,j-1]) + (consensus[j-1],) for j in sorted(columns_to_save)]
-    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
-                         UPDATE SET freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
-                                    freq_other=excluded.freq_other, gap_percent=excluded.gap_percent, consensus=excluded.consensus;""", many=True, data=data)
+    data = [(f, j, cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for j in sorted(columns_to_save)]
+    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
+                         UPDATE SET cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
+                                    freq_other=excluded.freq_other, gap_percent=excluded.gap_percent, consensus=excluded.consensus, cons_sec_struct=excluded.cons_sec_struct;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
-    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
-                          VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-');""", data=(f,))
+    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
+                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', "NULL");""", data=(f,))
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
     sql_execute(conn, f"UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=(len(columns_to_save), f))
     conn.close()
 
     ##########################################################################################
-    #               Saving the filtered alignement with only the saved positinos
+    #               Saving the filtered alignement with only the saved positions
     ##########################################################################################
 
     setproctitle(f"RNAnet.py work_pssm_remap({f}) filtering alignment")
@@ -2600,8 +2658,8 @@ def work_save(c, homology=True):
     conn.execute('pragma journal_mode=wal')
     if homology:
         df = pd.read_sql_query(f"""
-                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
-                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, dbn,
+                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, cm_coord,
+                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct, dbn,
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 
@@ -2682,6 +2740,7 @@ if __name__ == "__main__":
             work_save(c, homology=False)
         print("Completed.")
         exit(0)
+    
 
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
@@ -2716,6 +2775,7 @@ if __name__ == "__main__":
         idxQueue = thr_idx_mgr.Queue()
 
         pp.remap()
+        pp.extractCMs()
 
     # At this point, the align_column and re_mapping tables are up-to-date.
 

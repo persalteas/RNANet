@@ -68,12 +68,13 @@ To help you design your own SQL requests, we provide a description of the databa
 * `puckering`: Conformation of the ribose cycle (10 classes depending on the phase_angle value)
 
 ## Table `align_column`, for positions in multiple sequence alignments
-* `column_id`: A unique identifier
 * `rfam_acc`: The family's MSA the column belongs to
 * `index_ali`: Position of the column in the alignment (starts at 1)
+* `cm_coord`: Position of the column in the Rfam covariance model of the family (starts at 1). The value is NULL in portions that are insertions compared to the model.
 * `freq_A`, `freq_C`, `freq_G`, `freq_U`, `freq_other`: Nucleotide frequencies in the alignment at this position
 * `gap_percent`: The frequencies of gaps at this position in the alignment (between 0.0 and 1.0)
 * `consensus`: A consensus character (ACGUN or '-') summarizing the column, if we can. If >75% of the sequences are gaps at this position, the gap is picked as consensus. Otherwise, A/C/G/U is chosen if >50% of the non-gap positions are A/C/G/U. Otherwise, N is the consensus.
+* `cons_sec_struct`: A consensus secondary structure for the RNAs of the family, obtained from the Infernal alignement. The structure is well-nested (no pseudoknots) and the possible symbols are '.' (unpaired) or '(' and ')' (paired). The field is NULL in portions that are insertions compared to the Rfam model of the family, meaning that their is no consensus on the structure.
 
 There always is an entry, for each family (rfam_acc), with index_ali = 0; gap_percent = 1.0; and nucleotide frequencies set to 0.0. This entry is used when the nucleotide frequencies cannot be determined because of local alignment issues.
 

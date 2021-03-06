@@ -958,6 +958,8 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
 
 @trace_unhandled_exceptions
 def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
+    np.seterr(divide='ignore') # ignore division by zero issues
+
     if consider_all_atoms:
         label = "base"
     else:
@@ -1024,44 +1026,38 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
             p.join()
             exit(1)
 
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("error")
+    # Calculation of the average matrix
+    avg = np.divide(avg, counts, where=counts>0, out=np.full_like(avg, np.NaN)) # Ultrafancy way to take avg/counts or NaN if counts is 0
+    
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
+    
+    fig, ax = plt.subplots()
+    im = ax.imshow(avg)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+    ax.set_title(f"Average distance between {f} residues (Angströms)")
+    fig.tight_layout()
+    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
+    plt.close()
 
-        # Calculation of the average matrix
-        try:
-            avg = avg/counts
-            assert (counts >0).all()
-        except RuntimeWarning as e:
-            # there will be division by 0 if count is 0 at some position = gap only column
-            pass
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
-        
-        fig, ax = plt.subplots()
-        im = ax.imshow(avg)
-        cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-        ax.set_title(f"Average distance between {f} residues (Angströms)")
-        fig.tight_layout()
-        fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.png', dpi=300)
-        plt.close()
-
-        # Calculation of the standard deviation matrix by the Huygens theorem
-        try:
-            std = np.sqrt(std/counts - np.power(avg/counts, 2))
-            assert (counts >0).all()
-        except RuntimeWarning as e:
-            # there will be division by 0 if count is 0 at some position = gap only column
-            pass
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
-        
-        fig, ax = plt.subplots()
-        im = ax.imshow(std)
-        cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
-        ax.set_title(f"Standard deviation of distances between {f} residues (Angströms)")
-        fig.tight_layout()
-        fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
-        plt.close()
+    # Calculation of the standard deviation matrix by the Huygens theorem
+    std = np.divide(std, counts, where=counts>0, out=np.full_like(std, np.NaN))
+    mask = np.invert(np.isnan(std))
+    value = std[mask] - np.power(avg[mask], 2)
+    if ((value[value<0] < -1e-2).any()):
+        warn("Erasing very negative variance value !")
+    value[value<0] = 0.0 # floating point problems !
+    std[mask] = np.sqrt(value)
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_stdev.csv' , std, delimiter=",", fmt="%.3f")
+    
+    fig, ax = plt.subplots()
+    im = ax.imshow(std)
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Angströms", rotation=-90, va="bottom")
+    ax.set_title(f"Standard deviation of distances between {f} residues (Angströms)")
+    fig.tight_layout()
+    fig.savefig(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_std.png', dpi=300)
+    plt.close()
 
     # Save log
     with open(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '.log', 'a') as logfile:
