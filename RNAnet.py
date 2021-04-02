@@ -40,7 +40,7 @@ from Bio.SeqIO.FastaIO import FastaIterator, SimpleFastaParser
 from Bio.Seq import MutableSeq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-
+from pydca.plmdca import plmdca
 runDir = os.getcwd()
 
 def trace_unhandled_exceptions(func):
@@ -76,11 +76,11 @@ python_executable = "python"+".".join(platform.python_version().split('.')[:2]) 
 validsymb = '\U00002705'
 warnsymb = '\U000026A0'
 errsymb = '\U0000274C'
-
 LSU_set = {"RF00002", "RF02540", "RF02541",
            "RF02543", "RF02546"}   # From Rfam CLAN 00112
 SSU_set = {"RF00177", "RF02542",  "RF02545",
            "RF01959", "RF01960"}  # From Rfam CLAN 00111
+
 no_nts_set = set()
 weird_mappings = set()
 
@@ -960,6 +960,9 @@ class Pipeline:
 
         # Default options:
         self.CRYSTAL_RES = 4.0
+        self.MXSIZE=48000
+        self.TAU=1e-17
+        self.NONBANDED=False
         self.KEEP_HETATM = False
         self.HOMOLOGY = True
         self.USE_KNOWN_ISSUES = True
@@ -967,6 +970,7 @@ class Pipeline:
         self.EXTRACT_CHAINS = False
         self.REUSE_ALL = False
         self.REDUNDANT = False
+        self.USESINA=False
         self.SELECT_ONLY = None
         self.ARCHIVE = False
         self.SAVELOGS = True
@@ -982,7 +986,7 @@ class Pipeline:
         setproctitle("RNANet.py process_options()")
 
         try:
-            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=",  "only=", "maxcores=",
+            opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=","mxsize=","seq-folder=", "keep-hetatm=","tau=","only=", "maxcores=","sina",
                                                             "from-scratch", "full-inference", "no-homology","redundant", "ignore-issues", "extract", 
                                                             "all", "no-logs", "archive", "update-homologous", "version"])
         except getopt.GetoptError as err:
@@ -1024,9 +1028,13 @@ class Pipeline:
                 print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files. Subfolders will be:"
                       "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
                       "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
+                print("--sina\t\t\tForce the RNANet to align large subunit LSU and small subunit SSU ribosomal RNA using sina instead of infernal,"
+                "\n\t\t\t\t\t the other RNA families will be aligned using infernal.")
                 print("--maxcores=…\t\t\tLimit the number of cores to use in parallel portions to reduce the simultaneous"
                       "\n\t\t\t\t need of RAM. Should be a number between 1 and your number of CPUs. Note that portions"
                       "\n\t\t\t\t of the pipeline already limit themselves to 50% or 70% of that number by default.")
+                print("--tau=…\t\t\tThe tail loss probability used during HMM band calculation.")
+                print("--mxsize=…\t\t\tThe maximum allowable total DP matrix size.")
                 print("--archive\t\t\tCreate tar.gz archives of the datapoints text files and the alignments,"
                       "\n\t\t\t\t and update the link to the latest archive. ")
                 print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
@@ -1044,7 +1052,7 @@ class Pipeline:
                 print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --no-logs' &")
                 sys.exit()
             elif opt == '--version':
-                print("RNANet v1.3 beta, parallelized, Dockerized")
+                print("RNANet v1.4 beta, parallelized, Dockerized")
                 print("Last revision : Jan 2021")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
@@ -1091,6 +1099,11 @@ class Pipeline:
                                 path_to_seq_data + "realigned",
                                 path_to_seq_data + "rfam_sequences"])
                 self.REUSE_ALL = True
+            elif opt=="--tau":
+                self.TAU=float(arg)
+            elif opt=="--mxsize":
+                self.MXSIZE=int(arg)
+                self.NONBANDED=True
             elif opt == "--all":
                 self.REUSE_ALL = True
                 self.USE_KNOWN_ISSUES = False
@@ -1107,6 +1120,8 @@ class Pipeline:
                 self.FULLINFERENCE = True
             elif opt=="--redundant":
                 self.REDUNDANT=True
+            elif opt=="--sina":
+                self.USESINA=True
 
         if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
@@ -1731,6 +1746,10 @@ def sql_define_tables(conn):
                 freq_G          REAL,
                 freq_U          REAL,
                 freq_other      REAL,
+                fields_A        REAL,
+                fields_C        REAL,
+                fields_G        REAL,
+                fields_U        REAL,
                 gap_percent     REAL,
                 consensus       CHAR(1),
                 PRIMARY KEY (rfam_acc, index_ali),
@@ -2187,8 +2206,7 @@ def work_prepare_sequences(dl, rfam_acc, chains):
     """
 
     setproctitle("RNAnet.py work_prepare_sequences()")
-
-    if rfam_acc in LSU_set | SSU_set:  # rRNA
+    if self.USESINA and rfam_acc in LSU_set | SSU_set:
         if os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}++.afa"):
             # Detect doublons and remove them
             existing_afa = AlignIO.read(path_to_seq_data + f"realigned/{rfam_acc}++.afa", "fasta")
@@ -2270,107 +2288,126 @@ def work_prepare_sequences(dl, rfam_acc, chains):
     notify(status)
 
 @trace_unhandled_exceptions
+def use_sina(rfam_acc):
+    """
+    When prompted by the user to use SINA the software will use SINA for rRNA SSU and LSU
+    """
+    if rfam_acc in ["RF00177", "RF01960"]:
+        arbfile = "realigned/SSU.arb"
+    else:
+        arbfile = "realigned/LSU.arb"
+
+    # Run alignment
+    p = subprocess.run(["sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
+                                        "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa",
+                                        "-r", path_to_seq_data + arbfile,
+                                       "--meta-fmt=csv"])
+@trace_unhandled_exceptions
+def use_infernal(rfam_acc):
+    """
+    Infernal is our default alignment tool except if prompted by the user.
+    Cmalign will be used for all families except when the user prefers to align rRNA with SINA
+    """
+    if os.path.isfile(path_to_seq_data + "realigned/" + rfam_acc + "++.stk"):
+        # Alignment exists. We just want to add new sequences into it.
+
+        if not os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}_new.fa"):
+            # there are no new sequences to align...
+            return
+
+        existing_ali_path = path_to_seq_data + f"realigned/{rfam_acc}++.stk"
+        new_ali_path = path_to_seq_data + f"realigned/{rfam_acc}_new.stk"
+
+        # Align the new sequences
+        with open(new_ali_path, 'w') as o:
+            p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm",
+                                path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
+                                stdout=o, stderr=subprocess.PIPE)
+        notify("Aligned new sequences together")
+
+        # Detect doublons and remove them
+        existing_stk = AlignIO.read(existing_ali_path, "stockholm")
+        existing_ids = [r.id for r in existing_stk]
+        del existing_stk
+        new_stk = AlignIO.read(new_ali_path, "stockholm")
+        new_ids = [r.id for r in new_stk]
+        del new_stk
+        doublons = [i for i in existing_ids if i in new_ids]
+        del existing_ids, new_ids
+        if len(doublons):
+            warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.stk and using their newest version")
+            with open(path_to_seq_data + "realigned/toremove.txt", "w") as toremove:
+                toremove.write('\n'.join(doublons)+'\n')
+            p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path+"2", existing_ali_path],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            p = subprocess.run(["mv", existing_ali_path+"2", existing_ali_path],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            os.remove(path_to_seq_data + "realigned/toremove.txt")
+
+        # And we merge the two alignments
+        p2 = subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
+                            "--rna", existing_ali_path, new_ali_path],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
+        subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", existing_ali_path])
+        notify("Merged alignments into one")
+
+        # remove the partial files
+        os.remove(new_ali_path)
+        os.remove(path_to_seq_data + f"realigned/{rfam_acc}_new.fa")
+
+    else:
+        # Alignment does not exist yet. We need to compute it from scratch.
+        print(f"\t> Aligning {rfam_acc} sequences together (cmalign) ...", end='', flush=True)
+        
+        #Here the idea is to run one of the two proposed commands either cmalign --tau <tau val> or cmalign with mxsize
+        
+        if not self.NONBANDED:
+            p = subprocess.run(["cmalign", "--tau",f"{self.TAU}",
+                            '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+                            path_to_seq_data + f"realigned/{rfam_acc}.cm",
+                            path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        else:
+            p = subprocess.run(["cmalign", "--nonbanded","--noprob","--mxsize",f"{self.MXSIZE}"
+                            '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+                            path_to_seq_data + f"realigned/{rfam_acc}.cm",
+                            path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        stderr = p.stderr.decode("utf-8")
+
+    if len(stderr):
+        print('', flush=True)
+        warn(f"Error during sequence alignment: {stderr}", error=True)
+        with open(runDir + "/errors.txt", "a") as er:
+            er.write(f"Attempting to realign {rfam_acc}:\n" + stderr + '\n')
+        return 1
+    else:
+        print('\t'+validsymb, flush=True)
+
+@trace_unhandled_exceptions
 def work_realign(rfam_acc):
     """ Runs multiple sequence alignements by RNA family.
 
     It aligns the Rfam hits from a RNA family with the sequences from the list of chains. 
-    Rfam covariance models are used with Infernal tools, except for rRNAs. 
-    cmalign requires too much RAM for them, so we use SINA, a specifically designed tool for rRNAs.
+    Rfam covariance models are used with Infernal tools or SINA based on the options provided by the user. 
+    Even if the user prefers to use SINA it will be used only for rRNA and cmalign for other families
     """
 
     setproctitle(f"RNAnet.py work_realign({rfam_acc})")
-
-    if rfam_acc in LSU_set | SSU_set:
-        # Ribosomal subunits deserve a special treatment.
-        # They require too much RAM to be aligned with Infernal.
-        # Then we will use SINA instead.
-        if rfam_acc in ["RF00177", "RF01960"]:
-            arbfile = "realigned/SSU.arb"
+    if self.USESINA:
+        if rfam_acc in LSU_set | SSU_set:
+            use_sina(rfam_acc)
         else:
-            arbfile = "realigned/LSU.arb"
-
-        # Run alignment
-        p = subprocess.run(["sina", "-i", path_to_seq_data + f"realigned/{rfam_acc}++.fa",
-                                    "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa",
-                                    "-r", path_to_seq_data + arbfile,
-                                    "--meta-fmt=csv"])
+            use_infernal(rfam_acc)
     else:
-        # Align using Infernal for most RNA families
-
-        if os.path.isfile(path_to_seq_data + "realigned/" + rfam_acc + "++.stk"):
-            # Alignment exists. We just want to add new sequences into it.
-
-            if not os.path.isfile(path_to_seq_data + f"realigned/{rfam_acc}_new.fa"):
-                # there are no new sequences to align...
-                return
-
-            existing_ali_path = path_to_seq_data + f"realigned/{rfam_acc}++.stk"
-            new_ali_path = path_to_seq_data + f"realigned/{rfam_acc}_new.stk"
-
-            # Align the new sequences
-            with open(new_ali_path, 'w') as o:
-                p1 = subprocess.run(["cmalign", path_to_seq_data + f"realigned/{rfam_acc}.cm",
-                                     path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
-                                    stdout=o, stderr=subprocess.PIPE)
-            notify("Aligned new sequences together")
-
-            # Detect doublons and remove them
-            existing_stk = AlignIO.read(existing_ali_path, "stockholm")
-            existing_ids = [r.id for r in existing_stk]
-            del existing_stk
-            new_stk = AlignIO.read(new_ali_path, "stockholm")
-            new_ids = [r.id for r in new_stk]
-            del new_stk
-            doublons = [i for i in existing_ids if i in new_ids]
-            del existing_ids, new_ids
-            if len(doublons):
-                warn(f"Removing {len(doublons)} doublons from existing {rfam_acc}++.stk and using their newest version")
-                with open(path_to_seq_data + "realigned/toremove.txt", "w") as toremove:
-                    toremove.write('\n'.join(doublons)+'\n')
-                p = subprocess.run(["esl-alimanip", "--seq-r", path_to_seq_data + "realigned/toremove.txt", "-o", existing_ali_path+"2", existing_ali_path],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                p = subprocess.run(["mv", existing_ali_path+"2", existing_ali_path],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-                os.remove(path_to_seq_data + "realigned/toremove.txt")
-
-            # And we merge the two alignments
-            p2 = subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
-                                 "--rna", existing_ali_path, new_ali_path],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
-            subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", existing_ali_path])
-            notify("Merged alignments into one")
-
-            # remove the partial files
-            os.remove(new_ali_path)
-            os.remove(path_to_seq_data + f"realigned/{rfam_acc}_new.fa")
-
-        else:
-            # Alignment does not exist yet. We need to compute it from scratch.
-            print(f"\t> Aligning {rfam_acc} sequences together (cmalign) ...", end='', flush=True)
-
-            p = subprocess.run(["cmalign", "--small", "--cyk", "--noprob", "--nonbanded", "--notrunc",
-                                '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
-                                path_to_seq_data + f"realigned/{rfam_acc}.cm",
-                                path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-            stderr = p.stderr.decode("utf-8")
-
-        if len(stderr):
-            print('', flush=True)
-            warn(f"Error during sequence alignment: {stderr}", error=True)
-            with open(runDir + "/errors.txt", "a") as er:
-                er.write(f"Attempting to realign {rfam_acc}:\n" + stderr + '\n')
-            return 1
-        else:
-            print('\t'+validsymb, flush=True)
-
-        # Convert Stockholm to aligned FASTA
-        subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", 
+        use_infernal(rfam_acc)
+    # Convert Stockholm to aligned FASTA
+    subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", 
                         "--informat", "stockholm", 
                         "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
-        subprocess.run(["rm", "-f", "esltmp*"]) # We can, because we are not running in parallel for this part.
-
+    subprocess.run(["rm", "-f", "esltmp*"]) # We can, because we are not running in parallel for this part.
+    
     # Assert everything worked, or save an error
     with open(path_to_seq_data + f"realigned/{rfam_acc}++.afa", 'r') as output:
         if not len(output.readline()):
@@ -2378,6 +2415,81 @@ def work_realign(rfam_acc):
             warn(f"Failed to realign {rfam_acc} (killed)", error=True)
             with open(runDir + "/errors.txt", "a") as er:
                 er.write(f"Failed to realign {rfam_acc} (killed)")
+
+@trace_unhandled_exceptions
+def compute_from_pydca(f,columns_to_save):
+    
+    align=read(path_to_seq_data + f"realigned/{f}++.afa")
+    #convert to uppercase as needed for pydca
+    for s in align:
+        s.seq=s.seq.upper()
+    filtered_alignment = align[:, 1:1] # all the lines, but no columns
+    for p in columns_to_save: 
+        filtered_alignment += align[:, p-1:p] # save columns one by one
+    
+    #replace all other letters by a gap consensus just for the 
+    #aim to use pydca as sites other than ACGU . and - are not accepted
+    
+
+    for s in filtered_alignment:
+        for i in range(len(s.seq)):
+            if s.seq[i].upper() not in "ACGU-.":
+                s.seq[i]='-'
+    #create a fasta file to be used by pydca 
+    with open(path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa", "w") as only_3d:
+        try:
+            only_3d.write(format(filtered_alignment, "fasta"))
+        except ValueError as e:
+            warn(e)
+    
+    #pydca instance 
+    #here lamda_J is set by pydca to 0.2*(L-1) where L is the length of the sequence
+    #the maximum number of iterations is set to 500 for gradient descent
+    #lamda_h is set to 1 and seqid is set to 0.8 as suggested by pydca papers
+
+    #Reference:
+    #Zerihun MB, Pucci F, Peter EK, Schug A. pydca v1. 0: a comprehensive software for Direct Coupling Analysis of RNA and Protein Sequences. Bioinformatics. 
+    #2020;36(7):2264–2265. 10.1093/bioinformatics/btz892 - DOI - https://pubmed.ncbi.nlm.nih.gov/31778142/
+
+    
+    plmdca_inst = plmdca.PlmDCA(
+    path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa",
+    "rna",
+    seqid = 0.8,
+    lambda_h = 1.0,
+    num_threads = 10,
+    max_iterations = 500,)
+    #number of sites=L*(L-1)/2 so L=len(columns_to_Save)
+    number_of_sites=len(columns_to_save)*(len(columns_to_save)-1)//2
+    
+    #a tuple of two list of tuples
+    #the first list contains the fields of sites (nucleotides)
+    #the second contains
+    #linear distance is zero in order to keep all possible pairs 
+
+    #because if linear dist=x>0 the pydca will return position |i-j|>x
+    #which will force us to lose a lot of pairs
+    
+
+    params=plmdca_inst.compute_params(linear_dist=0,num_site_pairs=number_of_sites)
+    #frobenius norm with average product correction
+    fn_apc=plmdca_inst.compute_sorted_FN_APC()
+
+    family_dca_data={"PARAMS":params,"FNAPC":fn_apc}
+    np.savez(path_to_seq_data+f"/realigned/{f}_pydca.npz")
+
+    #a dictionary to be used in the function where the frequencies are stored in align column table
+    return_dict_fields={}
+    for list_fields in params[0]:
+        
+        #The element at 0 is the index 
+        #So taking the value from column to save at that index will give us 
+        #the fields to be stored at ali_col in the table
+        
+        return_dict_fields[columns_to_save[list_fields[0]]]=list_fields[1]
+    subprocess.run(["rm", "-f", path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa"])
+
+    return return_dict_fields
 
 @trace_unhandled_exceptions
 def work_pssm_remap(f):
@@ -2560,16 +2672,16 @@ def work_pssm_remap(f):
             unused.append((f, col))
     sql_execute(conn, """DELETE FROM align_column WHERE rfam_acc = ? AND index_ali = ?;""", many=True, data=unused)
     conn.commit()
-
+    rfam_fields_record=compute_from_pydca(f,sorted(columns_to_save))
     # Save the useful columns in the database
-    data = [(f, j) + tuple(pssm_info[:,j-1]) + (consensus[j-1],) for j in sorted(columns_to_save)]
-    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
+    data = [(f, j) + tuple(pssm_info[:,j-1]) +tuple(rfam_fields_record[j]) + (consensus[j-1],) for j in sorted(columns_to_save)]
+    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U,freq_other,fields_A,fields_C,fields_G,fields_U , gap_percent, consensus)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?) ON CONFLICT(rfam_acc, index_ali) DO 
                          UPDATE SET freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
-                                    freq_other=excluded.freq_other, gap_percent=excluded.gap_percent, consensus=excluded.consensus;""", many=True, data=data)
+                                    freq_other=excluded.freq_other,fields_A=excluded.fields_A,fields_C=excluded.fields_C,fields_G=excluded.fields_G,fields_U=excluded.fields_U,gap_percent=excluded.gap_percent, consensus=excluded.consensus;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
-    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus)
-                          VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-');""", data=(f,))
+    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, freq_A, freq_C, freq_G, freq_U, freq_other,fields_A,fields_C,fields_G,fields_U, gap_percent, consensus)
+                          VALUES (?, 0, 0.0, 0.0, 0.0, 0.0, 0.0,0.0,0.0,0.0,0.0,1.0,'-');""", data=(f,))
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
     sql_execute(conn, f"UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=(len(columns_to_save), f))
     conn.close()
@@ -2613,7 +2725,7 @@ def work_save(c, homology=True):
     if homology:
         df = pd.read_sql_query(f"""
                 SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, 
-                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, dbn,
+                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other,fields_A,fields_C,fields_G,fields_U,gap_percent, consensus, dbn,
                 paired, nb_interact, pair_type_LW, pair_type_DSSR, alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta,
                 chi, bb_type, glyco_bond, form, ssZp, Dp, eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 

@@ -952,8 +952,8 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
             else:
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
-    if f not in LSU_set and f not in SSU_set:
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
+    # if f not in LSU_set and f not in SSU_set:
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
     return 1-np.isnan(d).astype(int), np.nan_to_num(d), np.nan_to_num(d*d)
 
 @trace_unhandled_exceptions
@@ -1173,7 +1173,7 @@ if __name__ == "__main__":
 
             sys.exit()
         elif opt == '--version':
-            print("RNANet statistics 1.3 beta")
+            print("RNANet statistics 1.4 beta")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert float(arg) > 0.0 and float(arg) <= 20.0 
