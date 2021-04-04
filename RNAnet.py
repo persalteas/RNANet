@@ -2329,7 +2329,7 @@ def work_realign(rfam_acc):
 
             # Align the new sequences
             with open(new_ali_path, 'w') as o:
-                p1 = subprocess.run(["cmalign", "--nonbanded", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
+                p1 = subprocess.run(["cmalign", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
                                     "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
                                     path_to_seq_data + f"realigned/{rfam_acc}.cm", 
                                     path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
@@ -2371,7 +2371,7 @@ def work_realign(rfam_acc):
             # Alignment does not exist yet. We need to compute it from scratch.
             print(f"\t> Aligning {rfam_acc} sequences together (cmalign) ...", end='', flush=True)
 
-            p = subprocess.run(["cmalign", "--nonbanded", '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+            p = subprocess.run(["cmalign", '-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
                                 "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
                                 path_to_seq_data + f"realigned/{rfam_acc}.cm",
                                 path_to_seq_data + f"realigned/{rfam_acc}++.fa"],
@@ -2567,28 +2567,32 @@ def work_pssm_remap(f):
     setproctitle(f"RNAnet.py work_pssm_remap({f}) saving")
 
     # Get back the information of match/insertion states from the STK file
-    alignstk = AlignIO.read(path_to_seq_data + "realigned/" + f + "++.stk", "stockholm")
-    consensus_2d = alignstk.column_annotations["secondary_structure"]
-    del alignstk
-    cm_coord = 1
-    cm_coords = []
-    cm_2d = []
-    for x in consensus_2d:
-        if x == ".":
-            cm_coords.append(None)
-            cm_2d.append(None)
-        else:
-            cm_coords.append(cm_coord)
-            if x in "[(<{":
-                cm_2d.append("(")
-            elif x in "])>}":
-                cm_2d.append(")")
-            elif x in ",_-:":
-                cm_2d.append(".")
+    if f not in SSU_set and f not in LSU_set:
+        alignstk = AlignIO.read(path_to_seq_data + "realigned/" + f + "++.stk", "stockholm")
+        consensus_2d = alignstk.column_annotations["secondary_structure"]
+        del alignstk
+        cm_coord = 1
+        cm_coords = []
+        cm_2d = []
+        for x in consensus_2d:
+            if x in ".~":
+                cm_coords.append(None)
+                cm_2d.append(None)
             else:
-                warn("Unsupported WUSS secondary structure symbol : "+x)
-                cm_2d.append(".")
-            cm_coord += 1
+                cm_coords.append(cm_coord)
+                if x in "[(<{":
+                    cm_2d.append("(")
+                elif x in "])>}":
+                    cm_2d.append(")")
+                elif x in ",_-:":
+                    cm_2d.append(".")
+                else:
+                    warn("Unsupported WUSS secondary structure symbol : "+x)
+                    cm_2d.append(".")
+                cm_coord += 1
+    else:
+        cm_coords = [ None for x in range(ncols) ]
+        cm_2d = [ None for x in range(ncols) ]
 
     # Save the re_mappings
     conn = sqlite3.connect(runDir + '/results/RNANet.db', timeout=20.0)
@@ -2615,7 +2619,7 @@ def work_pssm_remap(f):
                                     freq_other=excluded.freq_other, gap_percent=excluded.gap_percent, consensus=excluded.consensus, cons_sec_struct=excluded.cons_sec_struct;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
     sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
-                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', "NULL");""", data=(f,))
+                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
     sql_execute(conn, f"UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=(len(columns_to_save), f))
     conn.close()

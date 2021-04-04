@@ -25,6 +25,7 @@ from collections import Counter
 from setproctitle import setproctitle
 from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker, trace_unhandled_exceptions
 
+np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
 path_to_3D_data = "tobedefinedbyoptions"
 path_to_seq_data = "tobedefinedbyoptions"
 runDir = os.getcwd()
@@ -911,7 +912,7 @@ def general_stats():
     fig.savefig(runDir + "/results/figures/Nfamilies.png")
     plt.close()
 
-def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
+def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
     
     # Identify the right 3D file
     filename = ''
@@ -948,13 +949,43 @@ def par_distance_matrix(filelist, f, label, consider_all_atoms, s):
     for i in range(len(s.seq)):
         for j in range(len(s.seq)):
             if np.isnan(coordinates_with_gaps[i]).any() or np.isnan(coordinates_with_gaps[j]).any():
-                d[i,j] = np.nan
+                d[i,j] = np.NaN
             else:
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
+    # Save the individual distance matrices
     if f not in LSU_set and f not in SSU_set:
         np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
-    return 1-np.isnan(d).astype(int), np.nan_to_num(d), np.nan_to_num(d*d)
+    
+    # For the average and sd, we want to consider only positions of the consensus model. This means:
+    #  - Add empty space when we have deletions
+    #  - skip measures that correspond to insertions
+    i = len(cm_coords)-1
+    while cm_coords[i] is None:
+        i -= 1
+    family_end = int(cm_coords[i])
+    i = 0
+    while cm_coords[i] is None:
+        i += 1
+    family_start = int(cm_coords[i])
+    # c = np.zeros((family_end, family_end), dtype=np.float32)    # new matrix of size of the consensus model for the family
+    c = np.NaN * np.ones((family_end, family_end), dtype=np.float32)
+    # set to NaN zones that never exist in the 3D data
+    for i in range(family_start-1):
+        for j in range(i, family_end):
+            c[i,j] = np.NaN
+            c[j,i] = np.NaN
+    # copy the values ignoring insertions
+    for i in range(len(s.seq)):
+        if cm_coords[i] is None:
+            continue
+        pos_i = int(cm_coords[i])-1
+        for j in range(len(s.seq)):
+            if cm_coords[j] is None:
+                continue
+            c[pos_i, int(cm_coords[j])-1] = d[i,j]
+    # return the matrices counts, c, c^2
+    return 1-np.isnan(c).astype(int), np.nan_to_num(c), np.nan_to_num(c*c)
 
 @trace_unhandled_exceptions
 def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
@@ -976,21 +1007,28 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
 
     align = AlignIO.read(path_to_seq_data + f"realigned/{f}_3d_only.afa", "fasta")
     ncols = align.get_alignment_length()
-    counts = np.zeros((ncols, ncols))
-    avg = np.zeros((ncols, ncols))
-    std = np.zeros((ncols, ncols))
     found = 0
     notfound = 0
+    # retrieve the mappings between this family's alignment and the CM model:
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
         r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}';")
         filelist = sorted([ ''.join(list(x))+'.cif' for x in r ])
+        r = sql_ask_database(conn, f"SELECT cm_coord FROM align_column WHERE rfam_acc = '{f}' AND index_ali > 0 ORDER BY index_ali ASC;")
+        cm_coords = [ x[0] for x in r ]
+        i = len(cm_coords)-1
+        while cm_coords[i] is None:
+            i -= 1
+        family_end = int(cm_coords[i])
+    counts = np.zeros((family_end, family_end))
+    avg = np.zeros((family_end, family_end))
+    std = np.zeros((family_end, family_end))
     
     if not multithread:
         pbar = tqdm(total = len(align), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} {label} distance matrices", unit="chains", leave=False)
         pbar.update(0)
         for s in align:
-            contrib, d, dsquared = par_distance_matrix(filelist, f, label, consider_all_atoms, s)
+            contrib, d, dsquared = par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s)
             if d is not None:
                 found += 1
                 counts += contrib
@@ -1007,7 +1045,7 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
         try:
             fam_pbar = tqdm(total=len(align), desc=f"{f} {label} pair distances", position=0, unit="chain", leave=True)
             # Apply work_pssm_remap to each RNA family
-            for i, (contrib, d, dsquared) in enumerate(p.imap_unordered(partial(par_distance_matrix, filelist, f, label, consider_all_atoms), align, chunksize=1)):
+            for i, (contrib, d, dsquared) in enumerate(p.imap_unordered(partial(par_distance_matrix, filelist, f, label, cm_coords, consider_all_atoms), align, chunksize=1)):
                 if d is not None:
                     found += 1
                     counts += contrib
@@ -1028,7 +1066,6 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
 
     # Calculation of the average matrix
     avg = np.divide(avg, counts, where=counts>0, out=np.full_like(avg, np.NaN)) # Ultrafancy way to take avg/counts or NaN if counts is 0
-    
     np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/' + f + '_average.csv' , avg, delimiter=",", fmt="%.3f")
     
     fig, ax = plt.subplots()
@@ -1153,7 +1190,7 @@ if __name__ == "__main__":
 
         if opt == "-h" or opt == "--help":
             print(  "RNANet statistics, a script to build a multiscale RNA dataset from public data\n"
-                    "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
+                    "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020/2021")
             print()
             print("Options:")
             print("-h [ --help ]\t\t\tPrint this help message")
@@ -1211,6 +1248,7 @@ if __name__ == "__main__":
     famlist = families.rfam_acc.tolist()
     ignored = families[families.n_chains < 3].rfam_acc.tolist()
     famlist.sort(key=family_order)
+
     print(f"Found {len(famlist)} families with chains of resolution {res_thr}A or better.")
     if len(ignored):
         print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
@@ -1271,14 +1309,14 @@ if __name__ == "__main__":
     except:
         print("Something went wrong")
 
-    # Now process the memory-heavy tasks family by family
-    if DO_AVG_DISTANCE_MATRIX:
-        for f in LSU_set:
-            get_avg_std_distance_matrix(f, True, True)
-            get_avg_std_distance_matrix(f, False, True)
-        for f in SSU_set:
-            get_avg_std_distance_matrix(f, True, True)
-            get_avg_std_distance_matrix(f, False, True)
+    # # Now process the memory-heavy tasks family by family
+    # if DO_AVG_DISTANCE_MATRIX:
+    #     for f in LSU_set:
+    #         get_avg_std_distance_matrix(f, True, True)
+    #         get_avg_std_distance_matrix(f, False, True)
+    #     for f in SSU_set:
+    #         get_avg_std_distance_matrix(f, True, True)
+    #         get_avg_std_distance_matrix(f, False, True)
 
     print()
     print()
