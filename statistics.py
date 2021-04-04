@@ -1206,7 +1206,7 @@ if __name__ == "__main__":
 
             sys.exit()
         elif opt == '--version':
-            print("RNANet statistics 1.3 beta")
+            print("RNANet statistics 1.4 beta")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert float(arg) > 0.0 and float(arg) <= 20.0 
