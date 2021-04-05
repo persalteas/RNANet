@@ -40,7 +40,7 @@ from Bio.SeqIO.FastaIO import FastaIterator, SimpleFastaParser
 from Bio.Seq import MutableSeq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-from pydca.plmdca import plmdca
+
 runDir = os.getcwd()
 
 def trace_unhandled_exceptions(func):
@@ -1768,10 +1768,6 @@ def sql_define_tables(conn):
                 freq_G          REAL,
                 freq_U          REAL,
                 freq_other      REAL,
-                fields_A        REAL,
-                fields_C        REAL,
-                fields_G        REAL,
-                fields_U        REAL,
                 gap_percent     REAL,
                 consensus       CHAR(1),
                 cons_sec_struct CHAR(1),
@@ -2445,7 +2441,7 @@ def work_pydca(f, columns_to_save):
     """
     This function writes an alignment file containing only the columns which will be saved to the database,
     converted to uppercase, and without non-ACGU nucleotides.
-    This file in then used by pydca to compute DCA features, and finally removed.
+    This file in then used by pydca to compute DCA features.
     """
     
     align=read(path_to_seq_data + f"realigned/{f}++.afa")
@@ -2469,44 +2465,6 @@ def work_pydca(f, columns_to_save):
         except ValueError as e:
             warn(e)
     
-    # PyDCA instance with options,
-    # Here lamda_J is set by pydca to 0.2*(L-1) where L is the length of the sequences
-    # The maximum number of iterations is set to 500 for gradient descent
-    # Lamda_h is set to 1 and seqid is set to 0.8 as suggested by pydca papers
-    # Reference:
-    # Zerihun MB, Pucci F, Peter EK, Schug A. pydca v1. 0: a comprehensive software for Direct Coupling Analysis of RNA and Protein Sequences. Bioinformatics. 
-    # 2020;36(7):2264–2265. 10.1093/bioinformatics/btz892 - DOI - https://pubmed.ncbi.nlm.nih.gov/31778142/
-    plmdca_inst = plmdca.PlmDCA(path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa",  
-                                "rna", seqid = 0.8, lambda_h = 1.0, num_threads = 10, max_iterations = 500)
-    number_of_sites=len(columns_to_save)*(len(columns_to_save)-1)//2    # L*(L-1)/2 where L=len(columns_to_save)
-    
-    # Tuple of two list of tuples
-    # - the first list contains the fields of sites (nucleotides)
-    # - the second contains pairwise fields (2 nucleotides)
-    # linear distance is zero in order to keep all possible pairs 
-    # because if linear dist=x>0 the pydca will return position |i-j|>x
-    # which will force us to lose a lot of pairs
-    params = plmdca_inst.compute_params(linear_dist=0, num_site_pairs=number_of_sites)
-
-    # Fröbenius norm with average product correction
-    fn_apc = plmdca_inst.compute_sorted_FN_APC()
-
-    # Save to file
-    np.savez(path_to_seq_data+f"/realigned/{f}_pydca.npz", PARAMS=params, FNAPC=fn_apc)
-
-    # A dictionary to be used in the function where the frequencies are stored in align_column table
-    return_dict_fields={}
-    for list_fields in params[0]:
-        # The element at 0 is the index 
-        # So taking the value from column to save at that index will give us 
-        # the fields to be stored at align_column in the table
-        return_dict_fields[columns_to_save[list_fields[0]]] = list_fields[1]
-
-    # Cleanup
-    subprocess.run(["rm", "-f", path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa"])
-
-    return return_dict_fields
-
 @trace_unhandled_exceptions
 def work_pssm_remap(f):
     """Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
@@ -2719,18 +2677,18 @@ def work_pssm_remap(f):
 
     setproctitle(f"RNAnet.py work_pssm_remap({f}) Potts model, DCA")
 
-    rfam_fields_record = work_pydca(f, columns)
+    work_pydca(f, sorted(columns_to_save))
 
-    data = [(f, j, cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + tuple(rfam_fields_record[j]) + (consensus[j-1], cm_2d[j-1]) for j in sorted(columns_to_save)]
-    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, fields_A, fields_C, fields_G, fields_U, gap_percent, consensus, cons_sec_struct)
+    data = [(f, j, cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for j in sorted(columns_to_save)]
+    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
                          UPDATE SET cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
-                                    freq_other=excluded.freq_other, fields_A=excluded.fields_A, fields_C=excluded.fields_C, fields_G=excluded.fields_G, fields_U=excluded.fields_U,
+                                    freq_other=excluded.freq_other,
                                     gap_percent=excluded.gap_percent, consensus=excluded.consensus, cons_sec_struct=excluded.cons_sec_struct;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
     sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other,
                           fields_A, fields_C, fields_G, fields_U, gap_percent, consensus, cons_sec_struct)
-                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
+                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
     
     
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
