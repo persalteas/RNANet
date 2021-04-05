@@ -2681,13 +2681,13 @@ def work_pssm_remap(f):
 
     data = [(f, j, cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for j in sorted(columns_to_save)]
     sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
                          UPDATE SET cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
                                     freq_other=excluded.freq_other,
                                     gap_percent=excluded.gap_percent, consensus=excluded.consensus, cons_sec_struct=excluded.cons_sec_struct;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
     sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other,
-                          fields_A, fields_C, fields_G, fields_U, gap_percent, consensus, cons_sec_struct)
+                          gap_percent, consensus, cons_sec_struct)
                           VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
     
     
@@ -2734,8 +2734,8 @@ def work_save(c, homology=True):
     if homology:
         df = pd.read_sql_query(f"""
                 SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, cm_coord,
-                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, fields_A, fields_C, fields_G, 
-                fields_U, gap_percent, consensus, cons_sec_struct, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, 
+                is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, 
+                gap_percent, consensus, cons_sec_struct, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, 
                 alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, 
                 eta, theta, eta_prime, theta_prime, eta_base, theta_base,
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 
