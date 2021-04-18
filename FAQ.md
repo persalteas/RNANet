@@ -31,5 +31,5 @@ We first remove the nucleotides whose number is outside the family mapping (if a
 
 * **What are the versions of the dependencies you use ?**
 
-`cmalign` is v1.1.3, `sina` is v1.6.0, `x3dna-dssr` is v1.9.9, Biopython is v1.78.
+`cmalign` is v1.1.4, `sina` is v1.6.0, `x3dna-dssr` is v1.9.9, Biopython is v1.78.
     

@@ -1190,7 +1190,7 @@ if __name__ == "__main__":
 
         if opt == "-h" or opt == "--help":
             print(  "RNANet statistics, a script to build a multiscale RNA dataset from public data\n"
-                    "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020/2021")
+                    "Developped by Louis Becquey an Khodor Hannoush, 2020/2021")
             print()
             print("Options:")
             print("-h [ --help ]\t\t\tPrint this help message")
@@ -1206,7 +1206,7 @@ if __name__ == "__main__":
 
             sys.exit()
         elif opt == '--version':
-            print("RNANet statistics 1.4 beta")
+            print("RNANet statistics 1.5 beta")
             sys.exit()
         elif opt == "-r" or opt == "--resolution":
             assert float(arg) > 0.0 and float(arg) <= 20.0 

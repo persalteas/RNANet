@@ -285,15 +285,11 @@ class Chain:
                 self.error_messages = f"Could not find nucleotides of chain {self.pdb_chain_id} in annotation {self.pdb_id}.json. Either there is a problem with {self.pdb_id} mmCIF download, or the bases are not resolved in the structure. Delete it and retry."
                 return None
 
-            # Remove low pertinence or undocumented descriptors, convert angles values
+            # Remove low pertinence or undocumented descriptors
             cols_we_keep = ["index_chain", "nt_resnum", "nt_name", "nt_code", "nt_id", "dbn", "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
                             "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
                             "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering"]
             df = df[cols_we_keep]
-            df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # Conversion to radians
-                       'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] *= np.pi/180.0
-            df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # mapping [-pi, pi] into [0, 2pi]
-                       'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] %= (2.0*np.pi)
 
         except KeyError as e:
             warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
@@ -412,13 +408,12 @@ class Chain:
                     if nt['chain_name'] != self.pdb_chain_id:
                         continue
                     if nt['index_chain'] == i + 1 + self.mapping.st:
-                        found = nt
+                        found = nt # Retrieves old angle values from the JSON !
                         break
                 if found:
                     self.mapping.log(f"Residue {i+1+self.mapping.st}-{self.mapping.st} = {i+1} has been saved and renumbered {df.iloc[i,1]} instead of {found['nt_id'].replace(found['chain_name']+ '.' + found['nt_name'], '').replace('^','')}")
-                    df_row = pd.DataFrame([found], index=[i])[
-                        df.columns.values]
-                    df_row.iloc[0, 0] = i+1          # index_chain
+                    df_row = pd.DataFrame([found], index=[i])[df.columns.values]
+                    df_row.iloc[0, 0] = i+1            # index_chain
                     df_row.iloc[0, 1] = df.iloc[i, 1]  # nt_resnum
                     df = pd.concat([df.iloc[:i], df_row, df.iloc[i:]])
                     df.iloc[i+1:, 1] += 1
@@ -473,6 +468,12 @@ class Chain:
         #######################################
         # Compute new features
         #######################################
+
+        # Convert angles
+        df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # Conversion to radians
+                    'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] *= np.pi/180.0
+        df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # mapping [-pi, pi] into [0, 2pi]
+                    'eta', 'theta', 'eta_prime', 'theta_prime', 'eta_base', 'theta_base', 'phase_angle']] %= (2.0*np.pi)
 
         # Add a sequence column just for the alignments
         df['nt_align_code'] = [str(x).upper()
@@ -985,7 +986,7 @@ class Pipeline:
 
         try:
             opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=", 
-                                                            "only=", "cmalign-opts=", "maxcores=", "sina", "from-scratch", 
+                                                            "only=", "cmalign-opts=", "stats-opts=", "maxcores=", "sina", "from-scratch", 
                                                             "full-inference", "no-homology", "redundant", "ignore-issues", "extract", 
                                                             "all", "no-logs", "archive", "update-homologous", "version"])
         except getopt.GetoptError as err:
@@ -1000,7 +1001,7 @@ class Pipeline:
 
             if opt == "-h" or opt == "--help":
                 print("RNANet, a script to build a multiscale RNA dataset from public data\n"
-                      "Developped by Louis Becquey (louis.becquey@univ-evry.fr), 2020")
+                      "Developped by Louis Becquey and Khodor Hannoush, 2019/2021")
                 print()
                 print("Options:")
                 print("-h [ --help ]\t\t\tPrint this help message")
@@ -1010,8 +1011,8 @@ class Pipeline:
                 print("--------------------------------------------------------------------------------------------------------------")
                 print("-f [ --full-inference ]\t\tInfer new mappings even if Rfam already provides some. Yields more copies of"
                       "\n\t\t\t\t chains mapped to different families.")
-                print("--redundant\t\t\t\tStore the class members in the database thoughts to be redundant for predictions.")
                 print("-s\t\t\t\tRun statistics computations after completion")
+                print("--stats-opts=…\t\t\tPass additional command line options to the statistics.py script, e.g. \"--wadley --distance-matrices\"")
                 print("--extract\t\t\tExtract the portions of 3D RNA chains to individual mmCIF files.")
                 print("--keep-hetatm=False\t\t(True | False) Keep ions, waters and ligands in produced mmCIF files. "
                       "\n\t\t\t\t Does not affect the descriptors.")
@@ -1022,35 +1023,37 @@ class Pipeline:
                 print("--------------------------------------------------------------------------------------------------------------")
                 print("--3d-folder=…\t\t\tPath to a folder to store the 3D data files. Subfolders will contain:"
                       "\n\t\t\t\t\tRNAcifs/\t\tFull structures containing RNA, in mmCIF format"
-                      "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' RNA chains"
+                      "\n\t\t\t\t\trna_mapped_to_Rfam/\tExtracted 'pure' portions of RNA chains mapped to families"
+                      "\n\t\t\t\t\trna_only/\tExtracted 'pure' RNA chains, not truncated"
                       "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
                 print("--seq-folder=…\t\t\tPath to a folder to store the sequence and alignment files. Subfolders will be:"
                       "\n\t\t\t\t\trfam_sequences/fasta/\tCompressed hits to Rfam families"
                       "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
-                print("--sina\t\t\tForce the RNANet to align large subunit LSU and small subunit SSU ribosomal RNA using sina instead of infernal,"
-                "\n\t\t\t\t\t the other RNA families will be aligned using infernal.")
+                print("--sina\t\t\t\tAlign large subunit LSU and small subunit SSU ribosomal RNA using SINA instead of Infernal,"
+                "\n\t\t\t\t the other RNA families will be aligned using infernal.")
                 print("--maxcores=…\t\t\tLimit the number of cores to use in parallel portions to reduce the simultaneous"
                       "\n\t\t\t\t need of RAM. Should be a number between 1 and your number of CPUs. Note that portions"
                       "\n\t\t\t\t of the pipeline already limit themselves to 50% or 70% of that number by default.")
                 print("--cmalign-opts=…\t\tA string of additional options to pass to cmalign aligner, e.g. \"--nonbanded --mxsize 2048\"")
                 print("--archive\t\t\tCreate tar.gz archives of the datapoints text files and the alignments,"
                       "\n\t\t\t\t and update the link to the latest archive. ")
-                print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications")
+                print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications.")
                 print()
                 print("Select which data we are interested in:")
                 print("--------------------------------------------------------------------------------------------------------------")
                 print("-r 4.0 [ --resolution=4.0 ]\tMaximum 3D structure resolution to consider a RNA chain.")
-                print("--all\t\t\t\tBuild chains even if they already are in the database.")
-                print("--only\t\t\t\tAsk to process a specific chain label only")
-                print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them")
-                print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files")
+                print("--all\t\t\t\tProcess chains even if they already are in the database.")
+                print("--redundant\t\t\tProcess all members of the equivalence classes not only the representative.")
+                print("--only\t\t\t\tAsk to process a specific chains only (could be 4v49, 4v49_1_AA, or 4v49_1_AA_5-1523).")
+                print("--ignore-issues\t\t\tDo not ignore already known issues and attempt to compute them.")
+                print("--update-homologous\t\tRe-download Rfam and SILVA databases, realign all families, and recompute all CSV files.")
                 print("--from-scratch\t\t\tDelete database, local 3D and sequence files, and known issues, and recompute.")
                 print()
                 print("Typical usage:")
                 print(f"nohup bash -c 'time {fileDir}/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq-folder ~/Data/RNA/sequences -s --no-logs' &")
                 sys.exit()
             elif opt == '--version':
-                print("RNANet v1.4 beta, parallelized, Dockerized")
+                print("RNANet v1.5 beta, parallelized, Dockerized")
                 print("Last revision : April 2021")
                 sys.exit()
             elif opt == "-r" or opt == "--resolution":
@@ -1114,9 +1117,9 @@ class Pipeline:
             elif opt == "-f" or opt == "--full-inference":
                 self.FULLINFERENCE = True
             elif opt=="--redundant":
-                self.REDUNDANT=True
+                self.REDUNDANT = True
             elif opt=="--sina":
-                self.USESINA=True
+                self.USESINA = True
 
         if self.HOMOLOGY and "tobedefinedbyoptions" in [path_to_3D_data, path_to_seq_data] or path_to_3D_data == "tobedefinedbyoptions":
             print("usage: RNANet.py --3d-folder path/where/to/store/chains --seq-folder path/where/to/store/alignments")
@@ -1161,7 +1164,8 @@ class Pipeline:
 
                 pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1,
                             desc="Eq. classes", bar_format="{desc}:{percentage:3.0f}%|{bar}|")
-                for _, newchains in enumerate(p.imap_unordered(partial(
+                problems = []
+                for _, results in enumerate(p.imap_unordered(partial(
                                                                     work_infer_mappings, 
                                                                     not self.REUSE_ALL, 
                                                                     allmappings, 
@@ -1170,6 +1174,8 @@ class Pipeline:
                                                               ), 
                                                               full_structures_list, 
                                                               chunksize=1)):
+                    newproblems, newchains = results
+                    problems += newproblems
                     self.update += newchains
                     
                     pbar.update(1)  # Everytime the iteration finishes, update the global progress bar
@@ -1183,15 +1189,33 @@ class Pipeline:
                 p.terminate()
                 p.join()
                 exit(1)
+            
+            # Display the issues afterwards
+            for p in problems:
+                warn(p)
         else:
             conn = sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0)
             conn.execute('pragma journal_mode=wal')
-            for eq_class, codelist in tqdm(full_structures_list, desc="Eq. classes"):
+            for eq_class, representative, codelist in tqdm(full_structures_list, desc="Eq. classes"):
                 codes = codelist.replace('+', ',').split(',')
 
                 # Simply convert the list of codes to Chain() objects
-                for c in codes:
-                    nr = c.split('|')
+                if self.REDUNDANT:
+                    for c in codes:
+                        nr = c.split('|')
+                        pdb_id = nr[0].lower()
+                        pdb_model = int(nr[1])
+                        pdb_chain_id = nr[2].upper()
+                        chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
+                        res = sql_ask_database(conn, f"""SELECT chain_id from chain 
+                                                            WHERE structure_id='{pdb_id}' 
+                                                            AND chain_name='{pdb_chain_id}' 
+                                                            AND rfam_acc = 'unmappd' 
+                                                            AND issue=0""")
+                        if not len(res) or self.REUSE_ALL:  # the chain is NOT yet in the database, or this is a known issue
+                            self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
+                else:
+                    nr = representative.split('|')
                     pdb_id = nr[0].lower()
                     pdb_model = int(nr[1])
                     pdb_chain_id = nr[2].upper()
@@ -1206,7 +1230,13 @@ class Pipeline:
             conn.close()
 
         if self.SELECT_ONLY is not None:
-            self.update = [ c for c in self.update if c.chain_label == self.SELECT_ONLY ]
+            print("> Using only chains with label " + self.SELECT_ONLY + "... ", end="")
+            self.update = [ c for c in self.update if self.SELECT_ONLY in c.chain_label ]
+            if len(self.update):
+                print(validsymb)
+            else:
+                print("None found ! " + errsymb)
+                exit(1)
 
         self.n_chains = len(self.update)
         print(str(self.n_chains) + " RNA chains of interest.")
@@ -1359,9 +1389,9 @@ class Pipeline:
         try:
             execute_joblist(joblist)
 
-            if len(set(self.fam_list).intersection(SSU_set)):
+            if self.USESINA and len(set(self.fam_list).intersection(SSU_set)):
                 self.dl.download_from_SILVA("SSU")
-            if len(set(self.fam_list).intersection(LSU_set)):
+            if self.USESINA and len(set(self.fam_list).intersection(LSU_set)):
                 self.dl.download_from_SILVA("LSU")
         except KeyboardInterrupt:
             print("Exiting")
@@ -1762,6 +1792,7 @@ def sql_define_tables(conn):
             CREATE TABLE IF NOT EXISTS align_column (
                 rfam_acc        CHAR(7) NOT NULL,
                 index_ali       INT NOT NULL,
+                index_small_ali INT NOT NULL,
                 cm_coord        INT,
                 freq_A          REAL,
                 freq_C          REAL,
@@ -1938,8 +1969,8 @@ def execute_joblist(fulljoblist):
                 p.close()
                 p.join()
             except KeyboardInterrupt as e:
-                warn("KeyboardInterrupt, terminating workers.", error=True)
-                p.terminate()
+                warn("KeyboardInterrupt, killing workers (SIGKILL).", error=True)
+                p.kill()
                 p.join()
                 raise e
 
@@ -1952,15 +1983,23 @@ def execute_joblist(fulljoblist):
     return results
 
 @trace_unhandled_exceptions
-def work_infer_mappings(update_only, allmappings, fullinference,redundant, codelist) -> list:
+def work_infer_mappings(update_only, allmappings, fullinference, redundant, codelist) -> (list, list):
     """Given a list of PDB chains corresponding to an equivalence class from BGSU's NR list, 
     build a list of Chain() objects mapped to Rfam families, by expanding available mappings 
     of any element of the list to all the list elements.
+    update_only (bool)          : Only return chains which are not yet in the database
+    allmappings (DataFrame)     : Rfam-PDB mappings CSV
+    fullinference (bool)        : include copies of chains mapped to families of the other members of the equivalence class, even if this chain already has a mapping
+    redundant (bool)            : include all members of the equivalence class, not just the representative
+    codelist (str)              : list of chains of an equivalence class, in the NR-list format
+
+    returns list[str], list[Chain] : problems faced, and Chain objects to process.
     """
 
     setproctitle("RNAnet.py work_infer_mappings()")
 
     newchains = []
+    newproblems = []
     known_mappings = pd.DataFrame()
 
     # Split the comma-separated list of chain codes into chain codes:
@@ -2001,6 +2040,8 @@ def work_infer_mappings(update_only, allmappings, fullinference,redundant, codel
                     and len(inferred_mappings[thisfam_5_3]) > 0
                 ):
                     # there are mappings in both directions... wtf Rfam ?!
+                    # Reverse-direction hits of cmscan are hits for the (-) strand --> We are not interested in negative strands, 
+                    # we do not have their 3D structure ! We should ignore them.
                     if (len(inferred_mappings[thisfam_5_3]) == len(inferred_mappings[thisfam_3_5]) == 1
                                 and int(inferred_mappings[thisfam_5_3].pdb_start) == int(inferred_mappings[thisfam_3_5].pdb_end)
                                 and int(inferred_mappings[thisfam_5_3].pdb_end) == int(inferred_mappings[thisfam_3_5].pdb_start)
@@ -2013,12 +2054,10 @@ def work_infer_mappings(update_only, allmappings, fullinference,redundant, codel
                         sel_5_to_3 = (inferred_mappings['pdb_start'] < inferred_mappings['pdb_end'])
                         thisfam_5_3 = (inferred_mappings['rfam_acc'] == rfam) & sel_5_to_3
                         thisfam_3_5 = (inferred_mappings['rfam_acc'] == rfam) & (sel_5_to_3 == False)
-                        # print()
-                        # warn(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
+                        newproblems.append(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
                     else:
-                        warn(f"There are mappings for {rfam} in both directions:", error=True)
-                        print(inferred_mappings)
-                        # exit(1)
+                        newproblems.append(f"There are mappings for {rfam} in both directions, this is a clue that the hit is wrong. Ignoring it.")
+                        continue
 
                 # Compute consensus for chains in 5' -> 3' sense
                 if len(inferred_mappings[thisfam_5_3]):
@@ -2035,33 +2074,17 @@ def work_infer_mappings(update_only, allmappings, fullinference,redundant, codel
                         known_sel_5_to_3 = (known_mappings['rfam_acc'] == rfam) & (known_mappings['pdb_start'] < known_mappings['pdb_end'])
                         inferred_mappings.loc[thisfam_5_3, 'pdb_start'] = known_mappings.loc[known_sel_5_to_3, 'pdb_start'].median()
                         inferred_mappings.loc[thisfam_5_3, 'pdb_end'] = known_mappings.loc[known_sel_5_to_3, 'pdb_end'].median()
-
-                #  Compute consensus for chains in 3' -> 5' sense
-                if len(inferred_mappings[thisfam_3_5]):
-                    pdb_start_min = min(inferred_mappings[thisfam_3_5]['pdb_start'])
-                    pdb_end_max = max(inferred_mappings[thisfam_3_5]['pdb_end'])
-                    pdb_start_max = max(inferred_mappings[thisfam_3_5]['pdb_start'])
-                    pdb_end_min = min(inferred_mappings[thisfam_3_5]['pdb_end'])
-                    if (pdb_start_max - pdb_start_min < 100) and (pdb_end_max - pdb_end_min < 100):
-                        # the variation is only a few nucleotides, we take the largest window.
-                        inferred_mappings.loc[thisfam_3_5, 'pdb_start'] = pdb_start_max
-                        inferred_mappings.loc[thisfam_3_5, 'pdb_end'] = pdb_end_min
-                    else:
-                        # there probably is an outlier. We chose the median value in the whole list of known_mappings.
-                        known_sel_3_to_5 = (known_mappings['rfam_acc'] == rfam) & (known_mappings['pdb_start'] > known_mappings['pdb_end'])
-                        inferred_mappings.loc[thisfam_3_5, 'pdb_start'] = known_mappings.loc[known_sel_3_to_5, 'pdb_start'].median()
-                        inferred_mappings.loc[thisfam_3_5, 'pdb_end'] = known_mappings.loc[known_sel_3_to_5, 'pdb_end'].median()
+               
             inferred_mappings.drop_duplicates(inplace=True)
 
         # Now build Chain() objects for the mapped chains
         for c in codes:
 
-            if not redundant and c!=representative:
-                '''
-                by default save only the representative member
-                if redundant is passed then save all the chains of the class members
-                '''
+            if not redundant and c != representative:
+                # By default, we save only the representative member.
+                # If --redundant is passed, then save all the chains of the class members
                 continue
+
             nr = c.split('|')
             pdb_id = nr[0].lower()
             pdb_model = int(nr[1])
@@ -2107,7 +2130,7 @@ def work_infer_mappings(update_only, allmappings, fullinference,redundant, codel
                     newchains.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class,
                                            rfam=rfam, inferred=inferred, pdb_start=pdb_start, pdb_end=pdb_end))
 
-    return newchains
+    return newproblems, newchains
 
 @trace_unhandled_exceptions
 def work_mmcif(pdb_id):
@@ -2437,34 +2460,22 @@ def work_realign(useSina, alignopts, rfam_acc):
                 er.write(f"Failed to realign {rfam_acc} (killed)")
 
 @trace_unhandled_exceptions
-def work_pydca(f, columns_to_save):
-    """
-    This function writes an alignment file containing only the columns which will be saved to the database,
-    converted to uppercase, and without non-ACGU nucleotides.
-    This file in then used by pydca to compute DCA features.
-    """
-    
-    align=read(path_to_seq_data + f"realigned/{f}++.afa")
-    for s in align:
-        s.seq=s.seq.upper() # Convert to uppercase as needed for pydca
-    filtered_alignment = align[:, 1:1] # all the lines, but no columns
-    for p in columns_to_save: 
-        filtered_alignment += align[:, p-1:p] # save columns one by one
-    
+def work_save_pydca(f,alignment):
     # Replace all other letters by a deletion gap just for the 
     # aim to use pydca as sites other than ACGU . and - are not accepted
-    for s in filtered_alignment:
+    for s in alignment:
+        s.seq = s.seq.toseq().upper().tomutable() # Convert to uppercase as needed for pydca
         for i in range(len(s.seq)):
             if s.seq[i].upper() not in "ACGU-.":
                 s.seq[i]='-'
 
-    # Create a fasta file to be used by pydca 
+    #Create a fasta file to be used by pydca 
     with open(path_to_seq_data+f"/realigned/{f}_filtered_for_pydca.afa", "w") as only_3d:
         try:
-            only_3d.write(format(filtered_alignment, "fasta"))
+            only_3d.write(format(alignment, "fasta"))
         except ValueError as e:
             warn(e)
-    
+
 @trace_unhandled_exceptions
 def work_pssm_remap(f):
     """Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
@@ -2648,7 +2659,7 @@ def work_pssm_remap(f):
     setproctitle(f"RNAnet.py work_pssm_remap({f}) insert/match states")
 
     # Get back the information of match/insertion states from the STK file
-    if f not in SSU_set and f not in LSU_set:
+    if (not use_sina) or (f not in SSU_set and f not in LSU_set):
         alignstk = AlignIO.read(path_to_seq_data + "realigned/" + f + "++.stk", "stockholm")
         consensus_2d = alignstk.column_annotations["secondary_structure"]
         del alignstk
@@ -2675,20 +2686,17 @@ def work_pssm_remap(f):
         cm_coords = [ None for x in range(ncols) ]
         cm_2d = [ None for x in range(ncols) ]
 
-    setproctitle(f"RNAnet.py work_pssm_remap({f}) Potts model, DCA")
-
-    work_pydca(f, sorted(columns_to_save))
-
-    data = [(f, j, cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for j in sorted(columns_to_save)]
-    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
-                         UPDATE SET cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
+    data = [(f,j,i,cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for i, j in enumerate(columns)]
+    sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, index_small_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
+                         UPDATE SET index_small_ali=excluded.index_small_ali, cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
                                     freq_other=excluded.freq_other,
                                     gap_percent=excluded.gap_percent, consensus=excluded.consensus, cons_sec_struct=excluded.cons_sec_struct;""", many=True, data=data)
     # Add an unknown values column, with index_ali 0 (for nucleotides unsolved in 3D giving a gap '-' but found facing letter in the alignment)
-    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other,
+    sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, index_small_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other,
                           gap_percent, consensus, cons_sec_struct)
-                          VALUES (?, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
+                          VALUES (?, 0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
+    
     
     
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
@@ -2720,6 +2728,20 @@ def work_pssm_remap(f):
         except ValueError as e:
             warn(e)
 
+    setproctitle(f"RNAnet.py work_pssm_remap({f}) Potts model, DCA")
+
+    if len(filtered_alignment) < 20:
+        # The 3D-only alignment is not big enough for us to compute PyDCA features on it.
+        # We'll use the large one.
+        del align
+        del filtered_alignment
+        align = read(path_to_seq_data + f"realigned/{f}++.afa")
+        filtered_alignment = align[:, 1:1] # all the lines, but no columns
+        for p in columns: 
+            filtered_alignment += align[:, p-1:p] # save columns one by one
+        
+    work_save_pydca(f, filtered_alignment)
+
     setproctitle(f"RNAnet.py work_pssm_remap({f}) finished")
     idxQueue.put(thr_idx) # replace the thread index in the queue
     return 0
@@ -2733,7 +2755,7 @@ def work_save(c, homology=True):
     conn.execute('pragma journal_mode=wal')
     if homology:
         df = pd.read_sql_query(f"""
-                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, cm_coord,
+                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, cm_coord, index_small_ali,
                 is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, 
                 gap_percent, consensus, cons_sec_struct, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, 
                 alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, 
@@ -2758,7 +2780,6 @@ def work_save(c, homology=True):
     conn.close()
 
     df.to_csv(filename, float_format="%.2f", index=False)
-
 
 if __name__ == "__main__":
 
