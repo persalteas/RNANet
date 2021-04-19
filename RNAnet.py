@@ -969,6 +969,7 @@ class Pipeline:
         self.REUSE_ALL = False
         self.REDUNDANT = False
         self.ALIGNOPTS = None
+        self.STATSOPTS = None
         self.USESINA = False
         self.SELECT_ONLY = None
         self.ARCHIVE = False
@@ -1102,6 +1103,8 @@ class Pipeline:
                 self.REUSE_ALL = True
             elif opt == "cmalign-opts":
                 self.ALIGNOPTS = arg
+            elif opt == "stats-opts":
+                self.STATSOPTS = " ".split(arg)
             elif opt == "--all":
                 self.REUSE_ALL = True
                 self.USE_KNOWN_ISSUES = False
@@ -1545,9 +1548,12 @@ class Pipeline:
 
             # Run statistics files
             subprocess.run([python_executable, fileDir+"/scripts/regression.py", runDir + "/results/RNANet.db"])
-            subprocess.run([python_executable, fileDir+"/statistics.py", "--3d-folder",  path_to_3D_data, 
+            if self.STATSOPTS is None:
+                subprocess.run([python_executable, fileDir+"/statistics.py", "--3d-folder",  path_to_3D_data, 
                             "--seq-folder", path_to_seq_data, "-r", str(self.CRYSTAL_RES)])
-
+            else:
+                subprocess.run([python_executable, fileDir+"/statistics.py", "--3d-folder",  path_to_3D_data, 
+                            "--seq-folder", path_to_seq_data, "-r", str(self.CRYSTAL_RES)] + self.STATSOPTS)
         # Save additional informations
         with sqlite3.connect(runDir+"/results/RNANet.db") as conn:
             conn.execute('pragma journal_mode=wal')

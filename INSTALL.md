@@ -10,16 +10,16 @@
 # Required computational resources
 - CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
 - GPU: not required
-- RAM: 16 GB with a large swap partition is okay. 32 GB is recommended (usage peaks at ~27 GB)
+- RAM: 16 GB with a large swap partition is okay. 32 GB is recommended (usage peaks at ~27 GB, but this number depends on your number of CPU cores)
 - Storage: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. Pick a 100GB partition and you are good to go. The computation speed is way better if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe SSD) because of constant I/O with the SQlite database.
 - Network : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but maybe you company/university closes ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
 
 # Method 1 : Installation using Docker
 
-* Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/d/1aff90a9ef214a19b848/files/?p=/rnanet_v1.3_docker.tar&dl=1). Open a terminal and move to the appropriate directory.
+* Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/d/1aff90a9ef214a19b848/files/?p=/rnanet_v1.5b_docker.tar&dl=1). Open a terminal and move to the appropriate directory.
 * Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
 ```
-$ docker load -i rnanet_v1.3_docker.tar
+$ docker load -i rnanet_v1.5b_docker.tar
 ```
 * Step 3 : Run the container, giving it 3 folders to mount as volumes: a first to store the 3D data, a second to store the sequence data and alignments, and a third to output the results, data and logs:
 ```
@@ -36,7 +36,7 @@ nohup bash -c 'time docker run --rm -v /path/to/3D/data/folder:/3D -v /path/to/s
 
 You need to install the dependencies:
 - DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/).  Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
-- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `esl-alimanip`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
+- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `cmfetch`, `cmbuild`, `esl-alimanip`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
 - SINA, follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
 - Sqlite 3, available under the name *sqlite* in every distro's package manager,
 - Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*)
@@ -112,13 +112,14 @@ The most useful options in that list are
     * Computation of sequence identity matrices
     * Statistics over the sequence lengths, nucleotide frequencies, and basepair types by RNA family
     * Overall database content statistics
-    * Detailed analysis of the eta-theta pseudotorsion angles  (use `--stats-opts "--wadley"` after `-s`) or 3D distance matrices and their averages per family (use `--stats-opts "--distance-matrices"`)
+    * Detailed analysis of the eta-theta pseudotorsion angles  (use `--stats-opts="--wadley"` after `-s`) or 3D distance matrices and their averages per family (use `--stats-opts="--distance-matrices"`)
 * ` --redundant`, to yield all the available data and not only the BGSU NR-List respresentatives
 
 # Computation time 
 
 To give you an estimation, our last full run took exactly 12h, excluding the time to download the MMCIF files containing RNA (around 25GB to download) and the time to compute statistics.
 Measured the 23rd of June 2020 on a 16-core AMD Ryzen 7 3700X CPU @3.60GHz, plus 32 Go RAM, and a 7200rpm Hard drive. Total CPU time spent: 135 hours (user+kernel modes), corresponding to 12h (actual time spent with the 16-core CPU). 
+Another recent full run, including the MMCIF downloads and computation of heavy statistics (`--wadley --distance-matrices`) last 13h (real time) on a 60-core Xeon E7-4850v4@2.10GHz and 120 Go of RAM. The user+kernel time was about 300h.
 
 Update runs are much quicker, around 3 hours. It depends mostly on what RNA families are concerned by the update.
 
@@ -135,9 +136,11 @@ By default, this computes:
 * Statistics over the sequence lengths, nucleotide frequencies, and basepair types by RNA family
 * Overall database content statistics
 
+If you have run RNANet once with option `--extract`, additionally, you can compute more by passing the options:
+*  With option `--distance-matrices` to compute pairwise residue distances within the chain for every chain, and compute average and standard deviations by RNA families. This is supposed to capture the average shape of an RNA family. The distance matrices are the size of the family's covariance model (match states). Unresolved nucleotides or deletions to the covariance model are NaNs.
+
 If you have run RNANet once with options `--no-homology` and `--extract`, you unlock new statistics over unmapped chains.
 * You will be allowed to use option `--wadley` to reproduce Wadley & al. (2007) results automatically. These are clustering results of the pseudotorsions angles of the backbone.
-* (experimental) You will be allowed to use option `--distance-matrices` to compute pairwise residue distances within the chain for every chain, and compute average and standard deviations by RNA families. This is supposed to capture the average shape of an RNA family.
 
 # Output files
 

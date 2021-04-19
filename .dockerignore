@@ -18,9 +18,7 @@ Dockerfile
 LICENSE
 CHANGELOG
 *.md
-scripts/automate.sh
-scripts/kill_rnanet.sh
-scripts/build_docker_image.sh
+scripts/*.sh
 scripts/*.tar
 scripts/measure.py
 scripts/recompute_some_chains.py

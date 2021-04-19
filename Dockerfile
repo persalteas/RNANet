@@ -25,13 +25,13 @@ RUN apk update && apk add --no-cache \
     \
     mv /RNANet/scripts/x3dna-dssr /usr/local/bin/x3dna-dssr && chmod +x /usr/local/bin/x3dna-dssr && \
     \
-    curl -SL http://eddylab.org/infernal/infernal-1.1.3.tar.gz | tar xz  && cd infernal-1.1.3 && \
+    curl -SL http://eddylab.org/infernal/infernal-1.1.4.tar.gz | tar xz  && cd infernal-1.1.4 && \
     ./configure && make -j 16 && make install && cd easel && make install && cd / && \
     \
     curl -SL https://github.com/epruesse/SINA/releases/download/v1.7.1/sina-1.7.1-linux.tar.gz | tar xz && mv sina-1.7.1-linux /sina && \
     ln -s /sina/bin/sina /usr/local/bin/sina && \
     \
-    rm -rf /infernal-1.1.3 && \
+    rm -rf /infernal-1.1.4 && \
     \
     apk del openblas-dev gcc g++ gfortran binutils \
         curl \

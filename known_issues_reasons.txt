@@ -1,3 +1,9 @@
+6ydp_1_AA_1176-2737
+Could not find nucleotides of chain AA in annotation 6ydp.json. Either there is a problem with 6ydp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ydw_1_AA_1176-2737
+Could not find nucleotides of chain AA in annotation 6ydw.json. Either there is a problem with 6ydw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 2z9q_1_A_1-72
 DSSR warning 2z9q.json: no nucleotides found. Ignoring 2z9q_1_A_1-72.
 
@@ -31,6 +37,15 @@ DSSR warning 1ls2.json: no nucleotides found. Ignoring 1ls2_1_B_1-73.
 1gsg_1_T_1-72
 DSSR warning 1gsg.json: no nucleotides found. Ignoring 1gsg_1_T_1-72.
 
+7d1a_1_A_805-902
+Could not find nucleotides of chain A in annotation 7d1a.json. Either there is a problem with 7d1a mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7d0g_1_A_805-913
+Could not find nucleotides of chain A in annotation 7d0g.json. Either there is a problem with 7d0g mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7d0f_1_A_817-913
+Could not find nucleotides of chain A in annotation 7d0f.json. Either there is a problem with 7d0f mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 3jcr_1_H_1-115
 DSSR warning 3jcr.json: no nucleotides found. Ignoring 3jcr_1_H_1-115.
 
@@ -58,20 +73,20 @@ DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_A9_3-118.
 2ob7_1_A_10-319
 DSSR warning 2ob7.json: no nucleotides found. Ignoring 2ob7_1_A_10-319.
 
-1x1l_1_A_1-132
-DSSR warning 1x1l.json: no nucleotides found. Ignoring 1x1l_1_A_1-132.
+1x1l_1_A_1-130
+DSSR warning 1x1l.json: no nucleotides found. Ignoring 1x1l_1_A_1-130.
 
-1zc8_1_Z_1-93
-DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_Z_1-93.
+1zc8_1_Z_1-91
+DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_Z_1-91.
 
-2ob7_1_D_1-132
-DSSR warning 2ob7.json: no nucleotides found. Ignoring 2ob7_1_D_1-132.
-
-4v42_1_BB_5-121
-Could not find nucleotides of chain BB in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+2ob7_1_D_1-130
+DSSR warning 2ob7.json: no nucleotides found. Ignoring 2ob7_1_D_1-130.
 
 4v42_1_BA_1-2914
 Could not find nucleotides of chain BA in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v42_1_BB_5-121
+Could not find nucleotides of chain BB in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 1r2x_1_C_1-58
 DSSR warning 1r2x.json: no nucleotides found. Ignoring 1r2x_1_C_1-58.
@@ -82,8 +97,26 @@ DSSR warning 1r2w.json: no nucleotides found. Ignoring 1r2w_1_C_1-58.
 1eg0_1_L_1-56
 DSSR warning 1eg0.json: no nucleotides found. Ignoring 1eg0_1_L_1-56.
 
-5zzm_1_N_1-2904
-DSSR warning 5zzm.json: no nucleotides found. Ignoring 5zzm_1_N_1-2904.
+3dg2_1_A_1-1542
+DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A_1-1542.
+
+3dg0_1_A_1-1542
+DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_A_1-1542.
+
+4v48_1_BA_1-1543
+DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_BA_1-1543.
+
+4v47_1_BA_1-1542
+DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_BA_1-1542.
+
+3dg4_1_A_1-1542
+DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_A_1-1542.
+
+3dg5_1_A_1-1542
+DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_A_1-1542.
+
+5zzm_1_N_1-2903
+DSSR warning 5zzm.json: no nucleotides found. Ignoring 5zzm_1_N_1-2903.
 
 2rdo_1_B_1-2904
 DSSR warning 2rdo.json: no nucleotides found. Ignoring 2rdo_1_B_1-2904.
@@ -106,38 +139,11 @@ DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_B_1-2904.
 3dg5_1_B_1-2904
 DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_B_1-2904.
 
-3dg2_1_A_1-1542
-DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A_1-1542.
-
-3dg0_1_A_1-1542
-DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_A_1-1542.
-
-4v48_1_BA_1-1543
-DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_BA_1-1543.
-
-4v47_1_BA_1-1542
-DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_BA_1-1542.
-
-3dg4_1_A_1-1542
-DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_A_1-1542.
-
-3dg5_1_A_1-1542
-DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_A_1-1542.
-
 1eg0_1_O_1-73
 DSSR warning 1eg0.json: no nucleotides found. Ignoring 1eg0_1_O_1-73.
 
 1zc8_1_A_1-59
 DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_A_1-59.
-
-1mvr_1_D_1-61
-DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_D_1-61.
-
-4adx_1_9_1-123
-DSSR warning 4adx.json: no nucleotides found. Ignoring 4adx_1_9_1-123.
-
-1zn1_1_B_1-59
-DSSR warning 1zn1.json: no nucleotides found. Ignoring 1zn1_1_B_1-59.
 
 1jgq_1_A_2-1520
 Could not find nucleotides of chain A in annotation 1jgq.json. Either there is a problem with 1jgq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -150,6 +156,21 @@ Could not find nucleotides of chain A in annotation 1jgo.json. Either there is a
 
 1jgp_1_A_2-1520
 Could not find nucleotides of chain A in annotation 1jgp.json. Either there is a problem with 1jgp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1mvr_1_D_1-59
+DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_D_1-59.
+
+4c9d_1_D_29-1
+Mapping is reversed, this case is not supported (yet).
+
+4c9d_1_C_29-1
+Mapping is reversed, this case is not supported (yet).
+
+4adx_1_9_1-121
+DSSR warning 4adx.json: no nucleotides found. Ignoring 4adx_1_9_1-121.
+
+1zn1_1_B_1-59
+DSSR warning 1zn1.json: no nucleotides found. Ignoring 1zn1_1_B_1-59.
 
 1emi_1_B_1-108
 DSSR warning 1emi.json: no nucleotides found. Ignoring 1emi_1_B_1-108.
@@ -187,8 +208,8 @@ DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_v_1-138.
 2iy3_1_B_9-105
 DSSR warning 2iy3.json: no nucleotides found. Ignoring 2iy3_1_B_9-105.
 
-3jcr_1_N_1-107
-DSSR warning 3jcr.json: no nucleotides found. Ignoring 3jcr_1_N_1-107.
+3jcr_1_N_1-106
+DSSR warning 3jcr.json: no nucleotides found. Ignoring 3jcr_1_N_1-106.
 
 2vaz_1_A_64-177
 DSSR warning 2vaz.json: no nucleotides found. Ignoring 2vaz_1_A_64-177.
@@ -214,19 +235,22 @@ DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BY_2-113.
 4v5z_1_BZ_1-70
 DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BZ_1-70.
 
-4v5z_1_B1_2-125
-DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_B1_2-125.
+4v5z_1_B1_2-123
+DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_B1_2-123.
 
-4adx_1_0_1-2925
-DSSR warning 4adx.json: no nucleotides found. Ignoring 4adx_1_0_1-2925.
+1mvr_1_B_1-96
+DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_B_1-96.
 
-1mvr_1_B_3-96
-DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_B_3-96.
+4adx_1_0_1-2923
+DSSR warning 4adx.json: no nucleotides found. Ignoring 4adx_1_0_1-2923.
 
 3eq4_1_Y_1-69
 DSSR warning 3eq4.json: no nucleotides found. Ignoring 3eq4_1_Y_1-69.
 
-6uz7_1_8_2140-2827
+7a5p_1_2_259-449
+Could not find nucleotides of chain 2 in annotation 7a5p.json. Either there is a problem with 7a5p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6uz7_1_8_2140-2825
 Could not find nucleotides of chain 8 in annotation 6uz7.json. Either there is a problem with 6uz7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 4v5z_1_AA_1-1563
