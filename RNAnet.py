@@ -1578,7 +1578,6 @@ class Pipeline:
             for f in os.listdir(path_to_seq_data + "realigned"):
                 if "3d_only.afa" in f:
                     subprocess.run(["cp", path_to_seq_data + "realigned/" + f, path_to_seq_data + "realigned/3d_only"])
-            subprocess.run(["cp", path_to_seq_data + "realigned/*_3d_only.afa", path_to_seq_data + "realigned/3d_only" ])
             subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
             subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
 
