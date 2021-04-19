@@ -2816,10 +2816,6 @@ if __name__ == "__main__":
     # If --all was passed, all the structures are kept.
     # Fills pp.update with Chain() objects.
     pp.list_available_mappings()
-    for c in pp.update:
-        if "6ydw" in c.chain_label:
-            print(c)
-    exit(1)
 
     # ===========================================================================
     # 3D information
