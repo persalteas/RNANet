@@ -80,7 +80,7 @@ RNANet is updated monthly to take into account new structures proposed in the [B
 
 It is updated yearly from scratch to take into account new Rfam sequences or updates in the covariance models, and updates in the PDB 3D files.
 
-For now, the SILVA releases used are fixed (LSU release 132 and SSU release 138) and not automatically updated. SILVA authors if you reach this : please provide a "latest" download link to ease automatic retrieval of the latest version.
+For now, the SILVA releases used are fixed (LSU and SSU releases 138.1) and not automatically updated. SILVA authors if you reach this : please provide a "latest" download link to ease automatic retrieval of the latest version.
 
 See what's new in the latest version of RNANet [in the CHANGELOG](CHANGELOG).
 
@@ -168,13 +168,13 @@ Then proceed to steps 2 and 3.
 
 # Troubleshooting
 
-Check if your problem is listed in the [known issues](KnownIssues.md).
+Check if your problem is listed in the [known issues](doc/KnownIssues.md).
 
 ### Warning and Errors
-If you ran RNANet and got an error or a warning that you do not fully understand, check the [Error documentation](Errors.md).
+If you ran RNANet and got an error or a warning that you do not fully understand, check the [Error documentation](doc/Errors.md).
 
 ### Not enough memory
-If you run out of memory (job killed), you may want to reduce the number of jobs run in parallel. Use the `--maxcores` option with a small number to ask RNANet to limit the concurrency and the simultaneous need for a lot of RAM. The computation time will increase accordingly.
+If you run out of memory (job killed), you may want to reduce the number of jobs run in parallel. Use the `--maxcores` option with a small number to ask RNANet to limit the concurrency and the simultaneous need for a lot of RAM. The computation time will increase accordingly. If the blocking part is a `cmalign` alignment, use `--cmalign-opts="--cyk --nonbanded --notrunc --small"` to reduce alignment requirements.
 
 ### Not enough memory/too slow (developer trick)
 If `--maxcores` is not enough, and that you identified the step which fails, you can try to edit the Python code. Look for the "coeff_ncores" argument of some functions calls. This is the coefficient applied to `--maxcores` for different steps of the pipeline. You can change it following your needs to reduce or increase concurrency (to use less memory, or compute faster, respectively).
@@ -183,4 +183,4 @@ If `--maxcores` is not enough, and that you identified the step which fails, you
 RNANet is still in beta, this means we are truly open (and enjoying) all the feedback we can get from interested users.
 
 Please send all your questions, feature requests, bug reports or angry reacts to
-louis.becquey@univ-evry.fr .
+louis.becquey(a)univ-evry.fr 
