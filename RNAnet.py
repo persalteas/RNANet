@@ -180,7 +180,10 @@ class Chain:
         self.db_chain_id = -1                   # index of the RNA chain in the SQL database, table chain
 
     def __str__(self):
-        return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
+        if self.mapping is None:
+            return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id
+        else:
+            return self.pdb_id + '[' + str(self.pdb_model) + "]-" + self.pdb_chain_id + "-" + self.mapping.rfam_acc
 
     def __eq__(self, other):
         return self.chain_label == other.chain_label and str(self) == str(other)
@@ -2065,6 +2068,8 @@ def work_infer_mappings(update_only, allmappings, fullinference, redundant, code
                         newproblems.append(f"Found mappings to {rfam} in both directions on the same interval, keeping only the 5'->3' one.")
                     else:
                         newproblems.append(f"There are mappings for {rfam} in both directions, this is a clue that the hit is wrong. Ignoring it.")
+                        inferred_mappings = inferred_mappings.drop(index=inferred_mappings.index[thisfam_3_5 | thisfam_5_3])
+                        known_mappings = known_mappings[known_mappings.rfam_acc != rfam]
                         continue
 
                 # Compute consensus for chains in 5' -> 3' sense
@@ -2811,6 +2816,10 @@ if __name__ == "__main__":
     # If --all was passed, all the structures are kept.
     # Fills pp.update with Chain() objects.
     pp.list_available_mappings()
+    for c in pp.update:
+        if "6ydw" in c.chain_label:
+            print(c)
+    exit(1)
 
     # ===========================================================================
     # 3D information
