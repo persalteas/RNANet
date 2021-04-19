@@ -1,3 +1,34 @@
+############################################################################################
+v 1.5 beta, April 2021
+
+FEATURE CHANGES
+    - New option --stats-opts="..." allows to pass options to the automatic run of statistics.py (when -s is used)
+    - Removed support for 3'->5' Rfam hits, they are now completely ignored. They concern the opposite strand, which is unresolved in 3D.
+    - Removed PyDCA, which is outdated and introduces dependencies conflicts. Code may be adapted later.
+    - A new column in align_column table, 'index_small_ali', gives the index of the nucléotide in the "3d only" alignment.
+    - 3D distance matrices are now computed only for match positions (match to the covariance model)
+
+BUG CORRECTIONS
+    - Corrected a bug which skipped angle conversions from degrees (DSSR) to radians if nucleotides where renumbered.
+
+############################################################################################
+v 1.4 beta, March 2021
+
+Khodor Hannoush joins the development of RNANet.
+
+FEATURE CHANGES
+    - SINA is now used only if you pass the option --sina, Infernal is used by default even for rRNAs. 
+    - A new option --cmalign-opts="..." allows to customize your cmalign runs, e.g. with --cyk. The default is no option.
+    - RNANet makes use of PyDCA to compute DCA-related features on the alignments (descriptions to come in the Database.md)
+    - statistics.py now fully supports the computation of 3D distance matrices, with average and standard deviation by RNA family
+    - Now RNANet considers only the equivalence class representative structure by default. To consider all members of an equivalence
+      class (like before), use the --redundant option.
+
+TECHNICAL CHANGES
+    - cmalign is not run with --cyk anymore by default, and now requires huge amounts of RAM if launched with the default options.
+    - Moving to a 60-core/128GB server for our internal runs.
+
+############################################################################################
 v 1.3 beta, January 2021
 
 The first uses of RNAnet by people from outside the development team happened between this December.

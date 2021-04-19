@@ -1,14 +1,14 @@
 # RNANet
 
 Contents:
-* [What is RNANet ?](#what-is-rnanet)
-* [Install and run RNANet](INSTALL.md)
+* [What is RNANet ?](#what-is-rnanet-?)
+* [Install and run RNANet](doc/INSTALL.md)
 * [How to further filter the dataset](#how-to-further-filter-the-dataset)
     * [Filter on 3D structure resolution](#filter-on-3D-structure-resolution)
     * [Filter on 3D structure publication date](#filter-on-3d-structure-publication-date)
     * [Filter to avoid chain redundancy when several mappings are available](#filter-to-avoid-chain-redundancy-when-several-mappings-are-available)
-* [Database tables documentation](Database.md)
-* [FAQ](FAQ.md)
+* [Database tables documentation](doc/Database.md)
+* [FAQ](doc/FAQ.md)
 * [Troubleshooting](#troubleshooting)
 * [Contact](#contact)
 
@@ -32,9 +32,9 @@ If you use our multiple sequence alignments and homology data, you might want to
 # What is RNANet ?
 RNANet is a multiscale dataset of non-coding RNA structures, including sequences, secondary structures, non-canonical interactions, 3D geometrical descriptors, and sequence homology.
 
-It is available in machine-learning ready formats like CSV files per chain or an SQL database.
+It is available in machine-learning ready formats like CSV files (one per RNA chain) or as a SQL database.
 
-Most interestingly, nucleotides have been renumered in a standardized way, and the 3D chains have been re-aligned with homologous sequences from the [Rfam](https://rfam.org/) database.
+Most interestingly, nucleotides have been renumered in a standardized way, and the 3D chains have been re-aligned with homologous sequences and covariance models from the [Rfam](https://rfam.org/) database.
 
 
 ## Methodology
@@ -68,12 +68,12 @@ Finally, export this data from the SQLite database into flat CSV files.
 ## Data provided
 
 We provide couple of resources to exploit this dataset. You can download them on [EvryRNA](https://evryrna.ibisc.univ-evry.fr/evryrna/rnanet/rnanet_home).
-* A series of tables in the SQLite3 database, see [the database documentation](Database.md) and [examples of useful queries](#how-to-further-filter-the-dataset),
+* A series of tables in the SQLite3 database, see [the database documentation](doc/Database.md) and [examples of useful queries](#how-to-further-filter-the-dataset),
 * One CSV file per RNA chain, summarizing all the relevant information about it,
 * Filtered alignment files in FASTA format containing only the sequences with a 3D structure available in RNANet, but which have been aligned using all the homologous sequences of this family from Rfam or SILVA,
 * Additional statistics files about nucleotide frequencies, modified bases, basepair types within each chain or by RNA family.
 
-For now, we do not provide as public downloads the set of cleaned 3D structures nor the full alignments with Rfam sequences. If you need them, [recompute them](INSTALL.md) or ask us.
+For now, we do not provide as public downloads the set of cleaned 3D structures nor the full alignments with Rfam sequences. If you need them, [recompute them](doc/INSTALL.md) or ask us.
 
 ## Updates
 RNANet is updated monthly to take into account new structures proposed in the [BGSU Non-redundant lists](http://rna.bgsu.edu/rna3dhub/nrlist/). The monthly runs realign previous alignments with the new sequences using `esl-alimerge` from Infernal.

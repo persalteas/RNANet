@@ -4,6 +4,7 @@ latest_run.log
 results/
 archive/
 logs/
+doc/
 data/
 esl*
 .vscode/
