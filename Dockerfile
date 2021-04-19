@@ -45,7 +45,8 @@ RUN addgroup -S appgroup -g 1000 && \
     chown -R appuser:appgroup /3D && \
     chown -R appuser:appgroup /sequences && \
     mkdir /runDir && \
-    chown -R appuser:appgroup /runDir
+    chown -R appuser:appgroup /runDir && \
+    chown -R appuser:appgroup /RNANet
 USER appuser
 VOLUME ["/3D", "/sequences", "/runDir"]
 WORKDIR /runDir
