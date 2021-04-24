@@ -917,7 +917,7 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
     # Identify the right 3D file
     filename = ''
     for file in filelist:
-        if file.startswith(s.id.replace('-', '').replace('[', '_').replace(']', '_')):
+        if file.startswith(s.id.split("RF")[0].replace('-', '').replace('[', '_').replace(']', '_')):
             filename = path_to_3D_data + "rna_mapped_to_Rfam/" + file
             break
     if not len(filename):
@@ -954,8 +954,8 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
     # Save the individual distance matrices
-    if f not in LSU_set and f not in SSU_set:
-        np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
+    # if f not in LSU_set and f not in SSU_set:
+    np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
     
     # For the average and sd, we want to consider only positions of the consensus model. This means:
     #  - Add empty space when we have deletions
@@ -979,11 +979,12 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
     for i in range(len(s.seq)):
         if cm_coords[i] is None:
             continue
-        pos_i = int(cm_coords[i])-1
         for j in range(len(s.seq)):
+            if j >= len(cm_coords):
+                print(f"Issue with {s.id} mapped to {f} ({label}, {j}/{len(s.seq)}, {len(cm_coords)})")
             if cm_coords[j] is None:
                 continue
-            c[pos_i, int(cm_coords[j])-1] = d[i,j]
+            c[int(cm_coords[i])-1, int(cm_coords[j])-1] = d[i,j]
     # return the matrices counts, c, c^2
     return 1-np.isnan(c).astype(int), np.nan_to_num(c), np.nan_to_num(c*c)
 
@@ -1015,9 +1016,16 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
         r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}';")
         filelist = sorted([ ''.join(list(x))+'.cif' for x in r ])
         r = sql_ask_database(conn, f"SELECT cm_coord FROM align_column WHERE rfam_acc = '{f}' AND index_ali > 0 ORDER BY index_ali ASC;")
-        cm_coords = [ x[0] for x in r ]
+        cm_coords = [ x[0] for x in r ] # len(cm_coords) is the number of saved columns. There are many None values in the list.
         i = len(cm_coords)-1
         while cm_coords[i] is None:
+            if i == 0:
+                # Issue somewhere. Abort.
+                warn(f"{f} has no mapping to CM. Ignoring distance matrix.")
+                if not multithread:
+                    idxQueue.put(thr_idx) # replace the thread index in the queue
+                    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+                return 0
             i -= 1
         family_end = int(cm_coords[i])
     counts = np.zeros((family_end, family_end))
@@ -1309,14 +1317,14 @@ if __name__ == "__main__":
     except:
         print("Something went wrong")
 
-    # # Now process the memory-heavy tasks family by family
-    # if DO_AVG_DISTANCE_MATRIX:
-    #     for f in LSU_set:
-    #         get_avg_std_distance_matrix(f, True, True)
-    #         get_avg_std_distance_matrix(f, False, True)
-    #     for f in SSU_set:
-    #         get_avg_std_distance_matrix(f, True, True)
-    #         get_avg_std_distance_matrix(f, False, True)
+    # Now process the memory-heavy tasks family by family
+    if DO_AVG_DISTANCE_MATRIX:
+        for f in LSU_set:
+            get_avg_std_distance_matrix(f, True, True)
+            get_avg_std_distance_matrix(f, False, True)
+        for f in SSU_set:
+            get_avg_std_distance_matrix(f, True, True)
+            get_avg_std_distance_matrix(f, False, True)
 
     print()
     print()

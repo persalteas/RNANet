@@ -4,6 +4,7 @@ cd /home/lbecquey/Projects/RNANet
 rm -rf latest_run.log errors.txt
 
 # Run RNANet
+bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ -r 20.0 --no-homology --redundant --extract' > latest_run.log 2>&1
 bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ -r 20.0 --redundant --sina --extract -s --stats-opts="--wadley --distance-matrices" --archive' > latest_run.log 2>&1
 echo 'Compressing RNANet.db.gz...' >> latest_run.log
 touch results/RNANet.db                                         # update last modification date

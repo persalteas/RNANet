@@ -1576,13 +1576,14 @@ class Pipeline:
             subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
             subprocess.run(["ln", "-s", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
 
-            # gather the alignments
-            os.makedirs(path_to_seq_data + "realigned/3d_only", exist_ok=True)
-            for f in os.listdir(path_to_seq_data + "realigned"):
-                if "3d_only.afa" in f:
-                    subprocess.run(["cp", path_to_seq_data + "realigned/" + f, path_to_seq_data + "realigned/3d_only"])
-            subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
-            subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
+            if self.HOMOLOGY:
+                # gather the alignments
+                os.makedirs(path_to_seq_data + "realigned/3d_only", exist_ok=True)
+                for f in os.listdir(path_to_seq_data + "realigned"):
+                    if "3d_only.afa" in f:
+                        subprocess.run(["cp", path_to_seq_data + "realigned/" + f, path_to_seq_data + "realigned/3d_only"])
+                subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
+                subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
@@ -2699,7 +2700,15 @@ def work_pssm_remap(f):
         cm_coords = [ None for x in range(ncols) ]
         cm_2d = [ None for x in range(ncols) ]
 
-    data = [(f,j,i,cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for i, j in enumerate(columns)]
+    # remove columns from the database if they are not supposed to be saved anymore
+    already_saved = sql_ask_database(conn, f"SELECT index_ali FROM align_column WHERE rfam_acc='{f}';")
+    already_saved = set([ x[0] for x in already_saved ])
+    to_remove = already_saved - columns_to_save
+    if len(to_remove):
+        sql_execute(conn, f"DELETE FROM align_column WHERE rfam_acc='{f}' AND index_ali = ?;", data=(sorted(to_remove),))
+
+    # Now store the columns
+    data = [(f,j,i+1,cm_coords[j-1]) + tuple(pssm_info[:,j-1]) + (consensus[j-1], cm_2d[j-1]) for i, j in enumerate(columns)]
     sql_execute(conn, """INSERT INTO align_column (rfam_acc, index_ali, index_small_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other, gap_percent, consensus, cons_sec_struct)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(rfam_acc, index_ali) DO 
                          UPDATE SET index_small_ali=excluded.index_small_ali, cm_coord=excluded.cm_coord, freq_A=excluded.freq_A, freq_C=excluded.freq_C, freq_G=excluded.freq_G, freq_U=excluded.freq_U, 
@@ -2768,7 +2777,7 @@ def work_save(c, homology=True):
     conn.execute('pragma journal_mode=wal')
     if homology:
         df = pd.read_sql_query(f"""
-                SELECT index_chain, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code, cm_coord, index_small_ali,
+                SELECT index_chain, cm_coord, index_small_ali, old_nt_resnum, nt_position, nt_name, nt_code, nt_align_code,
                 is_A, is_C, is_G, is_U, is_other, freq_A, freq_C, freq_G, freq_U, freq_other, 
                 gap_percent, consensus, cons_sec_struct, dbn, paired, nb_interact, pair_type_LW, pair_type_DSSR, 
                 alpha, beta, gamma, delta, epsilon, zeta, epsilon_zeta, chi, bb_type, glyco_bond, form, ssZp, Dp, 
