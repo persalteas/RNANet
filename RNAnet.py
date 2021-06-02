@@ -293,7 +293,7 @@ class Chain:
                             "epsilon_zeta", "bb_type", "chi", "glyco_bond", "form", "ssZp", "Dp", "eta", "theta", "eta_prime", "theta_prime", "eta_base", "theta_base",
                             "v0", "v1", "v2", "v3", "v4", "amplitude", "phase_angle", "puckering"]
             df = df[cols_we_keep]
-
+            #print(df.iloc[0,:])
         except KeyError as e:
             warn(f"Error while parsing DSSR {self.pdb_id}.json output:{e}", error=True)
             self.delete_me = True
@@ -358,7 +358,7 @@ class Chain:
                 self.delete_me = True
                 self.error_messages = f"Error with parsing of duplicate residues numbers."
                 return None
-
+        #print(df.iloc[0,:])
         # Search for ligands at the end of the selection
         # Drop ligands detected as residues by DSSR, by detecting several markers
         while ( 
@@ -376,7 +376,7 @@ class Chain:
                 self.mapping.log("Droping ligand:")
                 self.mapping.log(df.tail(1))
             df = df.head(-1)
-
+        #print(df.iloc[0,:])
         # Duplicates in index_chain : drop, they are ligands
         # e.g. 3iwn_1_B_1-91, ligand C2E has index_chain 1 (and nt_resnum 601)
         duplicates = [ index for index, element in enumerate(df.duplicated(['index_chain']).values) if element ]
@@ -386,7 +386,7 @@ class Chain:
                 if self.mapping is not None:
                     self.mapping.log(f"Found duplicated index_chain {df.iloc[i,0]}. Keeping only the first.")
             df = df.drop_duplicates("index_chain", keep="first")    # drop doublons in index_chain
-
+        #print(df.iloc[0,:])
         # drop eventual nts with index_chain < the first residue,
         # now negative because we renumber to 1 (usually, ligands)
         ligands = df[df.index_chain < 0]
@@ -396,7 +396,7 @@ class Chain:
                     self.mapping.log("Droping ligand:")
                     self.mapping.log(line)
             df = df.drop(ligands.index)
-
+        #print(df.iloc[0,:])
         # Find missing index_chain values
         # This happens because of resolved nucleotides that have a
         # strange nt_resnum value. Thanks, biologists ! :@ :(
@@ -422,7 +422,7 @@ class Chain:
                     df.iloc[i+1:, 1] += 1
                 else:
                     warn(f"Missing index_chain {i} in {self.chain_label} !")
-
+        #print(df.iloc[0,:])
         # Assert some nucleotides still exist
         try:
             # update length of chain from nt_resnum point of view
@@ -452,12 +452,13 @@ class Chain:
         # index_chain            1 |-------------|77 83|------------|  154
         # expected data point    1 |--------------------------------|  154
         #
-        
+        #print(df[['index_chain', 'nt_resnum', 'nt_id', 'nt_code']])
         if l != len(df['index_chain']): # if some residues are missing, len(df['index_chain']) < l
             resnum_start = df.iloc[0, 1]
             # the rowIDs the missing nucleotides would have (rowID = index_chain - 1 = nt_resnum - resnum_start)
             diff = set(range(l)).difference(df['nt_resnum'] - resnum_start)
             for i in sorted(diff):
+                #print(i)
                 # Add a row at position i
                 df = pd.concat([df.iloc[:i],
                                 pd.DataFrame({"index_chain": i+1, "nt_resnum": i+resnum_start,
@@ -465,12 +466,17 @@ class Chain:
                                 df.iloc[i:]])
                 # Increase the index_chain of all following lines
                 df.iloc[i+1:, 0] += 1
+            #pairs=df[['index_chain', 'nt_resnum', 'nt_id', 'nt_code']]
+            #print(pairs.iloc[:40])
             df = df.reset_index(drop=True)
+            #pairs=df[['index_chain', 'nt_resnum', 'nt_id', 'nt_code']]
+            #print(pairs.iloc[:40])
         self.full_length = len(df.index_chain)
-
+        #print(df.iloc[0,:])
         #######################################
         # Compute new features
         #######################################
+        #print(df[['index_chain', 'nt_resnum', 'nt_id', 'nt_code']])
 
         # Convert angles
         df.loc[:, ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'epsilon_zeta', 'chi', 'v0', 'v1', 'v2', 'v3', 'v4',  # Conversion to radians
@@ -540,7 +546,7 @@ class Chain:
                         pair_type_LW[nt2_idx] += ',' + lw_pair[0] + lw_pair[2] + lw_pair[1]
                         pair_type_DSSR[nt2_idx] += ',' + dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
                         paired[nt2_idx] += ',' + str(nt1_idx + 1)
-
+        
         # transform nt_id to shorter values
         df['old_nt_resnum'] = [ n.replace(self.pdb_chain_id+'.'+name, '').replace('^', '').replace('/', '') for n, name in zip(df.nt_id, df.nt_name) ]
 
@@ -548,10 +554,10 @@ class Chain:
         df['pair_type_LW'] = pair_type_LW
         df['pair_type_DSSR'] = pair_type_DSSR
         df['nb_interact'] = interacts
-
+        #print(df.iloc[0,:])
         # remove now useless descriptors
         df = df.drop(['nt_id', 'nt_resnum'], axis=1)
-
+        #print(df.iloc[0,:])
         self.seq = "".join(df.nt_code)
         self.seq_to_align = "".join(df.nt_align_code)
         self.length = len([x for x in self.seq_to_align if x != "-"])
@@ -566,7 +572,9 @@ class Chain:
         # Log chain info to file
         if save_logs and self.mapping is not None:
             self.mapping.to_file(self.chain_label+".log")
-
+        #print(df.iloc[0,:])
+        #pairs=df[['index_chain', 'old_nt_resnum', 'paired']]
+        #print(pairs.iloc[:40])
         return df
 
     def register_chain(self, df):
@@ -904,7 +912,7 @@ class Mapping:
 
         newdf = df.drop(df[(df.nt_resnum < self.nt_start) |
                            (df.nt_resnum > self.nt_end)].index)
-
+        #print(df.iloc[0,:])
         if len(newdf.index_chain) > 0:
             # everything's okay
             df = newdf
@@ -917,14 +925,14 @@ class Mapping:
             weird_mappings.add(self.chain_label + "." + self.rfam_acc)
             df = df.drop(df[(df.index_chain < self.nt_start) |
                             (df.index_chain > self.nt_end)].index)
-
+        #print(df.iloc[0,:])
         # If, for some reason, index_chain does not start at one (e.g. 6boh, chain GB), make it start at one
         self.st = 0
         if len(df.index_chain) and df.iloc[0, 0] != 1:
             self.st = df.iloc[0, 0] - 1
             df.iloc[:, 0] -= self.st
             self.log(f"Shifting index_chain of {self.st}")
-
+        #print(df.iloc[0,:])
         # Check that some residues are not included by mistake:
         # e.g. 4v4t-AA.RF00382-20-55 contains 4 residues numbered 30 but actually far beyond the mapped part,
         # because the icode are not read by DSSR.
@@ -2241,7 +2249,7 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     if not c.delete_me:
         df = c.extract_3D_data(save_logs)
         c.register_chain(df)
-
+   
     # Small check that all nucleotides of a chain have an entry in nucleotide table
     if not c.delete_me:
         with sqlite3.connect(runDir+"/results/RNANet.db", timeout=10.0) as conn:
@@ -2257,7 +2265,7 @@ def work_build_chain(c, extract, khetatm, retrying=False, save_logs=True):
     # extract the portion we want
     if extract and not c.delete_me:
         c.extract(df, khetatm)
-
+    #print(df.iloc[0,:])
     return c
 
 @trace_unhandled_exceptions
@@ -2798,9 +2806,11 @@ def work_save(c, homology=True):
                 v0, v1, v2, v3, v4, amplitude, phase_angle, puckering FROM 
                 nucleotide WHERE chain_id = {c.db_chain_id} ORDER BY index_chain ASC;""",
             conn)
+            
         filename = path_to_3D_data + "datapoints/" + c.chain_label
     conn.close()
-
+    pairs=df[['index_chain', 'old_nt_resnum', 'paired']]
+    print(pairs.iloc[:40])
     df.to_csv(filename, float_format="%.2f", index=False)
 
 if __name__ == "__main__":
