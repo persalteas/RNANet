@@ -1181,6 +1181,100 @@ def get_euclidian_distance(L1, L2):
         e += float(L1[i] - L2[i])**2
     return np.sqrt(e)
 
+def distance(coord1, coord2):
+    """
+    Returns the distance between two points using their coordinates (x, y, z)
+    """
+    if (coord1 == [] or coord2 == []) : 
+        return None
+    else : 
+        return math.sqrt((coord1[0]-coord2[0])**2 + (coord1[1]-coord2[1])**2 + (coord1[2]-coord2[2])**2)
+
+def pos_b1(res) :
+    """
+    Returns the coordinates of virtual atom B1 (center of the first aromatic cycle)
+    """
+    coordb1=[]
+    somme_x_b1=0
+    somme_y_b1=0
+    somme_z_b1=0
+    moy_x_b1=0
+    moy_y_b1=0
+    moy_z_b1=0
+    #different cases
+    #some residues have 2 aromatic cycles 
+    if res.get_resname() in ['A', 'G', '2MG', '7MG', 'MA6', '6IA', 'OMG' , '2MA', 'B9B', 'A2M', '1MA', 'E7G', 'P7G', 'B8W', 'B8K', 'BGH', '6MZ', 'E6G', 'MHG', 'M7A', 'M2G', 'P5P', 'G7M', '1MG', 'T6A', 'MIA', 'YG', 'YYG', 'I', 'DG', 'N79', '574', 'DJF', 'AET', '12A', 'ANZ', 'UY4'] :  
+        c=0
+        names=[]
+        for atom in res : 
+            if (atom.get_fullname() in ['N9', 'C8', 'N7', 'C4', 'C5']) :
+                c=c+1
+                names.append(atom.get_name())
+                coord=atom.get_vector()
+                somme_x_b1=somme_x_b1+coord[0]
+                somme_y_b1=somme_y_b1+coord[1]
+                somme_z_b1=somme_z_b1+coord[2]
+            else : 
+                c=c
+        #calcul coord B1
+        if c != 0 :
+            moy_x_b1=somme_x_b1/c
+            moy_y_b1=somme_y_b1/c
+            moy_z_b1=somme_z_b1/c
+            coordb1.append(moy_x_b1)
+            coordb1.append(moy_y_b1)
+            coordb1.append(moy_z_b1)
+    #others have only one cycle
+    if res.get_resname() in ['C', 'U', 'AG9', '70U', '1RN', 'RSP', '3AU', 'CM0', 'U8U', 'IU', 'E3C', '4SU', '5HM', 'LV2', 'LHH', '4AC', 'CH', 'Y5P', '2MU', '4OC', 'B8T', 'JMH', 'JMC', 'DC', 'B9H', 'UR3', 'I4U', 'B8Q', 'P4U', 'OMU', 'OMC', '5MU', 'H2U', 'CBV', 'M1Y', 'B8N', '3TD', 'B8H'] :
+        c=0
+        for atom in res :
+            if (atom.get_fullname() in ['C6', 'N3', 'N1', 'C2', 'C4', 'C5']):
+                c=c+1
+                coord=atom.get_vector()
+                somme_x_b1=somme_x_b1+coord[0]
+                somme_y_b1=somme_y_b1+coord[1]
+                somme_z_b1=somme_z_b1+coord[2]
+        #calcul coord B1
+        if c != 0 :
+            moy_x_b1=somme_x_b1/c
+            moy_y_b1=somme_y_b1/c
+            moy_z_b1=somme_z_b1/c
+            coordb1.append(moy_x_b1)
+            coordb1.append(moy_y_b1)
+            coordb1.append(moy_z_b1)
+    return(coordb1)
+
+def pos_b2(res):
+    """
+    Returns the coordinates of virtual atom B2 (center of the second aromatic cycle, if exists)
+    """
+    coordb2=[]
+    somme_x_b2=0
+    somme_y_b2=0
+    somme_z_b2=0
+    moy_x_b2=0
+    moy_y_b2=0
+    moy_z_b2=0
+
+    if res.get_resname() in ['A', 'G', '2MG', '7MG', 'MA6', '6IA', 'OMG' , '2MA', 'B9B', 'A2M', '1MA', 'E7G', 'P7G', 'B8W', 'B8K', 'BGH', '6MZ', 'E6G', 'MHG', 'M7A', 'M2G', 'P5P', 'G7M', '1MG', 'T6A', 'MIA', 'YG', 'YYG', 'I', 'DG', 'N79', '574', 'DJF', 'AET', '12A', 'ANZ', 'UY4'] :  #2 cycles aromatiques
+        c=0
+        for atom in res :
+            if atom.get_fullname() in ['C6', 'N3', 'N1', 'C2', 'C4', 'C5'] :
+                c=c+1
+                coord=atom.get_vector()
+                somme_x_b2=somme_x_b2+coord[0]
+                somme_y_b2=somme_y_b2+coord[1]
+                somme_z_b2=somme_z_b2+coord[2]
+        #calcul coord B2
+        if c!=0 :
+            moy_x_b2=somme_x_b2/c
+            moy_y_b2=somme_y_b2/c
+            moy_z_b2=somme_z_b2/c
+            coordb2.append(moy_x_b2)
+            coordb2.append(moy_y_b2)
+            coordb2.append(moy_z_b2)
+    return coordb2
+
 if __name__ == "__main__":
 
     os.makedirs(runDir + "/results/figures/", exist_ok=True)
