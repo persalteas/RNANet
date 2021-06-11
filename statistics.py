@@ -1185,10 +1185,12 @@ def distance(coord1, coord2):
     """
     Returns the distance between two points using their coordinates (x, y, z)
     """
+    '''
     if (coord1 == [] or coord2 == []) : 
         return None
     else : 
-        return math.sqrt((coord1[0]-coord2[0])**2 + (coord1[1]-coord2[1])**2 + (coord1[2]-coord2[2])**2)
+    '''
+    return np.sqrt((coord1[0]-coord2[0])**2 + (coord1[1]-coord2[1])**2 + (coord1[2]-coord2[2])**2)
 
 def pos_b1(res) :
     """
@@ -1275,6 +1277,345 @@ def pos_b2(res):
             coordb2.append(moy_z_b2)
     return coordb2
 
+def dist_atoms(f):
+    
+    name=str.split(f,'.')[0]
+
+    global idxQueue
+    thr_idx = idxQueue.get()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} dist_atoms({f})")
+
+
+    last_o3p=[] #o3 'of the previous nucleotide linked to the P of the current nucleotide
+    
+    liste_common=[]
+    liste_purines=[]
+    liste_pyrimidines=[]
+
+    parser=MMCIFParser()
+    s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
+    
+    
+    chain = next(s[0].get_chains())#1 chain per file
+    residues=list(chain.get_residues())
+    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms", unit="chain", leave=False)
+    pbar.update(0)
+    for res in chain :
+        
+        # for residues A, G, C, U
+        op3_p=[]
+        p_op1=[]
+        p_op2=[]
+        p_o5p=[]
+        o5p_c5p=[]
+        c5p_c4p=[]
+        c4p_o4p=[]
+        o4p_c1p=[]
+        c1p_c2p=[]
+        c2p_o2p=[]
+        c2p_c3p=[]
+        c3p_o3p=[]
+        c4p_c3p=[]
+        
+        #if res = A or G
+        c1p_n9=None
+        n9_c8=None
+        c8_n7=None
+        n7_c5=None
+        c5_c6=None
+        c6_n1=None
+        n1_c2=None
+        c2_n3=None
+        n3_c4=None
+        c4_n9=None
+        c4_c5=None
+        #if res=G
+        c6_o6=None
+        c2_n2=None
+        #if res = A
+        c6_n6=None
+
+        #if res = C or U
+        c1p_n1=None
+        n1_c6=None
+        c6_c5=None
+        c5_c4=None
+        c4_n3=None
+        n3_c2=None
+        c2_n1=None
+        c2_o2=None
+        #if res =C
+        c4_n4=None
+        #if res=U
+        c4_o4=None
+        last_o3p_p=None
+
+
+        if res.get_resname()=='A' or res.get_resname()=='G' or res.get_resname()=='C' or res.get_resname()=='U' :
+            #get the coordinates of the atoms
+            atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
+            atom_op3 = [ atom.get_coord() for atom in res if "OP3" in atom.get_fullname() ]
+            atom_op1 = [ atom.get_coord() for atom in res if "OP1" in atom.get_fullname() ]
+            atom_op2 = [ atom.get_coord() for atom in res if "OP2" in atom.get_fullname() ]
+            atom_o5p= [ atom.get_coord() for atom in res if "O5'" in atom.get_fullname() ]
+            atom_c5p = [ atom.get_coord() for atom in res if "C5'" in atom.get_fullname() ]
+            atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
+            atom_o4p = [ atom.get_coord() for atom in res if "O4'" in atom.get_fullname() ]
+            atom_c3p = [ atom.get_coord() for atom in res if "C3'" in atom.get_fullname() ]
+            atom_o3p = [ atom.get_coord() for atom in res if "O3'" in atom.get_fullname() ]
+            atom_c2p = [ atom.get_coord() for atom in res if "C2'" in atom.get_fullname() ]
+            atom_o2p = [ atom.get_coord() for atom in res if "O2'" in atom.get_fullname() ]
+            atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+            atom_n9 = [ atom.get_coord() for atom in res if "N9" in atom.get_fullname() ]
+            atom_c8 = [ atom.get_coord() for atom in res if "C8" in atom.get_fullname() ]
+            atom_n7 = [ atom.get_coord() for atom in res if "N7" in atom.get_fullname() ]
+            atom_c5 = [ atom.get_coord() for atom in res if atom.get_name() ==  "C5"]
+            atom_c6 = [ atom.get_coord() for atom in res if "C6" in atom.get_fullname() ]
+            atom_o6 = [ atom.get_coord() for atom in res if "O6" in atom.get_fullname() ]
+            atom_n6 = [ atom.get_coord() for atom in res if "N6" in atom.get_fullname() ]
+            atom_n1 = [ atom.get_coord() for atom in res if "N1" in atom.get_fullname() ]
+            atom_c2 = [ atom.get_coord() for atom in res if atom.get_name() ==  "C2"]
+            atom_n2 = [ atom.get_coord() for atom in res if "N2" in atom.get_fullname() ]
+            atom_o2 = [ atom.get_coord() for atom in res if atom.get_name() ==  "O2"]
+            atom_n3 = [ atom.get_coord() for atom in res if "N3" in atom.get_fullname() ]
+            atom_c4 = [ atom.get_coord() for atom in res if atom.get_name() ==  "C4" ]
+            atom_n4 = [ atom.get_coord() for atom in res if "N4" in atom.get_fullname() ]
+            atom_o4 = [ atom.get_coord() for atom in res if atom.get_name() == "O4"]
+            
+
+            if len(atom_op3)<1 or len(atom_p)<1 :#if no atom p or op3 in this chain
+                op3_p=np.nan
+            else :
+                op3_p=distance(atom_op3[0], atom_p[0])
+
+            if len(last_o3p)<1 or len(atom_p)<1 or f != f_prec :#if the file has changed, do not calculate the distance between o3 'of the previous file and p of the current file
+                last_o3p_p=None
+            else :
+                if distance(last_o3p[0], atom_p[0])>3 :
+                    last_o3p_p=None
+                else :
+                    last_o3p_p=distance(last_o3p[0], atom_p[0])#link with the previous nucleotide
+            
+            if len(atom_op1)<1 or len(atom_p)<1 :
+                p_op1=None
+            else :
+                p_op1=distance(atom_op1[0], atom_p[0])
+
+            if len(atom_op2)<1 or len(atom_p)<1 :
+                p_op2=None
+            else :
+                p_op2=distance(atom_op2[0], atom_p[0])
+
+            if len(atom_o5p)<1 or len(atom_p)<1 :
+                p_o5p=None
+            else :
+                p_o5p=distance(atom_o5p[0], atom_p[0])
+
+            if len(atom_o5p)<1 or len(atom_c5p)<1 :
+                o5p_c5p=None
+            else :
+                o5p_c5p=distance(atom_o5p[0], atom_c5p[0])
+
+            if len(atom_c5p)<1 or len(atom_c4p)<1 :
+                c5p_c4p=None
+            else :
+                c5p_c4p=distance(atom_c5p[0], atom_c4p[0])
+
+            if len(atom_c4p)<1 or len(atom_o4p)<1 :
+                c4p_o4p=None
+            else :
+                c4p_o4p=distance(atom_c4p[0], atom_o4p[0])
+
+            if len(atom_c4p)<1 or len(atom_c3p)<1 :
+                c4p_c3p=None
+            else :
+                c4p_c3p=distance(atom_c4p[0], atom_c3p[0])
+
+            if len(atom_o4p)<1 or len(atom_c1p)<1 :
+                o4p_c1p=None
+            else :
+                o4p_c1p=distance(atom_o4p[0], atom_c1p[0])
+
+            if len(atom_c1p)<1 or len(atom_c2p)<1 :
+                c1p_c2p=None
+            else :
+                c1p_c2p=distance(atom_c1p[0], atom_c2p[0])
+
+            if len(atom_c2p)<1 or len(atom_o2p)<1 :
+                c2p_o2p=None
+            else :
+                c2p_o2p=distance(atom_c2p[0], atom_o2p[0])
+
+            if len(atom_c2p)<1 or len(atom_c3p)<1 :
+                c2p_c3p=None
+            else :
+                c2p_c3p=distance(atom_c2p[0], atom_c3p[0])
+
+            if len(atom_c3p)<1 or len(atom_o3p)<1 :
+                c3p_o3p=None
+            else :
+                c3p_o3p=distance(atom_c3p[0], atom_o3p[0])
+
+            last_o3p=atom_o3p #o3' of this residue becomes the previous o3' of the following
+            f_prec=f 
+            
+            #different cases for the aromatic cycles
+            if res.get_resname()=='A' or res.get_resname()=='G': 
+                '''
+                computes the distances between atoms of aromatic cycles
+                '''
+                if len(atom_c1p)<1 or len(atom_n9)<1 :
+                    c1p_n9=None
+                else :
+                    c1p_n9=distance(atom_c1p[0], atom_n9[0])
+
+                if len(atom_n9)<1 or len(atom_c8)<1 :
+                    n9_c8=None
+                else :
+                    n9_c8=distance(atom_n9[0], atom_c8[0])
+
+                if len(atom_c8)<1 or len(atom_n7)<1 :
+                    c8_n7=None
+                else :
+                    c8_n7=distance(atom_c8[0], atom_n7[0])
+
+                if len(atom_n7)<1 or len(atom_c5)<1 :
+                    n7_c5=None
+                else :
+                    n7_c5=distance(atom_n7[0], atom_c5[0])
+
+                if len(atom_c5)<1 or len(atom_c6)<1 :
+                    c5_c6=None
+                else :
+                    c5_c6=distance(atom_c5[0], atom_c6[0])
+
+                if len(atom_c6)<1 or len(atom_o6)<1 :
+                    c6_o6=None
+                else :
+                    c6_o6=distance(atom_c6[0], atom_o6[0])
+
+                if len(atom_c6)<1 or len(atom_n6)<1 :
+                    c6_n6=None
+                else :
+                    c6_n6=distance(atom_c6[0], atom_n6[0])
+
+                if len(atom_c6)<1 or len(atom_n1)<1 :
+                    c6_n1=None
+                else :
+                    c6_n1=distance(atom_c6[0], atom_n1[0])
+
+                if len(atom_n1)<1 or len(atom_c2)<1 :
+                    n1_c2=None
+                else :
+                    n1_c2=distance(atom_n1[0], atom_c2[0])
+                
+                if len(atom_c2)<1 or len(atom_n2)<1 :
+                    c2_n2=None
+                else :
+                    c2_n2=distance(atom_c2[0], atom_n2[0])
+
+                if len(atom_c2)<1 or len(atom_n3)<1 :
+                    c2_n3=None
+                else :
+                    c2_n3=distance(atom_c2[0], atom_n3[0])
+
+                if len(atom_n3)<1 or len(atom_c4)<1 :
+                    n3_c4=None
+                else :
+                    n3_c4=distance(atom_n3[0], atom_c4[0])
+
+                if len(atom_c4)<1 or len(atom_n9)<1 :
+                    c4_n9=None
+                else :
+                    c4_n9=distance(atom_c4[0], atom_n9[0])
+
+                if len(atom_c4)<1 or len(atom_c5)<1 :
+                    c4_c5=None
+                else :
+                    c4_c5=distance(atom_c4[0], atom_c5[0])
+
+            if res.get_resname()=='C' or res.get_resname()=='U' :
+                if len(atom_c1p)<1 or len(atom_n1)<1 :
+                    c1p_n1=None
+                else :
+                    c1p_n1=distance(atom_c1p[0], atom_n1[0])
+
+                if len(atom_c6)<1 or len(atom_n1)<1 :
+                    n1_c6=None
+                else :
+                    n1_c6=distance(atom_n1[0], atom_c6[0])
+                
+                if len(atom_c5)<1 or len(atom_c6)<1 :
+                    c6_c5=None
+                else :
+                    c6_c5=distance(atom_c6[0], atom_c5[0])
+                
+                if len(atom_c4)<1 or len(atom_c5)<1 :
+                    c5_c4=None
+                else :
+                    c5_c4=distance(atom_c5[0], atom_c4[0])
+                
+                if len(atom_n3)<1 or len(atom_c4)<1 :
+                    c4_n3=None
+                else :
+                    c4_n3=distance(atom_c4[0], atom_n3[0])
+                
+                if len(atom_c2)<1 or len(atom_n3)<1 :
+                    n3_c2=None
+                else :
+                    n3_c2=distance(atom_n3[0], atom_c2[0])
+                
+                if len(atom_c2)<1 or len(atom_o2)<1 :
+                    c2_o2=None
+                else :
+                    c2_o2=distance(atom_c2[0], atom_o2[0])
+                
+                if len(atom_c2)<1 or len(atom_n1)<1 :
+                    c2_n1=None
+                else :
+                    c2_n1=distance(atom_c2[0], atom_n1[0])
+
+                if len(atom_c4)<1 or len(atom_n4)<1 :
+                    c4_n4=None
+                else :
+                    c4_n4=distance(atom_c4[0], atom_n4[0])
+
+                if len(atom_c4)<1 or len(atom_o4)<1:
+                    c4_o4=None
+                else :
+                    c4_o4=distance(atom_c4[0], atom_o4[0])
+
+            liste_common.append([res.get_resname(), last_o3p_p, op3_p, p_op1, p_op2, p_o5p, o5p_c5p, c5p_c4p, c4p_o4p, c4p_c3p, o4p_c1p, c1p_c2p, c2p_o2p, c2p_c3p, c3p_o3p] )
+            liste_purines.append([c1p_n9, n9_c8, c8_n7, n7_c5, c5_c6, c6_o6, c6_n6, c6_n1, n1_c2, c2_n2, c2_n3, n3_c4, c4_n9, c4_c5])
+            liste_pyrimidines.append([c1p_n1, n1_c6, c6_c5, c5_c4, c4_n3, n3_c2, c2_o2, c2_n1, c4_n4, c4_o4])
+            pbar.update(1)
+
+    df_comm=pd.DataFrame(liste_common, columns=["Residu", "O3'-P", "OP3-P", "P-OP1", "P-OP2", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-O4'", "C4'-C3'", "O4'-C1'", "C1'-C2'", "C2'-O2'", "C2'-C3'", "C3'-O3'"])
+    df_pur=pd.DataFrame(liste_purines, columns=["C1'-N9", "N9-C8", "C8-N7", "N7-C5", "C5-C6", "C6-O6", "C6-N6", "C6-N1", "N1-C2", "C2-N2", "C2-N3", "N3-C4", "C4-N9", "C4-C5" ])
+    df_pyr=pd.DataFrame(liste_pyrimidines, columns=["C1'-N1", "N1-C6", "C6-C5", "C5-C4", "C4-N3", "N3-C2", "C2-O2", "C2-N1", "C4-N4", "C4-O4"])
+    df=pd.concat([df_comm, df_pur, df_pyr], axis = 1)
+    pbar.close()
+    
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+    #os.makedirs(runDir+"/results/distances/", exist_ok=True)
+    df.to_csv(runDir+"/results/distances/" +'dist_atoms '+name+'.csv')
+
+
+def concatenate_dist():
+    liste_dist=os.listdir(runDir+"/results/distances")
+    df_0=pd.read_csv(os.path.abspath(runDir + "/results/distances/" +liste_dist[0]))
+    del(liste_dist[0])
+    df_tot=df_0
+    for f in liste_dist:
+        df=pd.read_csv(os.path.abspath(runDir + "/results/distances/" + f))
+        df_tot=pd.concat([df_tot, df], ignore_index=True)
+    
+    df_tot.to_csv(runDir+'/results/distances/' +'dist_atomes.csv')
+
+
+
 if __name__ == "__main__":
 
     os.makedirs(runDir + "/results/figures/", exist_ok=True)
@@ -1331,6 +1672,7 @@ if __name__ == "__main__":
     
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
+    
     print("Loading mappings list...")
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
@@ -1372,6 +1714,7 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
+    
     if n_unmapped_chains and DO_WADLEY_ANALYSIS:
         joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
         joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
@@ -1388,11 +1731,19 @@ if __name__ == "__main__":
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
     joblist.append(Job(function=stats_len)) # Computes figures
     joblist.append(Job(function=stats_freq)) # updates the database
+    
     for f in famlist:
         joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
-
+    
+    #dist_atoms(os.listdir(path_to_3D_data + "rna_only")[0])
+    
+    
+    f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
+    #exit()
+    for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
+        joblist.append(Job(function=dist_atoms, args=(f,)))
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
 
@@ -1423,9 +1774,12 @@ if __name__ == "__main__":
     print()
     print()
 
+    #concatenate_dist()
     # finish the work after the parallel portions
+    
     per_chain_stats()
     seq_idty()
     stats_pairs()
     if n_unmapped_chains:
         general_stats()
+    
