@@ -17,6 +17,7 @@ from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio import AlignIO, SeqIO
 from Bio.PDB.MMCIFParser import MMCIFParser
+from Bio.PDB.vectors import Vector, calc_angle, calc_dihedral
 from functools import partial
 from multiprocessing import Pool, Manager
 from os import path
@@ -1695,7 +1696,186 @@ def dist_atoms_hire_RNA (f) :
     
     df.to_csv(runDir + '/results/distances_hRNA/' + 'dist_atoms_hire_RNA '+name+'.csv')
     
+def conversion_angles(bdd): 
+    '''
+    Convert database torsion angles to degrees
+    and put them in a list to reuse for statistics
+    '''
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(BASE_DIR, bdd)
+    baseDeDonnees = sqlite3.connect(db_path)
+    curseur = baseDeDonnees.cursor()
+    curseur.execute("SELECT chain_id, nt_name, alpha, beta, gamma, delta, epsilon, zeta, chi FROM nucleotide WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U' ;")
+    liste=[]
+    for nt in curseur.fetchall(): # retrieve the angle measurements and put them in a list
+        liste.append(nt)
+    angles_torsion=[]
+    for nt in liste :
+        angles_deg=[]
+        angles_deg.append(nt[0]) #chain_id
+        angles_deg.append(nt[1]) #nt_name
+        for i in range (2,9): # on all angles
+            angle=0
+            if nt[i] == None : 
+                angle=None
+            elif nt[i]<=np.pi: #if angle value <pi, positive
+                angle=(180/np.pi)*nt[i]
+            elif np.pi < nt[i] <= 2*np.pi : #if value of the angle between pi and 2pi, negative
+                angle=((180/np.pi)*nt[i])-360
+            else :
+                angle=nt[i] # dans le cas ou certains angles seraient en degres -> supprimer?
+            angles_deg.append(angle)
+        angles_torsion.append(angles_deg)
+    return angles_torsion
 
+def conversion_eta_theta(bdd):
+    '''
+    We repeat the operation for the pseudotorsion angles
+    '''
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(BASE_DIR, bdd)
+    baseDeDonnees = sqlite3.connect(db_path)
+    curseur = baseDeDonnees.cursor()
+    curseur.execute("SELECT chain_id, nt_name, eta, theta, eta_prime, theta_prime, eta_base, theta_base FROM nucleotide WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U';")
+    liste=[]
+    for nt in curseur.fetchall(): 
+        liste.append(nt)
+    angles_virtuels=[]
+    for nt in liste :
+        angles_deg=[]
+        angles_deg.append(nt[0]) #chain_id
+        angles_deg.append(nt[1]) #nt_name
+        for i in range (2,8): 
+            angle=0
+            if nt[i] == None : 
+                angle=None
+            elif nt[i]<=np.pi:
+                angle=(180/np.pi)*nt[i]
+            elif np.pi < nt[i] <= 2*np.pi : 
+                angle=((180/np.pi)*nt[i])-360
+            else :
+                angle=nt[i] 
+            angles_deg.append(angle)
+        angles_virtuels.append(angles_deg)
+    return angles_virtuels
+
+def angles_torsion_hire_RNA(f):
+    '''
+    Measures the torsion angles between the atoms of the HiRE-RNA model
+    Saves the results in a dataframe
+    '''
+    name=str.split(f,'.')[0]
+    liste_angles_torsion=[]
+
+    last_o5p=[]
+    last_c4p=[]
+    last_c5p=[]
+    last_c1p=[]
+
+    os.makedirs(runDir+"/results/torsion_angles_hRNA/", exist_ok=True)
+
+    parser=MMCIFParser()
+    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    chain = next(s[0].get_chains())
+
+
+    for res in chain :
+        p_o5_c5_c4=np.nan
+        o5_c5_c4_c1=np.nan
+        c5_c4_c1_b1=np.nan
+        c4_c1_b1_b2=np.nan
+        o5_c5_c4_psuiv=np.nan
+        c5_c4_psuiv_o5suiv=np.nan
+        c4_psuiv_o5suiv_c5suiv=np.nan
+        c1_c4_psuiv_o5suiv=np.nan
+        if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA'] : # several phosphate groups
+            atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
+            atom_o5p= [ atom.get_coord() for atom in res if "O5'" in atom.get_fullname() ]
+            atom_c5p = [ atom.get_coord() for atom in res if "C5'" in atom.get_fullname() ]
+            atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
+            atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+            atom_b1=pos_b1(res)
+            atom_b2=pos_b2(res)
+
+            if len(atom_p)<1 or len(atom_o5p)<1 or len(atom_c5p)<1 or len(atom_c4p)<1:
+                p_o5_c5_c4=p_o5_c5_c4
+            else :
+                p=Vector(atom_p[0])
+                o5p=Vector(atom_o5p[0])
+                c5p=Vector(atom_c5p[0])
+                c4p=Vector(atom_c4p[0])
+                p_o5_c5_c4=calc_dihedral(p, o5p, c5p, c4p)*(180/np.pi)
+      
+            if len(atom_c1p)<1 or len(atom_o5p)<1 or len(atom_c5p)<1 or len(atom_c4p)<1:
+                o5_c5_c4_c1=o5_c5_c4_c1
+            else :
+                o5p=Vector(atom_o5p[0])
+                c5p=Vector(atom_c5p[0])
+                c4p=Vector(atom_c4p[0])
+                c1p=Vector(atom_c1p[0])
+                o5_c5_c4_c1=calc_dihedral(o5p, c5p, c4p, c1p)*(180/np.pi)
+  
+            if len(atom_c1p)<1 or len(atom_b1)<1 or len(atom_c5p)<1 or len(atom_c4p)<1:
+                c5_c4_c1_b1=c5_c4_c1_b1
+            else :
+                c5p=Vector(atom_c5p[0])
+                c4p=Vector(atom_c4p[0])
+                c1p=Vector(atom_c1p[0])
+                b1=Vector(atom_b1)
+                c5_c4_c1_b1=calc_dihedral(c5p, c4p, c1p, b1)*(180/np.pi)
+
+            if len(atom_c1p)<1 or len(atom_b1)<1 or len(atom_b2)<1 or len(atom_c4p)<1:
+                c4_c1_b1_b2=c4_c1_b1_b2
+            else :
+                c4p=Vector(atom_c4p[0])
+                c1p=Vector(atom_c1p[0])
+                b1=Vector(atom_b1)
+                b2=Vector(atom_b2)
+                c4_c1_b1_b2=calc_dihedral(c4p, c1p, b1, b2)*(180/np.pi)
+            
+            if len(last_o5p)<1 or len(atom_p)<1 or len(last_c5p)<1 or len(last_c4p)<1:
+                o5_c5_c4_psuiv=o5_c5_c4_psuiv
+            else :
+                o5p_prec=Vector(last_o5p[0])
+                c5p_prec=Vector(last_c5p[0])
+                c4p_prec=Vector(last_c4p[0])
+                p=Vector(atom_p[0])
+                o5_c5_c4_psuiv=calc_dihedral(o5p_prec, c5p_prec, c4p_prec, p)*(180/np.pi)
+              
+            if len(atom_o5p)<1 or len(atom_p)<1 or len(last_c5p)<1 or len(last_c4p)<1:
+                c5_c4_psuiv_o5suiv=c5_c4_psuiv_o5suiv
+            else : 
+                c5p_prec=Vector(last_c5p[0])
+                c4p_prec=Vector(last_c4p[0])
+                p=Vector(atom_p[0])
+                o5p=Vector(atom_o5p[0])
+                c5_c4_psuiv_o5suiv=calc_dihedral(c5p_prec, c4p_prec, p, o5p)*(180/np.pi)
+     
+            if len(atom_o5p)<1 or len(atom_p)<1 or len(atom_c5p)<1 or len(last_c4p)<1:
+                c4_psuiv_o5suiv_c5suiv=c4_psuiv_o5suiv_c5suiv
+            else :
+                c4p_prec=Vector(last_c4p[0])
+                p=Vector(atom_p[0])
+                o5p=Vector(atom_o5p[0])
+                c5p=Vector(atom_c5p[0])
+                c4_psuiv_o5suiv_c5suiv=calc_dihedral(c4p_prec, p, o5p, c5p)*(180/np.pi)
+ 
+            if len(atom_o5p)<1 or len(atom_p)<1 or len(last_c1p)<1 or len(last_c4p)<1:
+                c1_c4_psuiv_o5suiv=c1_c4_psuiv_o5suiv
+            else :
+                c1p_prec=Vector(last_c1p[0])
+                c4p_prec=Vector(last_c4p[0])
+                p=Vector(atom_p[0])
+                o5p=Vector(atom_o5p[0])
+                c1_c4_psuiv_o5suiv=calc_dihedral(c1p_prec, c4p_prec, p, o5p)*(180/np.pi)
+            last_o5p=atom_o5p
+            last_c4p=atom_c4p
+            last_c5p=atom_c5p
+            last_c1p=atom_c1p
+            liste_angles_torsion.append([res.get_resname(), p_o5_c5_c4, o5_c5_c4_c1, c5_c4_c1_b1, c4_c1_b1_b2, o5_c5_c4_psuiv, c5_c4_psuiv_o5suiv, c4_psuiv_o5suiv_c5suiv, c1_c4_psuiv_o5suiv])
+    df=pd.DataFrame(liste_angles_torsion, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
+    
+    df.to_csv(runDir + '/results/torsion_angles_hRNA/' + 'angles_torsion_hire_RNA '+name+'.csv')
 
 
 if __name__ == "__main__":
@@ -1830,11 +2010,14 @@ if __name__ == "__main__":
     
     #dist_atoms_hire_RNA(os.listdir(path_to_3D_data + "rna_only")[0])
     #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
+    #conversion_angles('/home/atabot/RNANet.db')) # chemin -> runDir + /results/RNANet.db
+    #conversion_eta_theta('/home/atabot/RNANet.db')
     #exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
         joblist.append(Job(function=dist_atoms, args=(f,)))
         joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
+        joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
     
     
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
