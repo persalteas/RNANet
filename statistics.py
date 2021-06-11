@@ -1185,11 +1185,6 @@ def distance(coord1, coord2):
     """
     Returns the distance between two points using their coordinates (x, y, z)
     """
-    '''
-    if (coord1 == [] or coord2 == []) : 
-        return None
-    else : 
-    '''
     return np.sqrt((coord1[0]-coord2[0])**2 + (coord1[1]-coord2[1])**2 + (coord1[2]-coord2[2])**2)
 
 def pos_b1(res) :
@@ -1278,6 +1273,9 @@ def pos_b2(res):
     return coordb2
 
 def dist_atoms(f):
+    '''
+    Measures the distance between atoms linked by covalent bonds
+    '''
     
     name=str.split(f,'.')[0]
 
@@ -1603,16 +1601,100 @@ def dist_atoms(f):
     df.to_csv(runDir+"/results/distances/" +'dist_atoms '+name+'.csv')
 
 
-def concatenate_dist():
-    liste_dist=os.listdir(runDir+"/results/distances")
-    df_0=pd.read_csv(os.path.abspath(runDir + "/results/distances/" +liste_dist[0]))
-    del(liste_dist[0])
+def concatenate(chemin, liste, filename):
+    '''
+    Concatenates the dataframes of liste containing measures 
+    and creates a new dataframe gathering all
+    '''
+    liste=os.listdir(runDir+chemin)
+    df_0=pd.read_csv(os.path.abspath(runDir + chemin + liste[0]))
+    del(liste[0])
     df_tot=df_0
-    for f in liste_dist:
-        df=pd.read_csv(os.path.abspath(runDir + "/results/distances/" + f))
+    for f in liste:
+        df=pd.read_csv(os.path.abspath(runDir + chemin + f))
         df_tot=pd.concat([df_tot, df], ignore_index=True)
     
-    df_tot.to_csv(runDir+'/results/distances/' +'dist_atomes.csv')
+    df_tot.to_csv(runDir + chemin + filename)
+
+def dist_atoms_hire_RNA (f) :
+    '''
+    Measures the distance between the atoms of the HiRE-RNA model linked by covalent bonds
+    '''
+    name=str.split(f,'.')[0]
+    liste_dist=[]
+    last_c4p=[]
+    parser=MMCIFParser()
+    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    chain = next(s[0].get_chains())
+    os.makedirs(runDir+"/results/distances_hRNA/", exist_ok=True)
+    for res in chain :
+        p_o5p=None
+        o5p_c5p=None
+        c5p_c4p=None
+        c4p_c1p=None
+        c1p_b1=None
+        b1_b2=None
+        last_c4p_p=np.nan
+        
+        if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA'] : #several phosphate groups, ignore
+            atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
+            atom_o5p= [ atom.get_coord() for atom in res if "O5'" in atom.get_fullname() ]
+            atom_c5p = [ atom.get_coord() for atom in res if "C5'" in atom.get_fullname() ]
+            atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
+            atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+            atom_b1=pos_b1(res)#position b1 to be calculated, depending on the case
+            atom_b2=pos_b2(res)#position b2 to be calculated only for those with 2 cycles
+            
+
+            if len(last_c4p)<1 or len(atom_p)<1 or f!= f_prec:#link with the previous residue in the chain
+                last_c4p_p=last_c4p_p
+            else :
+                if distance(last_c4p[0], atom_p[0])>5:
+                    last_c4p_p=last_c4p_p
+                else:
+                    last_c4p_p=distance(last_c4p[0], atom_p[0])
+
+            if len(atom_p)<1 or len(atom_o5p)<1 :
+                p_o5p=p_o5p
+            else :
+                p_o5p=distance(atom_p[0], atom_o5p[0])
+            
+            if len(atom_c5p)<1 or len(atom_o5p)<1 :
+                o5p_c5p=o5p_c5p
+            else :
+                o5p_c5p=distance(atom_o5p[0], atom_c5p[0])
+
+            if len(atom_c5p)<1 or len(atom_c4p)<1 :
+                c5p_c4p=c5p_c4p
+            else :
+                c5p_c4p=distance(atom_c5p[0], atom_c4p[0])
+
+            if len(atom_c4p)<1 or len(atom_c1p)<1 :
+                c4p_c1p=c4p_c1p
+            else :
+                c4p_c1p=distance(atom_c4p[0], atom_c1p[0])
+
+            if len(atom_c1p)<1 or len(atom_b1)<1 :
+                c1p_b1=c1p_b1
+            else :
+               
+                c1p_b1=distance(atom_c1p[0], atom_b1)
+
+            if len(atom_b1)<1 or len(atom_b2)<1 :
+                b1_b2=b1_b2
+            else :
+
+                b1_b2=distance(atom_b1, atom_b2)
+            
+            last_c4p=atom_c4p
+            f_prec=f
+        
+
+            liste_dist.append([res.get_resname(), last_c4p_p, p_o5p, o5p_c5p, c5p_c4p, c4p_c1p, c1p_b1, b1_b2])
+    df=pd.DataFrame(liste_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
+    
+    df.to_csv(runDir + '/results/distances_hRNA/' + 'dist_atoms_hire_RNA '+name+'.csv')
+    
 
 
 
@@ -1672,7 +1754,7 @@ if __name__ == "__main__":
     
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
-    
+    '''
     print("Loading mappings list...")
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
@@ -1696,7 +1778,7 @@ if __name__ == "__main__":
     print(f"Found {len(famlist)} families with chains of resolution {res_thr}A or better.")
     if len(ignored):
         print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
-    
+    '''
     if DELETE_OLD_DATA:
         for f in famlist:
             subprocess.run(["rm","-f", runDir + f"/data/{f}.npy", runDir + f"/data/{f}_pairs.csv", runDir + f"/data/{f}_counts.csv"])
@@ -1714,7 +1796,7 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    
+    '''
     if n_unmapped_chains and DO_WADLEY_ANALYSIS:
         joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
         joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
@@ -1736,14 +1818,25 @@ if __name__ == "__main__":
         joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
-    
+    '''
     #dist_atoms(os.listdir(path_to_3D_data + "rna_only")[0])
     
-    
+    '''
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     #exit()
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
         joblist.append(Job(function=dist_atoms, args=(f,)))
+    '''
+    
+    #dist_atoms_hire_RNA(os.listdir(path_to_3D_data + "rna_only")[0])
+    #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
+    #exit()
+    f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
+    for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
+        joblist.append(Job(function=dist_atoms, args=(f,)))
+        joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
+    
+    
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
 
@@ -1774,12 +1867,12 @@ if __name__ == "__main__":
     print()
     print()
 
-    #concatenate_dist()
-    # finish the work after the parallel portions
     
+    # finish the work after the parallel portions
+    '''
     per_chain_stats()
     seq_idty()
     stats_pairs()
     if n_unmapped_chains:
         general_stats()
-    
+    '''
