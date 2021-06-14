@@ -30,6 +30,8 @@ from collections import Counter
 from setproctitle import setproctitle
 from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker, trace_unhandled_exceptions
 from sklearn.mixture import GaussianMixture
+import warnings
+from pandas.core.common import SettingWithCopyWarning
 
 
 np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
@@ -1921,7 +1923,7 @@ def angles_plans_hire_RNA(f):
 
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} angles_plans_hire_RNA({f})")
 
-    os.makedirs(runDir+"/results/plane_angles_hRNA/", exist_ok=True)
+    os.makedirs(runDir+"/results/HiRE-RNA/angles/", exist_ok=True)
 
     parser=MMCIFParser()
     s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
@@ -1960,7 +1962,7 @@ def angles_plans_hire_RNA(f):
     pbar.close()
     
     
-    df.to_csv(runDir + '/results/plane_angles_hRNA/' + 'angles_plans_hire_RNA '+name+'.csv')
+    df.to_csv(runDir + '/results/HiRE-RNA/angles/' + 'angles_plans_hire_RNA '+name+'.csv')
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     
@@ -2036,6 +2038,71 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
     plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
     plt.savefig("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures).png")
     plt.close()
+    # save in a json
+    with open (name_data + " .json", 'w', encoding='utf-8') as f:
+	    json.dump(summary_data, f, indent=4)
+
+def GMM_histo_without_saving(data, name_data, x, y, nb_fichiers) :
+    '''
+    Plot Gaussian-Mixture-Model on histograms
+    '''
+    histogram(data, name_data, x, y, nb_fichiers)#plot the histogram
+    
+    n_max = 8    # number of possible values for n_components
+    n_components_range = np.arange(n_max)+1
+    aic = []
+    bic = []
+    maxlogv=[]
+    md=np.array(data).reshape(-1,1)
+    # construction of models and calculation of criteria
+    nb_components=1
+    nb_log_max=n_components_range[0]
+    log_max=0
+    # chooses the number of components based on the maximum likelihood value (maxlogv)
+    for n_comp in n_components_range:
+        gmm = GaussianMixture(n_components=n_comp).fit(md)
+        aic.append(abs(gmm.aic(md)))
+        bic.append(abs(gmm.bic(md)))
+        maxlogv.append(gmm.lower_bound_)
+        if gmm.lower_bound_== max(maxlogv) : # takes the maximum
+            nb_components=n_comp
+            # if there is convergence, keep the first maximum found
+            if abs(gmm.lower_bound_-log_max)<0.02 : #threshold=0.02
+                nb_components=nb_log_max
+                break
+        log_max=max(maxlogv)
+        nb_log_max=n_comp
+
+    # plot with the appropriate number of components
+    obs=np.array(data).reshape(-1,1)
+    g = GaussianMixture(n_components=nb_components)
+    g.fit(obs)
+    weights = g.weights_
+    means = g.means_
+    covariances = g.covariances_
+
+    D = obs.ravel()
+    xmin = D.min()
+    xmax = D.max()
+    x = np.linspace(xmin,xmax,1000)
+    colors=['red', 'blue', 'gold', 'cyan', 'magenta', 'white', 'black', 'green']
+    # prepare the dictionary to save the parameters
+    summary_data={}
+    summary_data["measure"]= name_data
+    summary_data["weights"]=[]
+    summary_data["means"]=[]
+    summary_data["std"]=[]
+    # plot
+    for i in range(nb_components):
+        mean = means[i]
+        sigma = np.sqrt(covariances[i])
+        weight = weights[i]
+        plt.plot(x,(weights[i]*st.norm.pdf(x,mean,sigma))[0], c=colors[i])
+        summary_data["means"].append(str(mean))
+        summary_data["std"].append(str(sigma))
+        summary_data["weights"].append(str(weight))
+    axes=plt.gca()
+    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
     # save in a json
     with open (name_data + " .json", 'w', encoding='utf-8') as f:
 	    json.dump(summary_data, f, indent=4)
@@ -2468,7 +2535,7 @@ def graph_torsion_h_RNA():
 
 def graph_plans_h_RNA():
 
-    df=pd.read_csv(os.path.abspath(runDir + "results/HiRE-RNA/angles/angles_plans_hire_RNA.csv"))  
+    df=pd.read_csv(os.path.abspath(runDir + "/results/HiRE-RNA/angles/angles_plans_hire_RNA.csv"))  
 
     p_c1p_psuiv=list(df["P-C1'-P°"][~ np.isnan(df["P-C1'-P°"])])
     c1p_psuiv_c1psuiv=list(df["C1'-P°-C1'°"][~ np.isnan(df["C1'-P°-C1'°"])])
@@ -2487,6 +2554,112 @@ def graph_plans_h_RNA():
     plt.savefig("GMM des angles plans (hire-RNA) (100 structures).png")
     plt.close()
 
+'''
+Functions for making measurements on pairings
+'''
+
+def dictio(ld):
+    '''
+    creation of a dictionary
+    key = pdb identifier of the structure
+    value = list of RNA chains
+    '''
+    pdb=[]
+    for f in ld:
+        pdb_id=str.split(f, '_')[0]
+        if pdb_id not in pdb: #we create a list of distinct structures
+            pdb.append(pdb_id)
+    for pdb_id in pdb:#for all structures found
+        liste_chaines=[]
+        for f in ld:
+            if (len(f)<10): #unmapped to a Rfam family
+                chaine=str.split(f, '_')
+                if chaine[0]==pdb_id:
+                    id_chain=chaine[2]
+                    liste_chaines.append(id_chain)
+        if liste_chaines != []:
+            dictionnaire[pdb_id]=liste_chaines
+    return (dictionnaire)
+
+def dist_pointes(res, pair):
+    '''
+    measure of the distance between the tips of the paired nucleotides (B1 / B1 or B1 / B2 or B2 / B2)
+    '''
+    dist=[]
+    d=0
+    if res.get_resname()=='A' or res.get_resname()=='G' :# different cases if 1 aromatic cycle or 2
+        atom_res=pos_b2(res)
+        if pair.get_resname()=='A' or pair.get_resname()=='G' :
+            atom_pair=pos_b2(pair)
+        if pair.get_resname()=='C' or pair.get_resname()=='U' :
+            atom_pair=pos_b1(pair)
+
+    if res.get_resname()=='C' or res.get_resname()=='U' :
+        atom_res=pos_b1(res)
+        if pair.get_resname()=='A' or pair.get_resname()=='G' :
+            atom_pair=pos_b2(pair)
+        if pair.get_resname()=='C' or pair.get_resname()=='U' :
+            atom_pair=pos_b1(pair)
+    
+    dist=distance(atom_res, atom_pair)
+
+    return dist
+
+def angle_c1_b1(res,pair):
+    '''
+    measurement of the plane angles formed by the vectors C1-> B1 of the paired nucleotides
+    '''
+    if res.get_resname()=='A' or res.get_resname()=='G' or res.get_resname()=='C' or res.get_resname()=='U' :
+        atom_c4_res = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ] 
+        atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+        atom_b1_res=pos_b1(res)
+        c4_res=Vector(atom_c4_res[0])
+        c1_res=Vector(atom_c1p_res[0])
+        b1_res=Vector(atom_b1_res)
+        if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
+            atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
+            atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
+            atom_b1_pair=pos_b1(pair)
+            c4_pair=Vector(atom_c4_pair[0])
+            c1_pair=Vector(atom_c1p_pair[0])
+            b1_pair=Vector(atom_b1_pair)
+            #we calculate the 4 plane angles including these vectors
+            
+            a=calc_angle(c4_res, c1_res, b1_res)*(180/np.pi)
+            b=calc_angle(c1_res, b1_res, b1_pair)*(180/np.pi)
+            c=calc_angle(b1_res, b1_pair, c1_pair)*(180/np.pi)
+            d=calc_angle(b1_pair, c1_pair, c4_pair)*(180/np.pi)
+            
+
+    angles=[a, b, c, d]
+    return angles
+
+def graphe(type_LW, angle_1, angle_2, angle_3, angle_4, distance, nb):
+    '''
+    function to plot the statistical figures you want
+    By type of pairing:
+    Superposition of GMMs of plane angles
+    Superposition of the histogram and the GMM of the distances
+    all in the same window
+    '''
+
+    figure = plt.figure(figsize = (10, 10))
+    plt.gcf().subplots_adjust(left = 0.1, bottom = 0.1, right = 0.9, top = 0.9, wspace = 0, hspace = 0.5)
+   
+    plt.subplot(2, 1, 1)
+
+    GMM_tot(angle_1, "C4'-C1'-B1", nb, 'cyan' )
+    GMM_tot(angle_2, "C1'-B1-B1pair", nb, 'magenta')
+    GMM_tot(angle_3, "B1-B1pair-C1'pair", nb, "yellow")
+    GMM_tot(angle_4, "B1pair-C1'pair-C4'pair", nb, 'olive')
+    plt.xlabel("Angle(degré)")
+    plt.title("GMM des angles plans pour les appariements " +type_LW +" (" +str(nb)+ " valeurs)", fontsize=10)
+
+    plt.subplot(2, 1, 2)
+    GMM_histo_without_saving(distance, "Distance pointes " + type_LW, "Distance (Angström)", "Densité", nb)
+
+    plt.savefig("Mesures appariements " +type_LW+ " (" +str(nb)+ " valeurs).png" )
+    plt.close()
 
 
 
@@ -2623,12 +2796,13 @@ if __name__ == "__main__":
     #dist_atoms_hire_RNA(os.listdir(path_to_3D_data + "rna_only")[0])
     #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
     
-    #exit()
+    
+    exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
         #joblist.append(Job(function=dist_atoms, args=(f,)))
         #joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
-        #joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
+        joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
     
     
@@ -2676,7 +2850,11 @@ if __name__ == "__main__":
     graph_angles_torsion()
     concatenate('/results/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')
     graph_dist_atoms_h_RNA()
+    
     concatenate('/results/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')
-    graph_torsion_hire_RNA()
+    concatenate('/results/HiRE-RNA/angles/', 'angles_plans_hire_RNA.csv')
+    graph_torsion_h_RNA()
+    graph_plans_h_RNA()
+    
     graph_eta_theta()
     '''
