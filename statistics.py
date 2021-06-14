@@ -1298,7 +1298,7 @@ def dist_atoms(f):
     
     chain = next(s[0].get_chains())#1 chain per file
     residues=list(chain.get_residues())
-    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms", unit="chain", leave=False)
+    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms", unit="residu", leave=False)
     pbar.update(0)
     for res in chain :
         
@@ -1624,9 +1624,17 @@ def dist_atoms_hire_RNA (f) :
     name=str.split(f,'.')[0]
     liste_dist=[]
     last_c4p=[]
+    global idxQueue
+    thr_idx = idxQueue.get()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} dist_atoms_hire_RNA({f})")
+
     parser=MMCIFParser()
     s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
     chain = next(s[0].get_chains())
+    residues=list(chain.get_residues())
+    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms_hire_RNA", unit="residu", leave=False)
+    pbar.update(0)
     os.makedirs(runDir+"/results/distances_hRNA/", exist_ok=True)
     for res in chain :
         p_o5p=None
@@ -1692,9 +1700,13 @@ def dist_atoms_hire_RNA (f) :
         
 
             liste_dist.append([res.get_resname(), last_c4p_p, p_o5p, o5p_c5p, c5p_c4p, c4p_c1p, c1p_b1, b1_b2])
+            pbar.update(1)
     df=pd.DataFrame(liste_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
+    pbar.close()
     
     df.to_csv(runDir + '/results/distances_hRNA/' + 'dist_atoms_hire_RNA '+name+'.csv')
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     
 def conversion_angles(bdd): 
     '''
@@ -1771,13 +1783,19 @@ def angles_torsion_hire_RNA(f):
     last_c4p=[]
     last_c5p=[]
     last_c1p=[]
+    global idxQueue
+    thr_idx = idxQueue.get()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} angles_torsion_hire_RNA({f})")
 
     os.makedirs(runDir+"/results/torsion_angles_hRNA/", exist_ok=True)
 
     parser=MMCIFParser()
     s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
     chain = next(s[0].get_chains())
-
+    residues=list(chain.get_residues())
+    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} angles_torsion_hire_RNA", unit="residu", leave=False)
+    pbar.update(0)
 
     for res in chain :
         p_o5_c5_c4=np.nan
@@ -1873,9 +1891,13 @@ def angles_torsion_hire_RNA(f):
             last_c5p=atom_c5p
             last_c1p=atom_c1p
             liste_angles_torsion.append([res.get_resname(), p_o5_c5_c4, o5_c5_c4_c1, c5_c4_c1_b1, c4_c1_b1_b2, o5_c5_c4_psuiv, c5_c4_psuiv_o5suiv, c4_psuiv_o5suiv_c5suiv, c1_c4_psuiv_o5suiv])
+            pbar.update(1)
     df=pd.DataFrame(liste_angles_torsion, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
-    
+    pbar.close()
+
     df.to_csv(runDir + '/results/torsion_angles_hRNA/' + 'angles_torsion_hire_RNA '+name+'.csv')
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
 
 if __name__ == "__main__":
@@ -2014,7 +2036,7 @@ if __name__ == "__main__":
     #conversion_eta_theta('/home/atabot/RNANet.db')
     #exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
-    for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
+    for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
         joblist.append(Job(function=dist_atoms, args=(f,)))
         joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
