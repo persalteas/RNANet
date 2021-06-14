@@ -9,10 +9,13 @@ import numpy as np
 import pandas as pd
 import threading as th
 import scipy.stats as st
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as mpatches
 import scipy.cluster.hierarchy as sch
+import sklearn
+import json
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio import AlignIO, SeqIO
@@ -25,6 +28,8 @@ from tqdm import tqdm
 from collections import Counter
 from setproctitle import setproctitle
 from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker, trace_unhandled_exceptions
+from sklearn.mixture import GaussianMixture
+
 
 np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
 path_to_3D_data = "tobedefinedbyoptions"
@@ -104,7 +109,7 @@ def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=2.0):
         values_c3 = np.vstack([c3_endo_etas, c3_endo_thetas])
         values_c2 = np.vstack([c2_endo_etas, c2_endo_thetas])
 
-        # Approximate the density by a gaussian kernel
+        # Approximate the Densité by a gaussian kernel
         kernel_c3 = st.gaussian_kde(values_c3)
         kernel_c2 = st.gaussian_kde(values_c2)
 
@@ -1970,7 +1975,7 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
     '''
     Plot Gaussian-Mixture-Model on histograms
     '''
-    histogramme(data, name_data, x, y, nb_fichiers)#plot the histogram
+    histogram(data, name_data, x, y, nb_fichiers)#plot the histogram
     
     n_max = 8    # number of possible values for n_components
     n_components_range = np.arange(n_max)+1
@@ -2019,19 +2024,243 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
     # plot
     for i in range(nb_components):
         mean = means[i]
-        sigma = math.sqrt(covariances[i])
+        sigma = np.sqrt(covariances[i])
         weight = weights[i]
-        plt.plot(x,weights[i]*stats.norm.pdf(x,mean,sigma), c=colors[i])
+        plt.plot(x,(weights[i]*st.norm.pdf(x,mean,sigma))[0], c=colors[i])
         summary_data["means"].append(str(mean))
         summary_data["std"].append(str(sigma))
         summary_data["weights"].append(str(weight))
     axes=plt.gca()
+    os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
+    os.chdir(runDir+"/results/figures/GMM/")
     plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
-
+    plt.savefig(runDir + "/results/figures/GMM/" + "Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures).png")
+    plt.close()
     # save in a json
     with open (name_data +" "+str(nb_fichiers)+ " .json", 'w', encoding='utf-8') as f:
 	    json.dump(summary_data, f, indent=4)
 
+def GMM_tot(data, name_data, nb_fichiers, couleur) :
+    '''
+    Plot the sum of the Gaussians (without the histograms)
+    '''
+    
+    n_max = 8    # number of possible values for n_components
+    n_components_range = np.arange(n_max)+1
+    aic = []
+    bic = []
+    maxlogv=[]
+    md=np.array(data).reshape(-1,1)
+    # construction of models and calculation of criteria
+    nb_components=1
+    nb_log_max=n_components_range[0]
+    log_max=0
+    for n_comp in n_components_range:
+        gmm = GaussianMixture(n_components=n_comp).fit(md)
+        aic.append(abs(gmm.aic(md)))
+        bic.append(abs(gmm.bic(md)))
+        maxlogv.append(gmm.lower_bound_)
+        if gmm.lower_bound_== max(maxlogv) :
+            nb_components=n_comp
+            if abs(gmm.lower_bound_-log_max)<0.02 :
+                nb_components=nb_log_max
+                break
+        log_max=max(maxlogv)
+        nb_log_max=n_comp
+
+    obs=np.array(data).reshape(-1,1)
+    g = GaussianMixture(n_components=nb_components)
+    g.fit(obs)
+    weights = g.weights_
+    means = g.means_
+    covariances = g.covariances_
+
+    D = obs.ravel()
+    xmin = D.min()
+    xmax = D.max()
+    x = np.linspace(xmin,xmax,1000)
+    summary_data={}
+    summary_data["measure"]= name_data
+    summary_data["means"]=[]
+    summary_data["std"]=[]
+    courbes=[]
+
+    for i in range(nb_components):
+        mean = means[i]
+        sigma = np.sqrt(covariances[i])
+        courbes.append((weights[i]*st.norm.pdf(x,mean,sigma))[0])
+        summary_data["means"].append(str(mean))
+        summary_data["std"].append(str(sigma))
+    axes=plt.gca()
+    os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
+    plt.plot(x, sum(courbes), c=couleur, label=name_data)
+    plt.ylabel("Densité")
+    plt.legend()
+
+def graph_dist_atoms():
+    '''
+    Draw the figures representing the data on the measurements of distances between atoms
+    '''
+
+    df=pd.read_csv(os.path.abspath(runDir + "/results/distances/dist_atoms.csv"))
+
+    last_o3p_p=list(df["O3'-P"][~ np.isnan(df["O3'-P"])])
+    #print(last_o3p_p)
+    op3_p=list(df["OP3-P"][~ np.isnan(df["OP3-P"])])
+    p_op1=list(df["P-OP1"][~ np.isnan(df["P-OP1"])])
+    p_op2=list(df["P-OP2"][~ np.isnan(df["P-OP2"])])
+    p_o5p=list(df["P-O5'"][~ np.isnan(df["P-O5'"])])
+    o5p_c5p=list(df["O5'-C5'"][~ np.isnan(df["O5'-C5'"])])
+    c5p_c4p=list(df["C5'-C4'"][~ np.isnan(df["C5'-C4'"])])
+    c4p_o4p=list(df["C4'-O4'"][~ np.isnan(df["C4'-O4'"])])
+    o4p_c1p=list(df["O4'-C1'"][~ np.isnan(df["O4'-C1'"])])
+    c1p_c2p=list(df["C1'-C2'"][~ np.isnan(df["C1'-C2'"])])
+    c2p_o2p=list(df["C2'-O2'"][~ np.isnan(df["C2'-O2'"])])
+    c2p_c3p=list(df["C2'-C3'"][~ np.isnan(df["C2'-C3'"])])
+    c3p_o3p=list(df["C3'-O3'"][~ np.isnan(df["C3'-O3'"])])
+    c4p_c3p=list(df["C4'-C3'"][~ np.isnan(df["C4'-C3'"])])
+    
+    #if res = A ou G
+    c1p_n9=list(df["C1'-N9"][~ np.isnan(df["C1'-N9"])])
+    n9_c8=list(df["N9-C8"][~ np.isnan(df["N9-C8"])])
+    c8_n7=list(df["C8-N7"][~ np.isnan(df["C8-N7"])])
+    n7_c5=list(df["N7-C5"][~ np.isnan(df["N7-C5"])])
+    c5_c6=list(df["C5-C6"][~ np.isnan(df["C5-C6"])])
+    c6_n1=list(df["C6-N1"][~ np.isnan(df["C6-N1"])])
+    n1_c2=list(df["N1-C2"][~ np.isnan(df["N1-C2"])])
+    c2_n3=list(df["C2-N3"][~ np.isnan(df["C2-N3"])])
+    n3_c4=list(df["N3-C4"][~ np.isnan(df["N3-C4"])])
+    c4_n9=list(df["C4-N9"][~ np.isnan(df["C4-N9"])])
+    c4_c5=list(df["C4-C5"][~ np.isnan(df["C4-C5"])])
+    #if res=G
+    c6_o6=list(df["C6-O6"][~ np.isnan(df["C6-O6"])])
+    c2_n2=list(df["C2-N2"][~ np.isnan(df["C2-N2"])])
+    #if res = A
+    c6_n6=list(df["C6-N6"][~ np.isnan(df["C6-N6"])])
+
+    #if res = C ou U
+    c1p_n1=list(df["C1'-N1"][~ np.isnan(df["C1'-N1"])])
+    n1_c6=list(df["N1-C6"][~ np.isnan(df["N1-C6"])])
+    c6_c5=list(df["C6-C5"][~ np.isnan(df["C6-C5"])])
+    c5_c4=list(df["C5-C4"][~ np.isnan(df["C5-C4"])])
+    c4_n3=list(df["C4-N3"][~ np.isnan(df["C4-N3"])])
+    n3_c2=list(df["N3-C2"][~ np.isnan(df["N3-C2"])])
+    c2_n1=list(df["C2-N1"][~ np.isnan(df["C2-N1"])])
+    c2_o2=list(df["C2-O2"][~ np.isnan(df["C2-O2"])])
+    #if res =C
+    c4_n4=list(df["C4-N4"][~ np.isnan(df["C4-N4"])])
+    #if res=U
+    c4_o4=list(df["C4-O4"][~ np.isnan(df["C4-O4"])])
+
+    os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
+
+    # draw figures for atoms common to all nucleotides
+    GMM_histo(last_o3p_p, "O3'-P", "Distance(Angström)", "Densité", "100")
+    #GMM_histo(op3_p, "OP3-P", "Distance(Angström)", "Densité", "100")
+    GMM_histo(p_op1, "P-OP1", "Distance(Angström)", "Densité", "100")
+    GMM_histo(p_op2, "P-OP2", "Distance(Angström)", "Densité", "100")
+    
+    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4p_o4p, "C4'-O4'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4p_c3p, "C4'-C3'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c3p_o3p, "C3'-O3'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(o4p_c1p, "O4'-C1'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c1p_c2p, "C1'-C2'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2p_c3p, "C2'-C3'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2p_o2p, "C2'-O2'", "Distance(Angström)", "Densité", "100")
+
+    #GMM_tot(op3_p, "OP3-P", "100", 'lightcoral')
+    GMM_tot(p_op1, "P-OP1", "100", 'gold')
+    GMM_tot(p_op2, "P-OP2", "100", 'lightseagreen')
+    GMM_tot(last_o3p_p, "O3'-P", "100", 'saddlebrown')
+    GMM_tot(p_o5p, "P-O5'", "100", 'darkturquoise')
+    GMM_tot(o5p_c5p, "O5'-C5'", "100", 'darkkhaki')
+    GMM_tot(c5p_c4p, "C5'-C4'", "100", 'indigo')
+    GMM_tot(c4p_o4p, "C4'-O4'", "100", 'maroon')
+    GMM_tot(c4p_c3p, "C4'-C3'", "100", 'burlywood')
+    GMM_tot(c3p_o3p, "C3'-O3'", "100", 'steelblue')
+    GMM_tot(o4p_c1p, "O4'-C1'", "100", 'tomato')
+    GMM_tot(c1p_c2p, "C1'-C2'", "100", 'darkolivegreen')
+    GMM_tot(c2p_c3p, "C2'-C3'", "100", 'orchid')
+    GMM_tot(c2p_o2p, "C2'-O2'", "100", 'deeppink')
+    axes=plt.gca()
+    axes.set_ylim(0, 100)
+    plt.xlabel("Distance (Angström)")
+    plt.title("GMM des distances entre atomes communs (100 structures)")
+    plt.savefig(runDir + "/results/figures/GMM/" + "GMM des distances entre atomes communs (100 structures).png")
+    plt.close()
+
+    # purines
+    GMM_histo(c1p_n9, "C1'-N9", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n9_c8, "N9-C8", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c8_n7, "C8-N7", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n7_c5, "N7-C5", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c5_c6, "C5-C6", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c6_o6, "C6-O6", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c6_n6, "C6-N6", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c6_n1, "C6-N1", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n1_c2, "N1-C2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2_n2, "C2-N2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2_n3, "C2-N3", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n3_c4, "N3-C4", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4_n9, "C4-N9", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4_c5, "C4-C5", "Distance(Angström)", "Densité", "100")
+
+    GMM_tot(c1p_n9, "C1'-N9", "100", 'lightcoral')
+    GMM_tot(n9_c8, "N9-C8", "100", 'gold')
+    GMM_tot(c8_n7, "C8-N7", "100", 'lightseagreen')
+    GMM_tot(n7_c5, "N7-C5", "100", 'saddlebrown')
+    GMM_tot(c5_c6, "C5-C6", "100", 'darkturquoise')
+    GMM_tot(c6_o6, "C6-O6", "100", 'darkkhaki')
+    GMM_tot(c6_n6, "C6-N6", "100", 'indigo')
+    GMM_tot(c6_n1, "C6-N1", "100", 'maroon')
+    GMM_tot(n1_c2, "N1-C2", "100", 'burlywood')
+    GMM_tot(c2_n2, "C2-N2", "100", 'steelblue')
+    GMM_tot(c2_n3, "C2-N3", "100", 'tomato')
+    GMM_tot(n3_c4, "N3-C4", "100", 'darkolivegreen')
+    GMM_tot(c4_n9, "C4-N9", "100", 'orchid')
+    GMM_tot(c4_c5, "C4-C5", "100", 'deeppink')
+    axes=plt.gca()
+    axes.set_ylim(0, 100)
+    plt.xlabel("Distance (Angström)")
+    plt.title("GMM des distances entre atomes des cycles purines (100 structures)", fontsize=10)
+    plt.savefig(runDir+ "/results/figures/GMM/" + "GMM des distances entre atomes des cycles purines (100 structures).png")
+    plt.close()
+
+
+    # pyrimidines
+
+    GMM_histo(c1p_n1, "C1'-N1", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n1_c6, "N1-C6", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c6_c5, "C6-C5", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c5_c4, "C5-C4", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4_n3, "C4-N3", "Distance(Angström)", "Densité", "100")
+    GMM_histo(n3_c2, "N3-C2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2_o2, "C2-O2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c2_n1, "C2-N1", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4_n4, "C4-N4", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4_o4, "C4-O4", "Distance(Angström)", "Densité", "100")
+
+    GMM_tot(c1p_n1, "C1'-N1", "100", 'lightcoral')
+    GMM_tot(n1_c6, "N1-C6", "100", 'gold')
+    GMM_tot(c6_c5, "C6-C5", "100", 'lightseagreen')
+    GMM_tot(c5_c4, "C5-C4", "100", 'deeppink')
+    GMM_tot(c4_n3, "C4-N3", "100", 'red')
+    GMM_tot(n3_c2, "N3-C2", "100", 'lime')
+    GMM_tot(c2_o2, "C2-O2", "100", 'indigo')
+    GMM_tot(c2_n1, "C2-N1", "100", 'maroon')
+    GMM_tot(c4_n4, "C4-N4", "100", 'burlywood')
+    GMM_tot(c4_o4, "C4-O4", "100", 'steelblue')
+    axes=plt.gca()
+    #axes.set_xlim(1, 2)
+    axes.set_ylim(0, 100)
+    plt.xlabel("Distance (Angström)")
+    plt.title("GMM des distances entre atomes des cycles pyrimidines (100 structures)", fontsize=10)
+    plt.savefig(runDir + "/results/figures/GMM/" + "GMM des distances entre atomes des cycles pyrimidines (100 structures).png")
+    plt.close()
+    
 
 
 if __name__ == "__main__":
@@ -2168,7 +2397,8 @@ if __name__ == "__main__":
     #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
     #conversion_angles('/home/atabot/RNANet.db')) # chemin -> runDir + /results/RNANet.db
     #conversion_eta_theta('/home/atabot/RNANet.db')
-    #exit()
+    
+    exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
         #joblist.append(Job(function=dist_atoms, args=(f,)))
@@ -2215,4 +2445,7 @@ if __name__ == "__main__":
     stats_pairs()
     if n_unmapped_chains:
         general_stats()
+
+    concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')    
+    graph_dist_atoms()
     '''
