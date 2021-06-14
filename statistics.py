@@ -1899,6 +1899,140 @@ def angles_torsion_hire_RNA(f):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+def angles_plans_hire_RNA(f):
+    '''
+    Measures the plane angles involving C1' and B1 atoms 
+    Saves the results in a dataframe
+    '''
+    name=str.split(f,'.')[0]
+    liste_angles_plans=[]
+    last_p=[]
+    last_c1p=[]
+
+    global idxQueue
+    thr_idx = idxQueue.get()
+
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} angles_plans_hire_RNA({f})")
+
+    os.makedirs(runDir+"/results/plane_angles_hRNA/", exist_ok=True)
+
+    parser=MMCIFParser()
+    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    chain = next(s[0].get_chains())
+    residues=list(chain.get_residues())
+    pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} angles_torsion_hire_RNA", unit="residu", leave=False)
+    pbar.update(0)
+    for res in chain :
+        p_c1p_psuiv=np.nan
+        c1p_psuiv_c1psuiv=np.nan
+        if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA'] :
+            atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
+            atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+
+            if len(last_p)<1 or len(last_c1p)<1 or len(atom_p)<1 :
+                p_c1p_psuiv=p_c1p_psuiv
+            else :
+                p_prec=Vector(last_p[0])
+                c1p_prec=Vector(last_c1p[0])
+                p=Vector(atom_p[0])
+                p_c1p_psuiv=calc_angle(p_prec, c1p_prec, p)*(180/np.pi)
+
+            if len(atom_c1p)<1 or len(last_c1p)<1 or len(atom_p)<1:
+                c1p_psuiv_c1psuiv=c1p_psuiv_c1psuiv
+            else :
+                c1p_prec=Vector(last_c1p[0])
+                p=Vector(atom_p[0])
+                c1p=Vector(atom_c1p[0])
+                c1p_psuiv_c1psuiv=calc_angle(c1p_prec, p, c1p)*(180/np.pi)
+
+            last_p=atom_p
+            last_c1p=atom_c1p
+            liste_angles_plans.append([res.get_resname(), p_c1p_psuiv, c1p_psuiv_c1psuiv])
+            pbar.update(1)
+    df=pd.DataFrame(liste_angles_plans, columns=["Residu", "P-C1'-P°", "C1'-P°-C1'°"])
+    pbar.close()
+    
+    
+    df.to_csv(runDir + '/results/plane_angles_hRNA/' + 'angles_plans_hire_RNA '+name+'.csv')
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+    
+def histogram(data, name_data, x, y, nb):
+    '''
+    Plot histograms
+    '''
+    
+    plt.hist(data,color="green",edgecolor='black', linewidth=1.2,bins=50, density=True)
+    plt.xlabel(x)
+    plt.ylabel(y)
+
+def GMM_histo(data, name_data, x, y, nb_fichiers) :
+    '''
+    Plot Gaussian-Mixture-Model on histograms
+    '''
+    histogramme(data, name_data, x, y, nb_fichiers)#plot the histogram
+    
+    n_max = 8    # number of possible values for n_components
+    n_components_range = np.arange(n_max)+1
+    aic = []
+    bic = []
+    maxlogv=[]
+    md=np.array(data).reshape(-1,1)
+    # construction of models and calculation of criteria
+    nb_components=1
+    nb_log_max=n_components_range[0]
+    log_max=0
+    # chooses the number of components based on the maximum likelihood value (maxlogv)
+    for n_comp in n_components_range:
+        gmm = GaussianMixture(n_components=n_comp).fit(md)
+        aic.append(abs(gmm.aic(md)))
+        bic.append(abs(gmm.bic(md)))
+        maxlogv.append(gmm.lower_bound_)
+        if gmm.lower_bound_== max(maxlogv) : # takes the maximum
+            nb_components=n_comp
+            # if there is convergence, keep the first maximum found
+            if abs(gmm.lower_bound_-log_max)<0.02 : #threshold=0.02
+                nb_components=nb_log_max
+                break
+        log_max=max(maxlogv)
+        nb_log_max=n_comp
+
+    # plot with the appropriate number of components
+    obs=np.array(data).reshape(-1,1)
+    g = GaussianMixture(n_components=nb_components)
+    g.fit(obs)
+    weights = g.weights_
+    means = g.means_
+    covariances = g.covariances_
+
+    D = obs.ravel()
+    xmin = D.min()
+    xmax = D.max()
+    x = np.linspace(xmin,xmax,1000)
+    colors=['red', 'blue', 'gold', 'cyan', 'magenta', 'white', 'black', 'green']
+    # prepare the dictionary to save the parameters
+    summary_data={}
+    summary_data["measure"]= name_data
+    summary_data["weights"]=[]
+    summary_data["means"]=[]
+    summary_data["std"]=[]
+    # plot
+    for i in range(nb_components):
+        mean = means[i]
+        sigma = math.sqrt(covariances[i])
+        weight = weights[i]
+        plt.plot(x,weights[i]*stats.norm.pdf(x,mean,sigma), c=colors[i])
+        summary_data["means"].append(str(mean))
+        summary_data["std"].append(str(sigma))
+        summary_data["weights"].append(str(weight))
+    axes=plt.gca()
+    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
+
+    # save in a json
+    with open (name_data +" "+str(nb_fichiers)+ " .json", 'w', encoding='utf-8') as f:
+	    json.dump(summary_data, f, indent=4)
+
+
 
 if __name__ == "__main__":
 
@@ -2037,9 +2171,10 @@ if __name__ == "__main__":
     #exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
-        joblist.append(Job(function=dist_atoms, args=(f,)))
-        joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
-        joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
+        #joblist.append(Job(function=dist_atoms, args=(f,)))
+        #joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
+        #joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
+        joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
     
     
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
