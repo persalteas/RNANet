@@ -16,6 +16,7 @@ import matplotlib.patches as mpatches
 import scipy.cluster.hierarchy as sch
 import sklearn
 import json
+import pickle
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio import AlignIO, SeqIO
@@ -1603,11 +1604,12 @@ def dist_atoms(f):
     
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
-    #os.makedirs(runDir+"/results/distances/", exist_ok=True)
-    df.to_csv(runDir+"/results/distances/" +'dist_atoms '+name+'.csv')
+
+    os.makedirs(runDir+"/results/all-atoms/distances/", exist_ok=True)
+    df.to_csv(runDir+"/results/all-atoms/distances/" +'dist_atoms '+name+'.csv')
 
 
-def concatenate(chemin, liste, filename):
+def concatenate(chemin, filename):
     '''
     Concatenates the dataframes of liste containing measures 
     and creates a new dataframe gathering all
@@ -1640,7 +1642,7 @@ def dist_atoms_hire_RNA (f) :
     residues=list(chain.get_residues())
     pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms_hire_RNA", unit="residu", leave=False)
     pbar.update(0)
-    os.makedirs(runDir+"/results/distances_hRNA/", exist_ok=True)
+    os.makedirs(runDir+"/results/HiRE-RNA/distances/", exist_ok=True)
     for res in chain :
         p_o5p=None
         o5p_c5p=None
@@ -1709,7 +1711,7 @@ def dist_atoms_hire_RNA (f) :
     df=pd.DataFrame(liste_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
     pbar.close()
     
-    df.to_csv(runDir + '/results/distances_hRNA/' + 'dist_atoms_hire_RNA '+name+'.csv')
+    df.to_csv(runDir + '/results/HiRE-RNA/distances/' + 'dist_atoms_hire_RNA '+name+'.csv')
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
     
@@ -1793,7 +1795,7 @@ def angles_torsion_hire_RNA(f):
 
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} angles_torsion_hire_RNA({f})")
 
-    os.makedirs(runDir+"/results/torsion_angles_hRNA/", exist_ok=True)
+    os.makedirs(runDir+"/results/HiRE-RNA/torsions/", exist_ok=True)
 
     parser=MMCIFParser()
     s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
@@ -1900,7 +1902,7 @@ def angles_torsion_hire_RNA(f):
     df=pd.DataFrame(liste_angles_torsion, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
     pbar.close()
 
-    df.to_csv(runDir + '/results/torsion_angles_hRNA/' + 'angles_torsion_hire_RNA '+name+'.csv')
+    df.to_csv(runDir + '/results/HiRE-RNA/torsions/' + 'angles_torsion_hire_RNA '+name+'.csv')
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
@@ -2031,13 +2033,11 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
         summary_data["std"].append(str(sigma))
         summary_data["weights"].append(str(weight))
     axes=plt.gca()
-    os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
-    os.chdir(runDir+"/results/figures/GMM/")
     plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
-    plt.savefig(runDir + "/results/figures/GMM/" + "Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures).png")
+    plt.savefig("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures).png")
     plt.close()
     # save in a json
-    with open (name_data +" "+str(nb_fichiers)+ " .json", 'w', encoding='utf-8') as f:
+    with open (name_data + " .json", 'w', encoding='utf-8') as f:
 	    json.dump(summary_data, f, indent=4)
 
 def GMM_tot(data, name_data, nb_fichiers, couleur) :
@@ -2102,7 +2102,7 @@ def graph_dist_atoms():
     Draw the figures representing the data on the measurements of distances between atoms
     '''
 
-    df=pd.read_csv(os.path.abspath(runDir + "/results/distances/dist_atoms.csv"))
+    df=pd.read_csv(os.path.abspath(runDir + "/results/all-atoms/distances/dist_atoms.csv"))
 
     last_o3p_p=list(df["O3'-P"][~ np.isnan(df["O3'-P"])])
     #print(last_o3p_p)
@@ -2152,7 +2152,7 @@ def graph_dist_atoms():
     #if res=U
     c4_o4=list(df["C4-O4"][~ np.isnan(df["C4-O4"])])
 
-    os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
+    os.makedirs(runDir+"/results/figures/all-atoms/distances/commun/", exist_ok=True)
 
     # draw figures for atoms common to all nucleotides
     GMM_histo(last_o3p_p, "O3'-P", "Distance(Angström)", "Densité", "100")
@@ -2189,9 +2189,10 @@ def graph_dist_atoms():
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
     plt.title("GMM des distances entre atomes communs (100 structures)")
-    plt.savefig(runDir + "/results/figures/GMM/" + "GMM des distances entre atomes communs (100 structures).png")
+    plt.savefig(runDir + "/results/figures/all-atoms/distances/commun/" + "GMM des distances entre atomes communs (100 structures).png")
     plt.close()
 
+    os.makedirs(runDir+"/results/figures/all-atoms/distances/purines/", exist_ok=True)
     # purines
     GMM_histo(c1p_n9, "C1'-N9", "Distance(Angström)", "Densité", "100")
     GMM_histo(n9_c8, "N9-C8", "Distance(Angström)", "Densité", "100")
@@ -2226,10 +2227,10 @@ def graph_dist_atoms():
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
     plt.title("GMM des distances entre atomes des cycles purines (100 structures)", fontsize=10)
-    plt.savefig(runDir+ "/results/figures/GMM/" + "GMM des distances entre atomes des cycles purines (100 structures).png")
+    plt.savefig(runDir+ "/results/figures/all-atoms/distances/purines/" + "GMM des distances entre atomes des cycles purines (100 structures).png")
     plt.close()
 
-
+    os.makedirs(runDir+"/results/figures/all-atoms/distances/pyrimidines/", exist_ok=True)
     # pyrimidines
 
     GMM_histo(c1p_n1, "C1'-N1", "Distance(Angström)", "Densité", "100")
@@ -2258,9 +2259,235 @@ def graph_dist_atoms():
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
     plt.title("GMM des distances entre atomes des cycles pyrimidines (100 structures)", fontsize=10)
-    plt.savefig(runDir + "/results/figures/GMM/" + "GMM des distances entre atomes des cycles pyrimidines (100 structures).png")
+    plt.savefig(runDir + "/results/figures/all-atoms/distances/pyrimidines/" + "GMM des distances entre atomes des cycles pyrimidines (100 structures).png")
     plt.close()
     
+def graph_dist_atoms_h_RNA():
+    '''
+    Draw the figures representing the data on the measurements of distances between atoms of the HiRE-RNA model
+    '''
+    df=pd.read_csv(os.path.abspath(runDir + "/results/distances_hRNA/dist_atoms_hire_RNA.csv"))  
+
+    last_c4p_p=list(df["C4'-P"][~ np.isnan(df["C4'-P"])])
+    p_o5p=list(df["P-O5'"][~ np.isnan(df["P-O5'"])])
+    o5p_c5p=list(df["O5'-C5'"][~ np.isnan(df["O5'-C5'"])])
+    c5p_c4p=list(df["C5'-C4'"][~ np.isnan(df["C5'-C4'"])])
+    c4p_c1p=list(df["C4'-C1'"][~ np.isnan(df["C4'-C1'"])])
+    c1p_b1=list(df["C1'-B1"][~ np.isnan(df["C1'-B1"])])
+    b1_b2=list(df["B1-B2"][~ np.isnan(df["B1-B2"])])
+
+    os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
+
+
+    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(b1_b2, "B1-B2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c1p_b1, "C1'-B1", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c4p_c1p, "C4'-C1'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(last_c4p_p, "C4'-P", "Distance(Angström)", "Densité","100")
+    
+    GMM_tot(o5p_c5p, "O5'-C5'","100", 'lightcoral')
+    GMM_tot(b1_b2, "B1-B2","100", 'limegreen')
+    GMM_tot(c1p_b1, "C1'-B1","100", 'tomato')
+    GMM_tot(c5p_c4p, "C5'-C4'","100", 'aquamarine')
+    GMM_tot(c4p_c1p, "C4'-C1'","100", 'goldenrod')
+    GMM_tot(p_o5p, "P-O5'","100", 'darkcyan')
+    GMM_tot(last_c4p_p, "C4'-P","100", 'deeppink')
+    axes=plt.gca()
+    axes.set_ylim(0, 100)
+    plt.xlabel("Distance (Angström)")
+    plt.title("GMM des distances entre atomes HiRE-RNA (100 structures)")
+    plt.savefig(runDir + "/results/figures/HiRE-RNA/distances/" + "GMM des distances entre atomes HiRE-RNA (100 structures).png")
+    plt.close()
+
+def graph_angles_torsion():
+    '''
+    Separates the torsion angle measurements by angle type and plots the figures representing the data
+    '''
+    # we create lists to store the values ​​of each angle
+    alpha=[]
+    beta=[]
+    gamma=[]
+    delta=[]
+    epsilon=[]
+    zeta=[]
+    chi = []
+    for angles_deg in conversion_angles("/home/atabot/RNANet.db") : #chemin à modifier 
+        alpha.append(angles_deg[2])
+        beta.append(angles_deg[3])
+        gamma.append(angles_deg[4])
+        delta.append(angles_deg[5])
+        epsilon.append(angles_deg[6])
+        zeta.append(angles_deg[7])
+        chi.append(angles_deg[8])
+
+    # we remove the null values
+    alpha=[i for i in alpha if i != None]
+    beta=[i for i in beta if i != None]
+    gamma=[i for i in gamma if i != None]
+    delta=[i for i in delta if i != None]
+    epsilon=[i for i in epsilon if i != None]
+    zeta=[i for i in zeta if i != None]
+    chi=[i for i in chi if i != None]
+
+    # saving results with pickle
+    fichier = open("angles torsion", "wb")
+    pickle.dump(alpha, fichier)
+    pickle.dump(beta, fichier)
+    pickle.dump(gamma, fichier)
+    pickle.dump(delta, fichier)
+    pickle.dump(epsilon, fichier)
+    pickle.dump(zeta, fichier)
+    pickle.dump(chi, fichier)
+    fichier.close()
+
+    os.makedirs(runDir + "/results/figures/all-atoms/torsions/")
+    os.chdir(runDir + "/results/figures/all-atoms/torsions/")
+
+    '''
+    We plot the GMMs with histogram for each angle
+    We create the corresponding json with the means and standard deviations of each Gaussian
+    We draw the figure grouping the GMMs of all angles without histogram to compare them with each other
+    '''
+
+    GMM_histo(alpha, "Alpha", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(beta, "Beta", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(gamma, "Gamma", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(delta, "Delta", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(epsilon, "Epsilon", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(zeta, "Zeta", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(chi, "Xhi", "Angle(degré)", "Densité", "toutes")
+
+    GMM_tot(alpha, "Alpha", "toutes", 'red')
+    GMM_tot(beta, "Beta", "toutes", 'firebrick')
+    GMM_tot(gamma, "Gamma", "toutes", 'limegreen')
+    GMM_tot(delta, "Delta", "toutes", 'darkslateblue')
+    GMM_tot(epsilon, "Epsilon", "toutes", 'goldenrod')
+    GMM_tot(zeta, "Zeta", "toutes", 'teal')
+    GMM_tot(chi, "Xhi", "toutes", 'hotpink')
+    plt.xlabel("Angle(Degré)")
+    plt.title("GMM des angles de torsion")
+    plt.savefig("GMM des angles de torsion.png")
+    plt.close()
+
+def graph_eta_theta():
+    '''
+    Separates the pseudotorsion angle measurements by angle type and plots the figures representing the data
+    '''
+    eta=[]
+    theta=[]
+    eta_prime=[]
+    theta_prime=[]
+    eta_base=[]
+    theta_base=[]
+
+    for angles_deg in conversion_eta_theta(runDir + "/results/RNANet.db"): 
+        eta.append(angles_deg[2])
+        theta.append(angles_deg[3])
+        eta_prime.append(angles_deg[4])
+        theta_prime.append(angles_deg[5])
+        eta_base.append(angles_deg[6])
+        theta_base.append(angles_deg[7])
+
+    eta=[i for i in eta if i != None]
+    theta=[i for i in theta if i != None]
+    eta_prime=[i for i in eta_prime if i != None]
+    theta_prime=[i for i in theta_prime if i != None]
+    eta_base=[i for i in eta_base if i != None]
+    theta_base=[i for i in theta_base if i != None]
+
+    
+    fichier = open("angles pseudotorsion", "wb")
+    pickle.dump(eta, fichier)
+    pickle.dump(theta, fichier)
+    pickle.dump(eta_prime, fichier)
+    pickle.dump(theta_prime, fichier)
+    pickle.dump(eta_base, fichier)
+    pickle.dump(theta_base, fichier)
+    fichier.close()
+
+    os.makedirs(runDir + "/results/figures/Pyle/pseudotorsions/")
+    os.chdir(runDir + "/results/figures/Pyle/pseudotorsions/")
+
+    GMM_histo(eta, "Eta", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(theta, "Theta", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(eta_prime, "Eta'", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(theta_prime, "Theta'", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(eta_base, "Eta''", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(theta_base, "Theta''", "Angle(degré)", "Densité", "toutes")
+
+    GMM_tot(eta, "Eta", "toutes", 'mediumaquamarine')
+    GMM_tot(theta, "Theta", "toutes", 'darkorchid')
+    GMM_tot(eta_prime, "Eta'", "toutes", 'cyan')
+    GMM_tot(theta_prime, "Theta'", "toutes", 'crimson')
+    GMM_tot(eta_base, "Eta''", "toutes", 'royalblue')
+    GMM_tot(theta_base, "Theta''", "toutes", 'palevioletred')
+    plt.xlabel("Angle(Degré)")
+    plt.title("GMM des angles de pseudotorsion")
+    plt.savefig("GMM des angles de pseudotorsion.png")
+    plt.close()
+
+def graph_torsion_h_RNA():
+    
+    df=pd.read_csv(os.path.abspath(runDir + "/results/HiRE-RNA/torsions/angles_torsion_hire_RNA.csv"))  
+
+    p_o5_c5_c4=list(df["P-O5'-C5'-C4'"][~ np.isnan(df["P-O5'-C5'-C4'"])])
+    o5_c5_c4_c1=list(df["O5'-C5'-C4'-C1'"][~ np.isnan(df["O5'-C5'-C4'-C1'"])])
+    c5_c4_c1_b1=list(df["C5'-C4'-C1'-B1"][~ np.isnan(df["C5'-C4'-C1'-B1"])])
+    c4_c1_b1_b2=list(df["C4'-C1'-B1-B2"][~ np.isnan(df["C4'-C1'-B1-B2"])])
+    o5_c5_c4_psuiv=list(df["O5'-C5'-C4'-P°"][~ np.isnan(df["O5'-C5'-C4'-P°"])])
+    c5_c4_psuiv_o5suiv=list(df["C5'-C4'-P°-O5'°"][~ np.isnan(df["C5'-C4'-P°-O5'°"])])
+    c4_psuiv_o5suiv_c5suiv=list(df["C4'-P°-O5'°-C5'°"][~ np.isnan(df["C4'-P°-O5'°-C5'°"])])
+    c1_c4_psuiv_o5suiv=list(df["C1'-C4'-P°-O5'°"][~ np.isnan(df["C1'-C4'-P°-O5'°"])])
+
+    os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/")
+    os.chdir(runDir + "/results/figures/HiRE-RNA/torsions/")
+
+    GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", "Angle(Degré)", "Densité", "100")
+    GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c5_c4_c1_b1, "C5'-C4'-C1'-B1", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c4_c1_b1_b2, "C4'-C1'-B1-B2", "Angle(Degré)", "Densité", "100")
+    GMM_histo(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", "Angle(Degré)", "Densité", "100")
+
+    GMM_tot(p_o5_c5_c4, "P-O5'-C5'-C4'", "100", 'darkred')
+    GMM_tot(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", "100", 'chocolate')
+    GMM_tot(c5_c4_c1_b1, "C5'-C4'-C1'-B1", "100", 'mediumvioletred')
+    GMM_tot(c4_c1_b1_b2, "C4'-C1'-B1-B2", "100", 'cadetblue')
+    GMM_tot(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", "100", 'darkkhaki')
+    GMM_tot(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", "100", 'springgreen')
+    GMM_tot(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", "100", 'indigo')
+    GMM_tot(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", "100", 'gold')
+    plt.xlabel("Angle(Degré)")
+    plt.title("GMM des angles de torsion (hire-RNA) (100 structures)")
+    plt.savefig("GMM des angles de torsion (hire-RNA) (100 structures).png")
+    plt.close()
+
+def graph_plans_h_RNA():
+
+    df=pd.read_csv(os.path.abspath(runDir + "results/HiRE-RNA/angles/angles_plans_hire_RNA.csv"))  
+
+    p_c1p_psuiv=list(df["P-C1'-P°"][~ np.isnan(df["P-C1'-P°"])])
+    c1p_psuiv_c1psuiv=list(df["C1'-P°-C1'°"][~ np.isnan(df["C1'-P°-C1'°"])])
+
+
+    os.makedirs(runDir + "/results/figures/Pyle/angles/")
+    os.chdir(runDir + "/results/figures/Pyle/angles/")
+
+    GMM_histo(p_c1p_psuiv, "P-C1'-P°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", "Angle(Degré)", "Densité", "100")
+
+    GMM_tot(p_c1p_psuiv, "P-C1'-P°", "100", 'firebrick')
+    GMM_tot(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", "100", 'seagreen')
+    plt.xlabel("Angle(Degré)")
+    plt.title("GMM des angles plans (hire-RNA) (100 structures)")
+    plt.savefig("GMM des angles plans (hire-RNA) (100 structures).png")
+    plt.close()
+
+
 
 
 if __name__ == "__main__":
@@ -2395,10 +2622,8 @@ if __name__ == "__main__":
     
     #dist_atoms_hire_RNA(os.listdir(path_to_3D_data + "rna_only")[0])
     #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
-    #conversion_angles('/home/atabot/RNANet.db')) # chemin -> runDir + /results/RNANet.db
-    #conversion_eta_theta('/home/atabot/RNANet.db')
     
-    exit()
+    #exit()
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
         #joblist.append(Job(function=dist_atoms, args=(f,)))
@@ -2446,6 +2671,12 @@ if __name__ == "__main__":
     if n_unmapped_chains:
         general_stats()
 
-    concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')    
+    concatenate('/results/all-atoms/distances/', 'dist_atoms.csv')    
     graph_dist_atoms()
+    graph_angles_torsion()
+    concatenate('/results/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')
+    graph_dist_atoms_h_RNA()
+    concatenate('/results/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')
+    graph_torsion_hire_RNA()
+    graph_eta_theta()
     '''
