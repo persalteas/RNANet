@@ -17,6 +17,7 @@ import scipy.cluster.hierarchy as sch
 import sklearn
 import json
 import pickle
+import Bio
 from scipy.spatial.distance import squareform
 from mpl_toolkits.mplot3d import axes3d
 from Bio import AlignIO, SeqIO
@@ -1639,7 +1640,7 @@ def dist_atoms_hire_RNA (f) :
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} dist_atoms_hire_RNA({f})")
 
     parser=MMCIFParser()
-    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    s = parser.get_structure(name, os.path.abspath(path_to_3D_data +"rna_only/" + f))
     chain = next(s[0].get_chains())
     residues=list(chain.get_residues())
     pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} dist_atoms_hire_RNA", unit="residu", leave=False)
@@ -1800,7 +1801,7 @@ def angles_torsion_hire_RNA(f):
     os.makedirs(runDir+"/results/HiRE-RNA/torsions/", exist_ok=True)
 
     parser=MMCIFParser()
-    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    s = parser.get_structure(name, os.path.abspath(path_to_3D_data + "rna_only/" + f))
     chain = next(s[0].get_chains())
     residues=list(chain.get_residues())
     pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} angles_torsion_hire_RNA", unit="residu", leave=False)
@@ -1926,7 +1927,7 @@ def angles_plans_hire_RNA(f):
     os.makedirs(runDir+"/results/HiRE-RNA/angles/", exist_ok=True)
 
     parser=MMCIFParser()
-    s = parser.get_structure(name, os.path.abspath("/home/data/RNA/3D/rna_only/" + f))
+    s = parser.get_structure(name, os.path.abspath(path_to_3D_data + "rna_only/" + f))
     chain = next(s[0].get_chains())
     residues=list(chain.get_residues())
     pbar = tqdm(total=len(residues), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} angles_torsion_hire_RNA", unit="residu", leave=False)
@@ -2045,6 +2046,7 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
 def GMM_histo_without_saving(data, name_data, x, y, nb_fichiers) :
     '''
     Plot Gaussian-Mixture-Model on histograms
+    But without saving and close the figure
     '''
     histogram(data, name_data, x, y, nb_fichiers)#plot the histogram
     
@@ -2564,6 +2566,7 @@ def dictio(ld):
     key = pdb identifier of the structure
     value = list of RNA chains
     '''
+    dictionnaire=dict()
     pdb=[]
     for f in ld:
         pdb_id=str.split(f, '_')[0]
@@ -2648,20 +2651,336 @@ def graphe(type_LW, angle_1, angle_2, angle_3, angle_4, distance, nb):
    
     plt.subplot(2, 1, 1)
 
-    GMM_tot(angle_1, "C4'-C1'-B1", nb, 'cyan' )
-    GMM_tot(angle_2, "C1'-B1-B1pair", nb, 'magenta')
-    GMM_tot(angle_3, "B1-B1pair-C1'pair", nb, "yellow")
-    GMM_tot(angle_4, "B1pair-C1'pair-C4'pair", nb, 'olive')
+    if len(angle_1) > 0 :
+        GMM_tot(angle_1, "C4'-C1'-B1", nb, 'cyan' )
+    if len(angle_2) > 0 :
+        GMM_tot(angle_2, "C1'-B1-B1pair", nb, 'magenta')
+    if len(angle_3) > 0 :
+        GMM_tot(angle_3, "B1-B1pair-C1'pair", nb, "yellow")
+    if len(angle_4) > 0 :
+        GMM_tot(angle_4, "B1pair-C1'pair-C4'pair", nb, 'olive')
     plt.xlabel("Angle(degré)")
     plt.title("GMM des angles plans pour les appariements " +type_LW +" (" +str(nb)+ " valeurs)", fontsize=10)
 
     plt.subplot(2, 1, 2)
-    GMM_histo_without_saving(distance, "Distance pointes " + type_LW, "Distance (Angström)", "Densité", nb)
+    if len(distance)>0 :
+        GMM_histo_without_saving(distance, "Distance pointes " + type_LW, "Distance (Angström)", "Densité", nb)
 
     plt.savefig("Mesures appariements " +type_LW+ " (" +str(nb)+ " valeurs).png" )
     plt.close()
 
+def appariements(chain, df):
+    '''
+    Cleanup of the dataset
+    measurements of distances and angles between paired nucleotides in the chain
+    '''
+    liste_dist=[]
+    warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 
+    pairs=df[['index_chain', 'old_nt_resnum', 'paired', 'pair_type_LW']] # columns we keep
+    for i in range(pairs.shape[0]): #we remove the lines where no pairing (NaN in paired)
+            index_with_nan=pairs.index[pairs.iloc[:,2].isnull()]
+            pairs.drop(index_with_nan, 0, inplace=True)
+
+    paired_int=[]
+    for i in pairs.index:# convert values ​​from paired to integers or lists of integers
+        paired=pairs.at[i, 'paired']
+        if type(paired) is np.int64 or type(paired) is np.float64:
+            paired_int.append(int(paired))
+        else :  #strings
+            if len(paired)<3 : #a single pairing
+                paired_int.append(int(paired))         
+            else : #several pairings
+                paired=paired.split(',')
+                l=[int(i) for i in paired]
+                paired_int.append(l)
+
+    pair_type_LW_bis=[]
+    for j in pairs.index:
+        pair_type_LW = pairs.at[j, 'pair_type_LW']
+        if len(pair_type_LW)<4 : #a single pairing
+            pair_type_LW_bis.append(pair_type_LW)
+        else : #several pairings
+            pair_type_LW=pair_type_LW.split(',')
+            l=[i for i in pair_type_LW]
+            pair_type_LW_bis.append(pair_type_LW)
+
+    #addition of these new columns
+    pairs.insert(4, "paired_int", paired_int, True)
+    pairs.insert(5, "pair_type_LW_bis", pair_type_LW_bis, True)
+    
+    indexNames=pairs[pairs['paired_int'] == 0].index
+    pairs.drop(indexNames, inplace=True)#deletion of lines with a 0 in paired_int (matching to another RNA chain)
+
+    for i in pairs.index:
+        '''
+        calculations for each row of the pairs dataset
+        '''
+        resseq=pairs.at[i, 'old_nt_resnum'] #number of the residue in the chain
+        #code to delete letters in old_nt_resnum
+        icode_res=' '
+        if type(resseq) is str:
+            if resseq[0] != '-' :
+                while resseq.isdigit() is False:
+                    l=len(resseq)
+                    if icode_res==' ':
+                        icode_res=resseq[l-1]
+                    else :
+                        icode_res=resseq[l-1]+icode_res
+                    resseq=resseq[:l-1]
+        resseq=int(resseq)
+        index=pairs.at[i, 'index_chain'] 
+        type_LW=pairs.at[i, 'pair_type_LW_bis'] #pairing type
+        num_paired=pairs.at[i, 'paired_int'] #number (index_chain) of the paired nucleotide
+        
+
+        if type(num_paired) is int or type(num_paired) is np.int64:
+            l=pairs[pairs['index_chain']==num_paired].index.to_list()
+            
+            resnum=pairs.at[l[0], 'old_nt_resnum']
+            icode_pair=' '
+            if type(resnum) is str:
+                if resnum[0] != '-' :
+                    while resnum.isdigit() is False:
+                        l=len(resnum)
+                        if icode_pair==' ':
+                            icode_pair=resnum[l-1]
+                        else :
+                            icode_pair=resnum[l-1]+icode_pair
+                        resnum=resnum[:l-1]
+                        
+                resnum=int(resnum)
+            try :
+                d=dist_pointes(chain[(' ',resseq, icode_res)], chain[(' ', resnum, icode_pair)]) #calculation of the distance between the tips of the paired nucleotides
+                angle=angle_c1_b1(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                if d != 0.0:
+                    liste_dist.append([chain, type_LW, resseq, resnum, d,  angle[0], angle[1], angle[2], angle[3]])   
+            except :
+                pass
+        else : 
+            for j in range(len(num_paired)): #if several pairings, process them one by one
+                if num_paired[j] != 0 :
+                    l=pairs[pairs['index_chain']==num_paired[j]].index.to_list()
+                    
+                    resnum=pairs.at[l[0], 'old_nt_resnum']
+                    
+                    icode_pair=' '
+                    if type(resnum) is str:
+                        if resnum[0] != '-' :
+                            while resnum.isdigit() is False:
+                                l=len(resnum)
+                                if icode_pair==' ':
+                                    icode_pair=resnum[l-1]
+                                else :
+                                    icode_pair=resnum[l-1]+icode_pair
+                                resnum=resnum[:l-1]
+                        resnum=int(resnum)
+                    try :
+                        d=dist_pointes(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                        angle=angle_c1_b1(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                        if d != 0.0:
+                            liste_dist.append([chain, type_LW[j], resseq, resnum, d, angle[0], angle[1], angle[2], angle[3]])
+                    except:
+                        pass
+
+    return(liste_dist)
+
+def parse(cle):
+    l=[]
+    os.makedirs(runDir + "/results/basepairs/", exist_ok=True)
+    with warnings.catch_warnings():
+        # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
+        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
+        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
+        parser=MMCIFParser()
+        s = parser.get_structure(cle, os.path.abspath(path_to_3D_data + "RNAcifs/" + cle +".cif"))
+        for model in s:
+            for valeur in dictionnaire[cle]:
+                if len(valeur)>2:
+                    df_tot=[]
+                    for id_chain in valeur:
+                        for data in ld:
+                            if (len(data)<10): #unmapped
+                                chaine=str.split(data, '_')
+                                if chaine[0]==cle and chaine[2]==id_chain:
+                                    df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + data))
+                                    if df['index_chain'][0]==1:#ignore files with numbering errors
+                                        l=appariements(model[id_chain], df)
+                else :
+                    for data in ld:
+                        if (len(data)<10): #unmapped
+                            chaine=str.split(data, '_')
+                            if chaine[0]==cle and chaine[2]==valeur:
+                                df=pd.read_csv(os.path.abspath(path_to_3D_data + "datapoints/" + data))
+                                if df['index_chain'][0]==1:
+                                    l=appariements(model[valeur], df)
+                df_calc=pd.DataFrame(l, columns=["Chaine", "type LW", "Resseq", "Num paired", "Distance", "C4'-C1'-B1", "C1'-B1-B1pair", "B1-B1pair-C1'pair", "B1pair-C1'pair-C4'pair"])
+                df_calc.to_csv(runDir + "/results/basepairs/"+'basepairs '+cle+'_'+valeur+'.csv')
+
+def graph_basepairs():
+    df=pd.read_csv(os.path.abspath(runDir + "/results/basepairs/basepairs.csv"))
+
+    cWW=df[df['type LW']=='cWW']
+    cWW_dist=list(cWW["Distance"])
+    cWW_angle_1=list(cWW["C4'-C1'-B1"])
+    cWW_angle_2=list(cWW["C1'-B1-B1pair"])
+    cWW_angle_3=list(cWW["B1-B1pair-C1'pair"])
+    cWW_angle_4=list(cWW["B1pair-C1'pair-C4'pair"])
+    tWW=df[df['type LW']=='tWW']
+    tWW_dist=list(tWW["Distance"])
+    tWW_angle_1=list(tWW["C4'-C1'-B1"])
+    tWW_angle_2=list(tWW["C1'-B1-B1pair"])
+    tWW_angle_3=list(tWW["B1-B1pair-C1'pair"])
+    tWW_angle_4=list(tWW["B1pair-C1'pair-C4'pair"])
+    cWH=df[df['type LW']=='cWH']
+    cWH_dist=list(cWH["Distance"])
+    cWH_angle_1=list(cWH["C4'-C1'-B1"])
+    cWH_angle_2=list(cWH["C1'-B1-B1pair"])
+    cWH_angle_3=list(cWH["B1-B1pair-C1'pair"])
+    cWH_angle_4=list(cWH["B1pair-C1'pair-C4'pair"])
+    tWH=df[df['type LW']=='tWH']
+    tWH_dist=list(tWH["Distance"])
+    tWH_angle_1=list(tWH["C4'-C1'-B1"])
+    tWH_angle_2=list(tWH["C1'-B1-B1pair"])
+    tWH_angle_3=list(tWH["B1-B1pair-C1'pair"])
+    tWH_angle_4=list(tWH["B1pair-C1'pair-C4'pair"])
+    cHW=df[df['type LW']=='cHW']
+    cHW_dist=list(cHW["Distance"])
+    cHW_angle_1=list(cHW["C4'-C1'-B1"])
+    cHW_angle_2=list(cHW["C1'-B1-B1pair"])
+    cHW_angle_3=list(cHW["B1-B1pair-C1'pair"])
+    cHW_angle_4=list(cHW["B1pair-C1'pair-C4'pair"])
+    tHW=df[df['type LW']=='tHW']
+    tHW_dist=list(tHW["Distance"])
+    tHW_angle_1=list(tHW["C4'-C1'-B1"])
+    tHW_angle_2=list(tHW["C1'-B1-B1pair"])
+    tHW_angle_3=list(tHW["B1-B1pair-C1'pair"])
+    tHW_angle_4=list(tHW["B1pair-C1'pair-C4'pair"])
+    cWS=df[df['type LW']=='cWS']
+    cWS_dist=list(cWS["Distance"])
+    cWS_angle_1=list(cWS["C4'-C1'-B1"])
+    cWS_angle_2=list(cWS["C1'-B1-B1pair"])
+    cWS_angle_3=list(cWS["B1-B1pair-C1'pair"])
+    cWS_angle_4=list(cWS["B1pair-C1'pair-C4'pair"])
+    tWS=df[df['type LW']=='tWS']
+    tWS_dist=list(tWS["Distance"])
+    tWS_angle_1=list(tWS["C4'-C1'-B1"])
+    tWS_angle_2=list(tWS["C1'-B1-B1pair"])
+    tWS_angle_3=list(tWS["B1-B1pair-C1'pair"])
+    tWS_angle_4=list(tWS["B1pair-C1'pair-C4'pair"])
+    cSW=df[df['type LW']=='cSW']
+    cSW_dist=list(cSW["Distance"])
+    cSW_angle_1=list(cSW["C4'-C1'-B1"])
+    cSW_angle_2=list(cSW["C1'-B1-B1pair"])
+    cSW_angle_3=list(cSW["B1-B1pair-C1'pair"])
+    cSW_angle_4=list(cSW["B1pair-C1'pair-C4'pair"])
+    tSW=df[df['type LW']=='tSW']
+    tSW_dist=list(tSW["Distance"])
+    tSW_angle_1=list(tSW["C4'-C1'-B1"])
+    tSW_angle_2=list(tSW["C1'-B1-B1pair"])
+    tSW_angle_3=list(tSW["B1-B1pair-C1'pair"])
+    tSW_angle_4=list(tSW["B1pair-C1'pair-C4'pair"])
+    cHH=df[df['type LW']=='cHH']
+    cHH_dist=list(cHH["Distance"])
+    cHH_angle_1=list(cHH["C4'-C1'-B1"])
+    cHH_angle_2=list(cHH["C1'-B1-B1pair"])
+    cHH_angle_3=list(cHH["B1-B1pair-C1'pair"])
+    cHH_angle_4=list(cHH["B1pair-C1'pair-C4'pair"])
+    tHH=df[df['type LW']=='tHH']
+    tHH_dist=list(tHH["Distance"])
+    tHH_angle_1=list(tHH["C4'-C1'-B1"])
+    tHH_angle_2=list(tHH["C1'-B1-B1pair"])
+    tHH_angle_3=list(tHH["B1-B1pair-C1'pair"])
+    tHH_angle_4=list(tHH["B1pair-C1'pair-C4'pair"])
+    cSH=df[df['type LW']=='cSH']
+    cSH_dist=list(cSH["Distance"])
+    cSH_angle_1=list(cSH["C4'-C1'-B1"])
+    cSH_angle_2=list(cSH["C1'-B1-B1pair"])
+    cSH_angle_3=list(cSH["B1-B1pair-C1'pair"])
+    cSH_angle_4=list(cSH["B1pair-C1'pair-C4'pair"])
+    tSH=df[df['type LW']=='tSH']
+    tSH_dist=list(tSH["Distance"])
+    tSH_angle_1=list(tSH["C4'-C1'-B1"])
+    tSH_angle_2=list(tSH["C1'-B1-B1pair"])
+    tSH_angle_3=list(tSH["B1-B1pair-C1'pair"])
+    tSH_angle_4=list(tSH["B1pair-C1'pair-C4'pair"])
+    cHS=df[df['type LW']=='cHS']
+    cHS_dist=list(cHS["Distance"])
+    cHS_angle_1=list(cHS["C4'-C1'-B1"])
+    cHS_angle_2=list(cHS["C1'-B1-B1pair"])
+    cHS_angle_3=list(cHS["B1-B1pair-C1'pair"])
+    cHS_angle_4=list(cHS["B1pair-C1'pair-C4'pair"])
+    tHS=df[df['type LW']=='tHS']
+    tHS_dist=list(tHS["Distance"])
+    tHS_angle_1=list(tHS["C4'-C1'-B1"])
+    tHS_angle_2=list(tHS["C1'-B1-B1pair"])
+    tHS_angle_3=list(tHS["B1-B1pair-C1'pair"])
+    tHS_angle_4=list(tHS["B1pair-C1'pair-C4'pair"])
+    cSS=df[df['type LW']=='cSS']
+    cSS_dist=list(cSS["Distance"])
+    cSS_angle_1=list(cSS["C4'-C1'-B1"])
+    cSS_angle_2=list(cSS["C1'-B1-B1pair"])
+    cSS_angle_3=list(cSS["B1-B1pair-C1'pair"])
+    cSS_angle_4=list(cSS["B1pair-C1'pair-C4'pair"])
+    tSS=df[df['type LW']=='tSS']
+    tSS_dist=list(tSS["Distance"])
+    tSS_angle_1=list(tSS["C4'-C1'-B1"])
+    tSS_angle_2=list(tSS["C1'-B1-B1pair"])
+    tSS_angle_3=list(tSS["B1-B1pair-C1'pair"])
+    tSS_angle_4=list(tSS["B1pair-C1'pair-C4'pair"])
+
+    os.makedirs(runDir + "/results/figures/basepairs/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/basepairs/")
+
+    graphe('cWW', cWW_angle_1, cWW_angle_2, cWW_angle_3, cWW_angle_4, cWW_dist, len(cWW))
+    graphe('tWW', tWW_angle_1, tWW_angle_2, tWW_angle_3, tWW_angle_4, tWW_dist, len(tWW))
+    graphe('cWH', cWH_angle_1, cWH_angle_2, cWH_angle_3, cWH_angle_4, cWH_dist, len(cWH))
+    graphe('tWH', tWH_angle_1, tWH_angle_2, tWH_angle_3, tWH_angle_4, tWH_dist, len(tWH))
+    graphe('cHW', cHW_angle_1, cHW_angle_2, cHW_angle_3, cHW_angle_4, cHW_dist, len(cHW))
+    graphe('tHW', tHW_angle_1, tHW_angle_2, tHW_angle_3, tHW_angle_4, tHW_dist, len(tHW))
+    graphe('tWS', tWS_angle_1, tWS_angle_2, tWS_angle_3, tWS_angle_4, tWS_dist, len(tWS))
+    graphe('cWS', cWS_angle_1, cWS_angle_2, cWS_angle_3, cWS_angle_4, cWS_dist, len(cWS))
+    graphe('tSW', tSW_angle_1, tSW_angle_2, tSW_angle_3, tSW_angle_4, tSW_dist, len(tSW))
+    graphe('cSW', cSW_angle_1, cSW_angle_2, cSW_angle_3, cSW_angle_4, cSW_dist, len(cSW))
+    graphe('cHH', cHH_angle_1, cHH_angle_2, cHH_angle_3, cHH_angle_4, cHH_dist, len(cHH))
+    graphe('tHH', tHH_angle_1, tHH_angle_2, tHH_angle_3, tHH_angle_4, tHH_dist, len(tHH))
+    graphe('cSH', cSH_angle_1, cSH_angle_2, cSH_angle_3, cSH_angle_4, cSH_dist, len(cSH))
+    graphe('tSH', tSH_angle_1, tSH_angle_2, tSH_angle_3, tSH_angle_4, tSH_dist, len(tSH))
+    graphe('cHS', cHS_angle_1, cHS_angle_2, cHS_angle_3, cHS_angle_4, cHS_dist, len(cHS))
+    graphe('tHS', tHS_angle_1, tHS_angle_2, tHS_angle_3, tHS_angle_4, tHS_dist, len(tHS))
+    graphe('cSS', cSS_angle_1, cSS_angle_2, cSS_angle_3, cSS_angle_4, cSS_dist, len(cSS))
+    graphe('tSS', tSS_angle_1, tSS_angle_2, tSS_angle_3, tSS_angle_4, tSS_dist, len(tSS))
+    
+    nc=len(cWW)+len(cHH)+len(cSS)+len(cWH)+len(cHW)+len(cWS)+len(cSW)+len(cHS)+len(cSH)
+    GMM_tot(cWW_dist, "cWW", nc, 'lightcoral')
+    GMM_tot(cHH_dist, "cHH", nc, 'lightseagreen')
+    GMM_tot(cSS_dist, "cSS", nc, 'black')
+    GMM_tot(cWH_dist, "cWH", nc, 'goldenrod')
+    GMM_tot(cHW_dist, "cHW", nc, 'olive')
+    GMM_tot(cWS_dist, "cWS", nc, 'steelblue')  
+    GMM_tot(cSW_dist, "cSW", nc, 'silver')
+    GMM_tot(cHS_dist, "cHS", nc, 'deeppink')
+    GMM_tot(cSH_dist, "cSH", nc, 'navy')
+    plt.xlabel('Distance (Angström)')
+    plt.title("GMM des distances entre pointes des nucléotides pour les appariements cis ("+str(nc)+ " valeurs)", fontsize=9)
+    plt.savefig("GMM des distances entre pointes des nucléotides pour les appariements cis (" +str(nc)+ " valeurs).png")
+    plt.close()
+
+    nt=len(tWW)+len(tHH)+len(tSS)+len(tWH)+len(tHW)+len(tWS)+len(tSW)+len(tHS)+len(tSH)
+    GMM_tot(tWW_dist, "tWW", nt, 'sienna')
+    GMM_tot(tHH_dist, "tHH", nt, 'maroon')
+    GMM_tot(tSS_dist, "tSS", nt, 'orange') 
+    GMM_tot(tWH_dist, "tWH", nt, 'mediumaquamarine') 
+    GMM_tot(tHW_dist, "tHW", nt, 'tomato')
+    GMM_tot(tWS_dist, "tWS", nt, 'indigo')
+    GMM_tot(tSW_dist, "tSW", nt, 'orchid')
+    GMM_tot(tHS_dist, "tHS", nt, 'tan')
+    GMM_tot(tSH_dist, "tSH", nt, 'lime')
+    plt.xlabel('Distance (Angström)')
+    plt.title("GMM des distances entre pointes des nucléotides pour les appariements trans ("+str(nt)+ " valeurs)", fontsize=9)
+    plt.savefig("GMM des distances entre pointes des nucléotides pour les appariements trans (" +str(nt)+ " valeurs).png")
+    plt.close()
+    
 
 if __name__ == "__main__":
 
@@ -2793,18 +3112,28 @@ if __name__ == "__main__":
         joblist.append(Job(function=dist_atoms, args=(f,)))
     '''
     
-    #dist_atoms_hire_RNA(os.listdir(path_to_3D_data + "rna_only")[0])
-    #concatenate('/results/distances/', os.listdir(runDir+'/results/distances/'), 'dist_atoms.csv')
+    ld=os.listdir(path_to_3D_data +'datapoints')[:1000]
+    if '4zdo_1_E' in ld :
+        ld.remove('4zdo_1_E')#cas particuliers
+    if '4zdp_1_E' in ld :
+        ld.remove('4zdp_1_E')
+    dictionnaire=dictio(ld)
+    
+    for cle in dictionnaire.keys():
+        joblist.append(Job(function=parse, args=(cle,)))
     
     
-    exit()
+    #exit()
+    '''
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
+
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
         #joblist.append(Job(function=dist_atoms, args=(f,)))
         #joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
     
+    '''
     
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
@@ -2836,7 +3165,8 @@ if __name__ == "__main__":
     print()
     print()
 
-    
+    concatenate('/results/basepairs/', 'basepairs.csv')
+    graph_basepairs()
     # finish the work after the parallel portions
     '''
     per_chain_stats()
