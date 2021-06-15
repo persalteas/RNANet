@@ -1976,11 +1976,11 @@ def histogram(data, name_data, x, y, nb):
     plt.xlabel(x)
     plt.ylabel(y)
 
-def GMM_histo(data, name_data, x, y, nb_fichiers) :
+def GMM_histo(data, name_data, x, y) :
     '''
     Plot Gaussian-Mixture-Model on histograms
     '''
-    histogram(data, name_data, x, y, nb_fichiers)#plot the histogram
+    histogram(data, name_data, x, y, len(data))#plot the histogram
     
     n_max = 8    # number of possible values for n_components
     n_components_range = np.arange(n_max)+1
@@ -2036,19 +2036,19 @@ def GMM_histo(data, name_data, x, y, nb_fichiers) :
         summary_data["std"].append(str(sigma))
         summary_data["weights"].append(str(weight))
     axes=plt.gca()
-    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
-    plt.savefig("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures).png")
+    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(len(data))+" valeurs)")
+    plt.savefig("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(len(data))+" valeurs).png")
     plt.close()
     # save in a json
     with open (name_data + " .json", 'w', encoding='utf-8') as f:
 	    json.dump(summary_data, f, indent=4)
 
-def GMM_histo_without_saving(data, name_data, x, y, nb_fichiers) :
+def GMM_histo_without_saving(data, name_data, x, y) :
     '''
     Plot Gaussian-Mixture-Model on histograms
     But without saving and close the figure
     '''
-    histogram(data, name_data, x, y, nb_fichiers)#plot the histogram
+    histogram(data, name_data, x, y, len(data))#plot the histogram
     
     n_max = 8    # number of possible values for n_components
     n_components_range = np.arange(n_max)+1
@@ -2104,12 +2104,12 @@ def GMM_histo_without_saving(data, name_data, x, y, nb_fichiers) :
         summary_data["std"].append(str(sigma))
         summary_data["weights"].append(str(weight))
     axes=plt.gca()
-    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(nb_fichiers)+" structures)")
+    plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(len(data))+" structures)")
     # save in a json
     with open (name_data + " .json", 'w', encoding='utf-8') as f:
 	    json.dump(summary_data, f, indent=4)
 
-def GMM_tot(data, name_data, nb_fichiers, couleur) :
+def GMM_tot(data, name_data, couleur) :
     '''
     Plot the sum of the Gaussians (without the histograms)
     '''
@@ -2222,120 +2222,124 @@ def graph_dist_atoms():
     c4_o4=list(df["C4-O4"][~ np.isnan(df["C4-O4"])])
 
     os.makedirs(runDir+"/results/figures/all-atoms/distances/commun/", exist_ok=True)
-
+    os.chdir(runDir+"/results/figures/all-atoms/distances/commun/")
     # draw figures for atoms common to all nucleotides
-    GMM_histo(last_o3p_p, "O3'-P", "Distance(Angström)", "Densité", "100")
-    #GMM_histo(op3_p, "OP3-P", "Distance(Angström)", "Densité", "100")
-    GMM_histo(p_op1, "P-OP1", "Distance(Angström)", "Densité", "100")
-    GMM_histo(p_op2, "P-OP2", "Distance(Angström)", "Densité", "100")
+    GMM_histo(last_o3p_p, "O3'-P", "Distance(Angström)", "Densité")
+    if len(op3_p) > 0 :
+        GMM_histo(op3_p, "OP3-P", "Distance(Angström)", "Densité")
+    GMM_histo(p_op1, "P-OP1", "Distance(Angström)", "Densité")
+    GMM_histo(p_op2, "P-OP2", "Distance(Angström)", "Densité")
     
-    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4p_o4p, "C4'-O4'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4p_c3p, "C4'-C3'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c3p_o3p, "C3'-O3'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(o4p_c1p, "O4'-C1'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c1p_c2p, "C1'-C2'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2p_c3p, "C2'-C3'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2p_o2p, "C2'-O2'", "Distance(Angström)", "Densité", "100")
+    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité")
+    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité")
+    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité")
+    GMM_histo(c4p_o4p, "C4'-O4'", "Distance(Angström)", "Densité")
+    GMM_histo(c4p_c3p, "C4'-C3'", "Distance(Angström)", "Densité")
+    GMM_histo(c3p_o3p, "C3'-O3'", "Distance(Angström)", "Densité")
+    GMM_histo(o4p_c1p, "O4'-C1'", "Distance(Angström)", "Densité")
+    GMM_histo(c1p_c2p, "C1'-C2'", "Distance(Angström)", "Densité")
+    GMM_histo(c2p_c3p, "C2'-C3'", "Distance(Angström)", "Densité")
+    GMM_histo(c2p_o2p, "C2'-O2'", "Distance(Angström)", "Densité")
 
-    #GMM_tot(op3_p, "OP3-P", "100", 'lightcoral')
-    GMM_tot(p_op1, "P-OP1", "100", 'gold')
-    GMM_tot(p_op2, "P-OP2", "100", 'lightseagreen')
-    GMM_tot(last_o3p_p, "O3'-P", "100", 'saddlebrown')
-    GMM_tot(p_o5p, "P-O5'", "100", 'darkturquoise')
-    GMM_tot(o5p_c5p, "O5'-C5'", "100", 'darkkhaki')
-    GMM_tot(c5p_c4p, "C5'-C4'", "100", 'indigo')
-    GMM_tot(c4p_o4p, "C4'-O4'", "100", 'maroon')
-    GMM_tot(c4p_c3p, "C4'-C3'", "100", 'burlywood')
-    GMM_tot(c3p_o3p, "C3'-O3'", "100", 'steelblue')
-    GMM_tot(o4p_c1p, "O4'-C1'", "100", 'tomato')
-    GMM_tot(c1p_c2p, "C1'-C2'", "100", 'darkolivegreen')
-    GMM_tot(c2p_c3p, "C2'-C3'", "100", 'orchid')
-    GMM_tot(c2p_o2p, "C2'-O2'", "100", 'deeppink')
+    if len(op3_p) > 0 :
+        GMM_tot(op3_p, "OP3-P", 'lightcoral')
+    GMM_tot(p_op1, "P-OP1", 'gold')
+    GMM_tot(p_op2, "P-OP2", 'lightseagreen')
+    GMM_tot(last_o3p_p, "O3'-P", 'saddlebrown')
+    GMM_tot(p_o5p, "P-O5'", 'darkturquoise')
+    GMM_tot(o5p_c5p, "O5'-C5'", 'darkkhaki')
+    GMM_tot(c5p_c4p, "C5'-C4'", 'indigo')
+    GMM_tot(c4p_o4p, "C4'-O4'", 'maroon')
+    GMM_tot(c4p_c3p, "C4'-C3'", 'burlywood')
+    GMM_tot(c3p_o3p, "C3'-O3'", 'steelblue')
+    GMM_tot(o4p_c1p, "O4'-C1'", 'tomato')
+    GMM_tot(c1p_c2p, "C1'-C2'", 'darkolivegreen')
+    GMM_tot(c2p_c3p, "C2'-C3'", 'orchid')
+    GMM_tot(c2p_o2p, "C2'-O2'", 'deeppink')
     axes=plt.gca()
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
-    plt.title("GMM des distances entre atomes communs (100 structures)")
-    plt.savefig(runDir + "/results/figures/all-atoms/distances/commun/" + "GMM des distances entre atomes communs (100 structures).png")
+    plt.title("GMM des distances entre atomes communs ")
+    plt.savefig(runDir + "/results/figures/all-atoms/distances/commun/" + "GMM des distances entre atomes communs .png")
     plt.close()
 
     os.makedirs(runDir+"/results/figures/all-atoms/distances/purines/", exist_ok=True)
+    os.chdir(runDir+"/results/figures/all-atoms/distances/purines/")
     # purines
-    GMM_histo(c1p_n9, "C1'-N9", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n9_c8, "N9-C8", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c8_n7, "C8-N7", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n7_c5, "N7-C5", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c5_c6, "C5-C6", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c6_o6, "C6-O6", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c6_n6, "C6-N6", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c6_n1, "C6-N1", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n1_c2, "N1-C2", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2_n2, "C2-N2", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2_n3, "C2-N3", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n3_c4, "N3-C4", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4_n9, "C4-N9", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4_c5, "C4-C5", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c1p_n9, "C1'-N9", "Distance(Angström)", "Densité")
+    GMM_histo(n9_c8, "N9-C8", "Distance(Angström)", "Densité")
+    GMM_histo(c8_n7, "C8-N7", "Distance(Angström)", "Densité")
+    GMM_histo(n7_c5, "N7-C5", "Distance(Angström)", "Densité")
+    GMM_histo(c5_c6, "C5-C6", "Distance(Angström)", "Densité")
+    GMM_histo(c6_o6, "C6-O6", "Distance(Angström)", "Densité")
+    GMM_histo(c6_n6, "C6-N6", "Distance(Angström)", "Densité")
+    GMM_histo(c6_n1, "C6-N1", "Distance(Angström)", "Densité")
+    GMM_histo(n1_c2, "N1-C2", "Distance(Angström)", "Densité")
+    GMM_histo(c2_n2, "C2-N2", "Distance(Angström)", "Densité")
+    GMM_histo(c2_n3, "C2-N3", "Distance(Angström)", "Densité")
+    GMM_histo(n3_c4, "N3-C4", "Distance(Angström)", "Densité")
+    GMM_histo(c4_n9, "C4-N9", "Distance(Angström)", "Densité")
+    GMM_histo(c4_c5, "C4-C5", "Distance(Angström)", "Densité")
 
-    GMM_tot(c1p_n9, "C1'-N9", "100", 'lightcoral')
-    GMM_tot(n9_c8, "N9-C8", "100", 'gold')
-    GMM_tot(c8_n7, "C8-N7", "100", 'lightseagreen')
-    GMM_tot(n7_c5, "N7-C5", "100", 'saddlebrown')
-    GMM_tot(c5_c6, "C5-C6", "100", 'darkturquoise')
-    GMM_tot(c6_o6, "C6-O6", "100", 'darkkhaki')
-    GMM_tot(c6_n6, "C6-N6", "100", 'indigo')
-    GMM_tot(c6_n1, "C6-N1", "100", 'maroon')
-    GMM_tot(n1_c2, "N1-C2", "100", 'burlywood')
-    GMM_tot(c2_n2, "C2-N2", "100", 'steelblue')
-    GMM_tot(c2_n3, "C2-N3", "100", 'tomato')
-    GMM_tot(n3_c4, "N3-C4", "100", 'darkolivegreen')
-    GMM_tot(c4_n9, "C4-N9", "100", 'orchid')
-    GMM_tot(c4_c5, "C4-C5", "100", 'deeppink')
+    GMM_tot(c1p_n9, "C1'-N9", 'lightcoral')
+    GMM_tot(n9_c8, "N9-C8", 'gold')
+    GMM_tot(c8_n7, "C8-N7", 'lightseagreen')
+    GMM_tot(n7_c5, "N7-C5", 'saddlebrown')
+    GMM_tot(c5_c6, "C5-C6", 'darkturquoise')
+    GMM_tot(c6_o6, "C6-O6", 'darkkhaki')
+    GMM_tot(c6_n6, "C6-N6", 'indigo')
+    GMM_tot(c6_n1, "C6-N1", 'maroon')
+    GMM_tot(n1_c2, "N1-C2", 'burlywood')
+    GMM_tot(c2_n2, "C2-N2", 'steelblue')
+    GMM_tot(c2_n3, "C2-N3", 'tomato')
+    GMM_tot(n3_c4, "N3-C4", 'darkolivegreen')
+    GMM_tot(c4_n9, "C4-N9", 'orchid')
+    GMM_tot(c4_c5, "C4-C5", 'deeppink')
     axes=plt.gca()
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
-    plt.title("GMM des distances entre atomes des cycles purines (100 structures)", fontsize=10)
-    plt.savefig(runDir+ "/results/figures/all-atoms/distances/purines/" + "GMM des distances entre atomes des cycles purines (100 structures).png")
+    plt.title("GMM des distances entre atomes des cycles purines", fontsize=10)
+    plt.savefig(runDir+ "/results/figures/all-atoms/distances/purines/" + "GMM des distances entre atomes des cycles purines.png")
     plt.close()
 
     os.makedirs(runDir+"/results/figures/all-atoms/distances/pyrimidines/", exist_ok=True)
+    os.chdir(runDir+"/results/figures/all-atoms/distances/pyrimidines/")
     # pyrimidines
 
-    GMM_histo(c1p_n1, "C1'-N1", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n1_c6, "N1-C6", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c6_c5, "C6-C5", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c5_c4, "C5-C4", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4_n3, "C4-N3", "Distance(Angström)", "Densité", "100")
-    GMM_histo(n3_c2, "N3-C2", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2_o2, "C2-O2", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c2_n1, "C2-N1", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4_n4, "C4-N4", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4_o4, "C4-O4", "Distance(Angström)", "Densité", "100")
+    GMM_histo(c1p_n1, "C1'-N1", "Distance(Angström)", "Densité")
+    GMM_histo(n1_c6, "N1-C6", "Distance(Angström)", "Densité")
+    GMM_histo(c6_c5, "C6-C5", "Distance(Angström)", "Densité")
+    GMM_histo(c5_c4, "C5-C4", "Distance(Angström)", "Densité")
+    GMM_histo(c4_n3, "C4-N3", "Distance(Angström)", "Densité")
+    GMM_histo(n3_c2, "N3-C2", "Distance(Angström)", "Densité")
+    GMM_histo(c2_o2, "C2-O2", "Distance(Angström)", "Densité")
+    GMM_histo(c2_n1, "C2-N1", "Distance(Angström)", "Densité")
+    GMM_histo(c4_n4, "C4-N4", "Distance(Angström)", "Densité")
+    GMM_histo(c4_o4, "C4-O4", "Distance(Angström)", "Densité")
 
-    GMM_tot(c1p_n1, "C1'-N1", "100", 'lightcoral')
-    GMM_tot(n1_c6, "N1-C6", "100", 'gold')
-    GMM_tot(c6_c5, "C6-C5", "100", 'lightseagreen')
-    GMM_tot(c5_c4, "C5-C4", "100", 'deeppink')
-    GMM_tot(c4_n3, "C4-N3", "100", 'red')
-    GMM_tot(n3_c2, "N3-C2", "100", 'lime')
-    GMM_tot(c2_o2, "C2-O2", "100", 'indigo')
-    GMM_tot(c2_n1, "C2-N1", "100", 'maroon')
-    GMM_tot(c4_n4, "C4-N4", "100", 'burlywood')
-    GMM_tot(c4_o4, "C4-O4", "100", 'steelblue')
+    GMM_tot(c1p_n1, "C1'-N1", 'lightcoral')
+    GMM_tot(n1_c6, "N1-C6", 'gold')
+    GMM_tot(c6_c5, "C6-C5", 'lightseagreen')
+    GMM_tot(c5_c4, "C5-C4", 'deeppink')
+    GMM_tot(c4_n3, "C4-N3", 'red')
+    GMM_tot(n3_c2, "N3-C2", 'lime')
+    GMM_tot(c2_o2, "C2-O2", 'indigo')
+    GMM_tot(c2_n1, "C2-N1", 'maroon')
+    GMM_tot(c4_n4, "C4-N4", 'burlywood')
+    GMM_tot(c4_o4, "C4-O4", 'steelblue')
     axes=plt.gca()
     #axes.set_xlim(1, 2)
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
-    plt.title("GMM des distances entre atomes des cycles pyrimidines (100 structures)", fontsize=10)
-    plt.savefig(runDir + "/results/figures/all-atoms/distances/pyrimidines/" + "GMM des distances entre atomes des cycles pyrimidines (100 structures).png")
+    plt.title("GMM des distances entre atomes des cycles pyrimidines", fontsize=10)
+    plt.savefig(runDir + "/results/figures/all-atoms/distances/pyrimidines/" + "GMM des distances entre atomes des cycles pyrimidines.png")
     plt.close()
     
 def graph_dist_atoms_h_RNA():
     '''
     Draw the figures representing the data on the measurements of distances between atoms of the HiRE-RNA model
     '''
-    df=pd.read_csv(os.path.abspath(runDir + "/results/distances_hRNA/dist_atoms_hire_RNA.csv"))  
+    df=pd.read_csv(os.path.abspath(runDir + "/results/HiRE-RNA/distances/dist_atoms_hire_RNA.csv"))  
 
     last_c4p_p=list(df["C4'-P"][~ np.isnan(df["C4'-P"])])
     p_o5p=list(df["P-O5'"][~ np.isnan(df["P-O5'"])])
@@ -2345,29 +2349,30 @@ def graph_dist_atoms_h_RNA():
     c1p_b1=list(df["C1'-B1"][~ np.isnan(df["C1'-B1"])])
     b1_b2=list(df["B1-B2"][~ np.isnan(df["B1-B2"])])
 
+    os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
     os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
 
 
-    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(b1_b2, "B1-B2", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c1p_b1, "C1'-B1", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(c4p_c1p, "C4'-C1'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité", "100")
-    GMM_histo(last_c4p_p, "C4'-P", "Distance(Angström)", "Densité","100")
+    GMM_histo(o5p_c5p, "O5'-C5'", "Distance(Angström)", "Densité")
+    GMM_histo(b1_b2, "B1-B2", "Distance(Angström)", "Densité")
+    GMM_histo(c1p_b1, "C1'-B1", "Distance(Angström)", "Densité")
+    GMM_histo(c5p_c4p, "C5'-C4'", "Distance(Angström)", "Densité")
+    GMM_histo(c4p_c1p, "C4'-C1'", "Distance(Angström)", "Densité")
+    GMM_histo(p_o5p, "P-O5'", "Distance(Angström)", "Densité")
+    GMM_histo(last_c4p_p, "C4'-P", "Distance(Angström)", "Densité")
     
-    GMM_tot(o5p_c5p, "O5'-C5'","100", 'lightcoral')
-    GMM_tot(b1_b2, "B1-B2","100", 'limegreen')
-    GMM_tot(c1p_b1, "C1'-B1","100", 'tomato')
-    GMM_tot(c5p_c4p, "C5'-C4'","100", 'aquamarine')
-    GMM_tot(c4p_c1p, "C4'-C1'","100", 'goldenrod')
-    GMM_tot(p_o5p, "P-O5'","100", 'darkcyan')
-    GMM_tot(last_c4p_p, "C4'-P","100", 'deeppink')
+    GMM_tot(o5p_c5p, "O5'-C5'", 'lightcoral')
+    GMM_tot(b1_b2, "B1-B2", 'limegreen')
+    GMM_tot(c1p_b1, "C1'-B1", 'tomato')
+    GMM_tot(c5p_c4p, "C5'-C4'", 'aquamarine')
+    GMM_tot(c4p_c1p, "C4'-C1'", 'goldenrod')
+    GMM_tot(p_o5p, "P-O5'", 'darkcyan')
+    GMM_tot(last_c4p_p, "C4'-P", 'deeppink')
     axes=plt.gca()
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
-    plt.title("GMM des distances entre atomes HiRE-RNA (100 structures)")
-    plt.savefig(runDir + "/results/figures/HiRE-RNA/distances/" + "GMM des distances entre atomes HiRE-RNA (100 structures).png")
+    plt.title("GMM des distances entre atomes HiRE-RNA")
+    plt.savefig(runDir + "/results/figures/HiRE-RNA/distances/" + "GMM des distances entre atomes HiRE-RNA.png")
     plt.close()
 
 def graph_angles_torsion():
@@ -2400,18 +2405,7 @@ def graph_angles_torsion():
     zeta=[i for i in zeta if i != None]
     chi=[i for i in chi if i != None]
 
-    # saving results with pickle
-    fichier = open("angles torsion", "wb")
-    pickle.dump(alpha, fichier)
-    pickle.dump(beta, fichier)
-    pickle.dump(gamma, fichier)
-    pickle.dump(delta, fichier)
-    pickle.dump(epsilon, fichier)
-    pickle.dump(zeta, fichier)
-    pickle.dump(chi, fichier)
-    fichier.close()
-
-    os.makedirs(runDir + "/results/figures/all-atoms/torsions/")
+    os.makedirs(runDir + "/results/figures/all-atoms/torsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/all-atoms/torsions/")
 
     '''
@@ -2420,21 +2414,21 @@ def graph_angles_torsion():
     We draw the figure grouping the GMMs of all angles without histogram to compare them with each other
     '''
 
-    GMM_histo(alpha, "Alpha", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(beta, "Beta", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(gamma, "Gamma", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(delta, "Delta", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(epsilon, "Epsilon", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(zeta, "Zeta", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(chi, "Xhi", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(alpha, "Alpha", "Angle(degré)", "Densité")
+    GMM_histo(beta, "Beta", "Angle(degré)", "Densité")
+    GMM_histo(gamma, "Gamma", "Angle(degré)", "Densité")
+    GMM_histo(delta, "Delta", "Angle(degré)", "Densité")
+    GMM_histo(epsilon, "Epsilon", "Angle(degré)", "Densité")
+    GMM_histo(zeta, "Zeta", "Angle(degré)", "Densité")
+    GMM_histo(chi, "Xhi", "Angle(degré)", "Densité")
 
-    GMM_tot(alpha, "Alpha", "toutes", 'red')
-    GMM_tot(beta, "Beta", "toutes", 'firebrick')
-    GMM_tot(gamma, "Gamma", "toutes", 'limegreen')
-    GMM_tot(delta, "Delta", "toutes", 'darkslateblue')
-    GMM_tot(epsilon, "Epsilon", "toutes", 'goldenrod')
-    GMM_tot(zeta, "Zeta", "toutes", 'teal')
-    GMM_tot(chi, "Xhi", "toutes", 'hotpink')
+    GMM_tot(alpha, "Alpha", 'red')
+    GMM_tot(beta, "Beta", 'firebrick')
+    GMM_tot(gamma, "Gamma", 'limegreen')
+    GMM_tot(delta, "Delta", 'darkslateblue')
+    GMM_tot(epsilon, "Epsilon", 'goldenrod')
+    GMM_tot(zeta, "Zeta", 'teal')
+    GMM_tot(chi, "Xhi", 'hotpink')
     plt.xlabel("Angle(Degré)")
     plt.title("GMM des angles de torsion")
     plt.savefig("GMM des angles de torsion.png")
@@ -2466,32 +2460,23 @@ def graph_eta_theta():
     eta_base=[i for i in eta_base if i != None]
     theta_base=[i for i in theta_base if i != None]
 
-    
-    fichier = open("angles pseudotorsion", "wb")
-    pickle.dump(eta, fichier)
-    pickle.dump(theta, fichier)
-    pickle.dump(eta_prime, fichier)
-    pickle.dump(theta_prime, fichier)
-    pickle.dump(eta_base, fichier)
-    pickle.dump(theta_base, fichier)
-    fichier.close()
 
-    os.makedirs(runDir + "/results/figures/Pyle/pseudotorsions/")
+    os.makedirs(runDir + "/results/figures/Pyle/pseudotorsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/Pyle/pseudotorsions/")
 
-    GMM_histo(eta, "Eta", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(theta, "Theta", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(eta_prime, "Eta'", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(theta_prime, "Theta'", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(eta_base, "Eta''", "Angle(degré)", "Densité", "toutes")
-    GMM_histo(theta_base, "Theta''", "Angle(degré)", "Densité", "toutes")
+    GMM_histo(eta, "Eta", "Angle(degré)", "Densité")
+    GMM_histo(theta, "Theta", "Angle(degré)", "Densité")
+    GMM_histo(eta_prime, "Eta'", "Angle(degré)", "Densité")
+    GMM_histo(theta_prime, "Theta'", "Angle(degré)", "Densité")
+    GMM_histo(eta_base, "Eta''", "Angle(degré)", "Densité")
+    GMM_histo(theta_base, "Theta''", "Angle(degré)", "Densité")
 
-    GMM_tot(eta, "Eta", "toutes", 'mediumaquamarine')
-    GMM_tot(theta, "Theta", "toutes", 'darkorchid')
-    GMM_tot(eta_prime, "Eta'", "toutes", 'cyan')
-    GMM_tot(theta_prime, "Theta'", "toutes", 'crimson')
-    GMM_tot(eta_base, "Eta''", "toutes", 'royalblue')
-    GMM_tot(theta_base, "Theta''", "toutes", 'palevioletred')
+    GMM_tot(eta, "Eta", 'mediumaquamarine')
+    GMM_tot(theta, "Theta", 'darkorchid')
+    GMM_tot(eta_prime, "Eta'", 'cyan')
+    GMM_tot(theta_prime, "Theta'", 'crimson')
+    GMM_tot(eta_base, "Eta''", 'royalblue')
+    GMM_tot(theta_base, "Theta''", 'palevioletred')
     plt.xlabel("Angle(Degré)")
     plt.title("GMM des angles de pseudotorsion")
     plt.savefig("GMM des angles de pseudotorsion.png")
@@ -2510,29 +2495,29 @@ def graph_torsion_h_RNA():
     c4_psuiv_o5suiv_c5suiv=list(df["C4'-P°-O5'°-C5'°"][~ np.isnan(df["C4'-P°-O5'°-C5'°"])])
     c1_c4_psuiv_o5suiv=list(df["C1'-C4'-P°-O5'°"][~ np.isnan(df["C1'-C4'-P°-O5'°"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/")
+    os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/HiRE-RNA/torsions/")
 
-    GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", "Angle(Degré)", "Densité", "100")
-    GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c5_c4_c1_b1, "C5'-C4'-C1'-B1", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c4_c1_b1_b2, "C4'-C1'-B1-B2", "Angle(Degré)", "Densité", "100")
-    GMM_histo(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", "Angle(Degré)", "Densité")
+    GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", "Angle(Degré)", "Densité")
+    GMM_histo(c5_c4_c1_b1, "C5'-C4'-C1'-B1", "Angle(Degré)", "Densité")
+    GMM_histo(c4_c1_b1_b2, "C4'-C1'-B1-B2", "Angle(Degré)", "Densité")
+    GMM_histo(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", "Angle(Degré)", "Densité")
+    GMM_histo(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", "Angle(Degré)", "Densité")
+    GMM_histo(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", "Angle(Degré)", "Densité")
+    GMM_histo(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", "Angle(Degré)", "Densité")
 
-    GMM_tot(p_o5_c5_c4, "P-O5'-C5'-C4'", "100", 'darkred')
-    GMM_tot(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", "100", 'chocolate')
-    GMM_tot(c5_c4_c1_b1, "C5'-C4'-C1'-B1", "100", 'mediumvioletred')
-    GMM_tot(c4_c1_b1_b2, "C4'-C1'-B1-B2", "100", 'cadetblue')
-    GMM_tot(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", "100", 'darkkhaki')
-    GMM_tot(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", "100", 'springgreen')
-    GMM_tot(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", "100", 'indigo')
-    GMM_tot(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", "100", 'gold')
+    GMM_tot(p_o5_c5_c4, "P-O5'-C5'-C4'", 'darkred')
+    GMM_tot(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", 'chocolate')
+    GMM_tot(c5_c4_c1_b1, "C5'-C4'-C1'-B1", 'mediumvioletred')
+    GMM_tot(c4_c1_b1_b2, "C4'-C1'-B1-B2", 'cadetblue')
+    GMM_tot(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", 'darkkhaki')
+    GMM_tot(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", 'springgreen')
+    GMM_tot(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", 'indigo')
+    GMM_tot(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", 'gold')
     plt.xlabel("Angle(Degré)")
-    plt.title("GMM des angles de torsion (hire-RNA) (100 structures)")
-    plt.savefig("GMM des angles de torsion (hire-RNA) (100 structures).png")
+    plt.title("GMM des angles de torsion (hire-RNA)")
+    plt.savefig("GMM des angles de torsion (hire-RNA).png")
     plt.close()
 
 def graph_plans_h_RNA():
@@ -2543,17 +2528,17 @@ def graph_plans_h_RNA():
     c1p_psuiv_c1psuiv=list(df["C1'-P°-C1'°"][~ np.isnan(df["C1'-P°-C1'°"])])
 
 
-    os.makedirs(runDir + "/results/figures/Pyle/angles/")
+    os.makedirs(runDir + "/results/figures/Pyle/angles/", exist_ok=True)
     os.chdir(runDir + "/results/figures/Pyle/angles/")
 
-    GMM_histo(p_c1p_psuiv, "P-C1'-P°", "Angle(Degré)", "Densité", "100")
-    GMM_histo(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", "Angle(Degré)", "Densité", "100")
+    GMM_histo(p_c1p_psuiv, "P-C1'-P°", "Angle(Degré)", "Densité")
+    GMM_histo(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", "Angle(Degré)", "Densité")
 
-    GMM_tot(p_c1p_psuiv, "P-C1'-P°", "100", 'firebrick')
-    GMM_tot(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", "100", 'seagreen')
+    GMM_tot(p_c1p_psuiv, "P-C1'-P°", 'firebrick')
+    GMM_tot(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", 'seagreen')
     plt.xlabel("Angle(Degré)")
-    plt.title("GMM des angles plans (hire-RNA) (100 structures)")
-    plt.savefig("GMM des angles plans (hire-RNA) (100 structures).png")
+    plt.title("GMM des angles plans (hire-RNA)")
+    plt.savefig("GMM des angles plans (hire-RNA).png")
     plt.close()
 
 '''
@@ -2637,7 +2622,7 @@ def angle_c1_b1(res,pair):
     angles=[a, b, c, d]
     return angles
 
-def graphe(type_LW, angle_1, angle_2, angle_3, angle_4, distance, nb):
+def graphe(type_LW, angle_1, angle_2, angle_3, angle_4, distance):
     '''
     function to plot the statistical figures you want
     By type of pairing:
@@ -2652,21 +2637,21 @@ def graphe(type_LW, angle_1, angle_2, angle_3, angle_4, distance, nb):
     plt.subplot(2, 1, 1)
 
     if len(angle_1) > 0 :
-        GMM_tot(angle_1, "C4'-C1'-B1", nb, 'cyan' )
+        GMM_tot(angle_1, "C4'-C1'-B1", 'cyan' )
     if len(angle_2) > 0 :
-        GMM_tot(angle_2, "C1'-B1-B1pair", nb, 'magenta')
+        GMM_tot(angle_2, "C1'-B1-B1pair", 'magenta')
     if len(angle_3) > 0 :
-        GMM_tot(angle_3, "B1-B1pair-C1'pair", nb, "yellow")
+        GMM_tot(angle_3, "B1-B1pair-C1'pair", "yellow")
     if len(angle_4) > 0 :
-        GMM_tot(angle_4, "B1pair-C1'pair-C4'pair", nb, 'olive')
+        GMM_tot(angle_4, "B1pair-C1'pair-C4'pair", 'olive')
     plt.xlabel("Angle(degré)")
-    plt.title("GMM des angles plans pour les appariements " +type_LW +" (" +str(nb)+ " valeurs)", fontsize=10)
+    plt.title("GMM des angles plans pour les appariements " +type_LW , fontsize=10)
 
     plt.subplot(2, 1, 2)
     if len(distance)>0 :
-        GMM_histo_without_saving(distance, "Distance pointes " + type_LW, "Distance (Angström)", "Densité", nb)
+        GMM_histo_without_saving(distance, "Distance pointes " + type_LW, "Distance (Angström)", "Densité")
 
-    plt.savefig("Mesures appariements " +type_LW+ " (" +str(nb)+ " valeurs).png" )
+    plt.savefig("Mesures appariements " +type_LW+ ".png" )
     plt.close()
 
 def appariements(chain, df):
@@ -2786,6 +2771,9 @@ def appariements(chain, df):
     return(liste_dist)
 
 def parse(cle):
+    '''
+    For each pdb structure in the dictionary, get its chains and do the pairing measurements on them
+    '''
     l=[]
     os.makedirs(runDir + "/results/basepairs/", exist_ok=True)
     with warnings.catch_warnings():
@@ -2793,10 +2781,10 @@ def parse(cle):
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
         parser=MMCIFParser()
-        s = parser.get_structure(cle, os.path.abspath(path_to_3D_data + "RNAcifs/" + cle +".cif"))
+        s = parser.get_structure(cle, os.path.abspath(path_to_3D_data + "RNAcifs/" + cle +".cif")) # parse the original structure
         for model in s:
             for valeur in dictionnaire[cle]:
-                if len(valeur)>2:
+                if len(valeur)>2: # if several RNA chains in the same structure
                     df_tot=[]
                     for id_chain in valeur:
                         for data in ld:
@@ -2806,7 +2794,7 @@ def parse(cle):
                                     df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + data))
                                     if df['index_chain'][0]==1:#ignore files with numbering errors
                                         l=appariements(model[id_chain], df)
-                else :
+                else : #if only one RNA chain
                     for data in ld:
                         if (len(data)<10): #unmapped
                             chaine=str.split(data, '_')
@@ -2932,50 +2920,50 @@ def graph_basepairs():
     os.makedirs(runDir + "/results/figures/basepairs/", exist_ok=True)
     os.chdir(runDir + "/results/figures/basepairs/")
 
-    graphe('cWW', cWW_angle_1, cWW_angle_2, cWW_angle_3, cWW_angle_4, cWW_dist, len(cWW))
-    graphe('tWW', tWW_angle_1, tWW_angle_2, tWW_angle_3, tWW_angle_4, tWW_dist, len(tWW))
-    graphe('cWH', cWH_angle_1, cWH_angle_2, cWH_angle_3, cWH_angle_4, cWH_dist, len(cWH))
-    graphe('tWH', tWH_angle_1, tWH_angle_2, tWH_angle_3, tWH_angle_4, tWH_dist, len(tWH))
-    graphe('cHW', cHW_angle_1, cHW_angle_2, cHW_angle_3, cHW_angle_4, cHW_dist, len(cHW))
-    graphe('tHW', tHW_angle_1, tHW_angle_2, tHW_angle_3, tHW_angle_4, tHW_dist, len(tHW))
-    graphe('tWS', tWS_angle_1, tWS_angle_2, tWS_angle_3, tWS_angle_4, tWS_dist, len(tWS))
-    graphe('cWS', cWS_angle_1, cWS_angle_2, cWS_angle_3, cWS_angle_4, cWS_dist, len(cWS))
-    graphe('tSW', tSW_angle_1, tSW_angle_2, tSW_angle_3, tSW_angle_4, tSW_dist, len(tSW))
-    graphe('cSW', cSW_angle_1, cSW_angle_2, cSW_angle_3, cSW_angle_4, cSW_dist, len(cSW))
-    graphe('cHH', cHH_angle_1, cHH_angle_2, cHH_angle_3, cHH_angle_4, cHH_dist, len(cHH))
-    graphe('tHH', tHH_angle_1, tHH_angle_2, tHH_angle_3, tHH_angle_4, tHH_dist, len(tHH))
-    graphe('cSH', cSH_angle_1, cSH_angle_2, cSH_angle_3, cSH_angle_4, cSH_dist, len(cSH))
-    graphe('tSH', tSH_angle_1, tSH_angle_2, tSH_angle_3, tSH_angle_4, tSH_dist, len(tSH))
-    graphe('cHS', cHS_angle_1, cHS_angle_2, cHS_angle_3, cHS_angle_4, cHS_dist, len(cHS))
-    graphe('tHS', tHS_angle_1, tHS_angle_2, tHS_angle_3, tHS_angle_4, tHS_dist, len(tHS))
-    graphe('cSS', cSS_angle_1, cSS_angle_2, cSS_angle_3, cSS_angle_4, cSS_dist, len(cSS))
-    graphe('tSS', tSS_angle_1, tSS_angle_2, tSS_angle_3, tSS_angle_4, tSS_dist, len(tSS))
+    graphe('cWW', cWW_angle_1, cWW_angle_2, cWW_angle_3, cWW_angle_4, cWW_dist)
+    graphe('tWW', tWW_angle_1, tWW_angle_2, tWW_angle_3, tWW_angle_4, tWW_dist)
+    graphe('cWH', cWH_angle_1, cWH_angle_2, cWH_angle_3, cWH_angle_4, cWH_dist)
+    graphe('tWH', tWH_angle_1, tWH_angle_2, tWH_angle_3, tWH_angle_4, tWH_dist)
+    graphe('cHW', cHW_angle_1, cHW_angle_2, cHW_angle_3, cHW_angle_4, cHW_dist)
+    graphe('tHW', tHW_angle_1, tHW_angle_2, tHW_angle_3, tHW_angle_4, tHW_dist)
+    graphe('tWS', tWS_angle_1, tWS_angle_2, tWS_angle_3, tWS_angle_4, tWS_dist)
+    graphe('cWS', cWS_angle_1, cWS_angle_2, cWS_angle_3, cWS_angle_4, cWS_dist)
+    graphe('tSW', tSW_angle_1, tSW_angle_2, tSW_angle_3, tSW_angle_4, tSW_dist)
+    graphe('cSW', cSW_angle_1, cSW_angle_2, cSW_angle_3, cSW_angle_4, cSW_dist)
+    graphe('cHH', cHH_angle_1, cHH_angle_2, cHH_angle_3, cHH_angle_4, cHH_dist)
+    graphe('tHH', tHH_angle_1, tHH_angle_2, tHH_angle_3, tHH_angle_4, tHH_dist)
+    graphe('cSH', cSH_angle_1, cSH_angle_2, cSH_angle_3, cSH_angle_4, cSH_dist)
+    graphe('tSH', tSH_angle_1, tSH_angle_2, tSH_angle_3, tSH_angle_4, tSH_dist)
+    graphe('cHS', cHS_angle_1, cHS_angle_2, cHS_angle_3, cHS_angle_4, cHS_dist)
+    graphe('tHS', tHS_angle_1, tHS_angle_2, tHS_angle_3, tHS_angle_4, tHS_dist)
+    graphe('cSS', cSS_angle_1, cSS_angle_2, cSS_angle_3, cSS_angle_4, cSS_dist)
+    graphe('tSS', tSS_angle_1, tSS_angle_2, tSS_angle_3, tSS_angle_4, tSS_dist)
     
     nc=len(cWW)+len(cHH)+len(cSS)+len(cWH)+len(cHW)+len(cWS)+len(cSW)+len(cHS)+len(cSH)
-    GMM_tot(cWW_dist, "cWW", nc, 'lightcoral')
-    GMM_tot(cHH_dist, "cHH", nc, 'lightseagreen')
-    GMM_tot(cSS_dist, "cSS", nc, 'black')
-    GMM_tot(cWH_dist, "cWH", nc, 'goldenrod')
-    GMM_tot(cHW_dist, "cHW", nc, 'olive')
-    GMM_tot(cWS_dist, "cWS", nc, 'steelblue')  
-    GMM_tot(cSW_dist, "cSW", nc, 'silver')
-    GMM_tot(cHS_dist, "cHS", nc, 'deeppink')
-    GMM_tot(cSH_dist, "cSH", nc, 'navy')
+    GMM_tot(cWW_dist, "cWW", 'lightcoral')
+    GMM_tot(cHH_dist, "cHH", 'lightseagreen')
+    GMM_tot(cSS_dist, "cSS", 'black')
+    GMM_tot(cWH_dist, "cWH", 'goldenrod')
+    GMM_tot(cHW_dist, "cHW", 'olive')
+    GMM_tot(cWS_dist, "cWS", 'steelblue')  
+    GMM_tot(cSW_dist, "cSW", 'silver')
+    GMM_tot(cHS_dist, "cHS", 'deeppink')
+    GMM_tot(cSH_dist, "cSH", 'navy')
     plt.xlabel('Distance (Angström)')
     plt.title("GMM des distances entre pointes des nucléotides pour les appariements cis ("+str(nc)+ " valeurs)", fontsize=9)
     plt.savefig("GMM des distances entre pointes des nucléotides pour les appariements cis (" +str(nc)+ " valeurs).png")
     plt.close()
 
     nt=len(tWW)+len(tHH)+len(tSS)+len(tWH)+len(tHW)+len(tWS)+len(tSW)+len(tHS)+len(tSH)
-    GMM_tot(tWW_dist, "tWW", nt, 'sienna')
-    GMM_tot(tHH_dist, "tHH", nt, 'maroon')
-    GMM_tot(tSS_dist, "tSS", nt, 'orange') 
-    GMM_tot(tWH_dist, "tWH", nt, 'mediumaquamarine') 
-    GMM_tot(tHW_dist, "tHW", nt, 'tomato')
-    GMM_tot(tWS_dist, "tWS", nt, 'indigo')
-    GMM_tot(tSW_dist, "tSW", nt, 'orchid')
-    GMM_tot(tHS_dist, "tHS", nt, 'tan')
-    GMM_tot(tSH_dist, "tSH", nt, 'lime')
+    GMM_tot(tWW_dist, "tWW", 'sienna')
+    GMM_tot(tHH_dist, "tHH", 'maroon')
+    GMM_tot(tSS_dist, "tSS", 'orange') 
+    GMM_tot(tWH_dist, "tWH", 'mediumaquamarine') 
+    GMM_tot(tHW_dist, "tHW", 'tomato')
+    GMM_tot(tWS_dist, "tWS", 'indigo')
+    GMM_tot(tSW_dist, "tSW", 'orchid')
+    GMM_tot(tHS_dist, "tHS", 'tan')
+    GMM_tot(tSH_dist, "tSH", 'lime')
     plt.xlabel('Distance (Angström)')
     plt.title("GMM des distances entre pointes des nucléotides pour les appariements trans ("+str(nt)+ " valeurs)", fontsize=9)
     plt.savefig("GMM des distances entre pointes des nucléotides pour les appariements trans (" +str(nt)+ " valeurs).png")
@@ -3072,7 +3060,7 @@ if __name__ == "__main__":
             subprocess.run(["rm", "-rf", runDir + f"/results/distance_matrices/"])
 
     # Prepare the multiprocessing execution environment
-    nworkers = min(read_cpu_number()-1, 32)
+    nworkers = min(read_cpu_number()-1, 40)
     thr_idx_mgr = Manager()
     idxQueue = thr_idx_mgr.Queue()
     for i in range(nworkers):
@@ -3103,7 +3091,7 @@ if __name__ == "__main__":
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
     '''
-    #dist_atoms(os.listdir(path_to_3D_data + "rna_only")[0])
+
     
     '''
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
@@ -3111,7 +3099,7 @@ if __name__ == "__main__":
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
         joblist.append(Job(function=dist_atoms, args=(f,)))
     '''
-    
+    '''
     ld=os.listdir(path_to_3D_data +'datapoints')[:1000]
     if '4zdo_1_E' in ld :
         ld.remove('4zdo_1_E')#cas particuliers
@@ -3121,15 +3109,15 @@ if __name__ == "__main__":
     
     for cle in dictionnaire.keys():
         joblist.append(Job(function=parse, args=(cle,)))
-    
+    '''
     
     #exit()
     '''
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
 
     for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
-        #joblist.append(Job(function=dist_atoms, args=(f,)))
-        #joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
+        joblist.append(Job(function=dist_atoms, args=(f,)))
+        joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
         joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
     
@@ -3165,8 +3153,7 @@ if __name__ == "__main__":
     print()
     print()
 
-    concatenate('/results/basepairs/', 'basepairs.csv')
-    graph_basepairs()
+    
     # finish the work after the parallel portions
     '''
     per_chain_stats()
@@ -3174,10 +3161,9 @@ if __name__ == "__main__":
     stats_pairs()
     if n_unmapped_chains:
         general_stats()
-
+    '''
     concatenate('/results/all-atoms/distances/', 'dist_atoms.csv')    
     graph_dist_atoms()
-    graph_angles_torsion()
     concatenate('/results/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')
     graph_dist_atoms_h_RNA()
     
@@ -3186,5 +3172,9 @@ if __name__ == "__main__":
     graph_torsion_h_RNA()
     graph_plans_h_RNA()
     
+    graph_angles_torsion()
     graph_eta_theta()
-    '''
+    
+    concatenate('/results/basepairs/', 'basepairs.csv')
+    graph_basepairs()
+    
