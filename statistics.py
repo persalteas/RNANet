@@ -2978,8 +2978,9 @@ if __name__ == "__main__":
     DELETE_OLD_DATA = False
     DO_WADLEY_ANALYSIS = False
     DO_AVG_DISTANCE_MATRIX = False
+    DO_HIRE_RNA_MEASURES = False
     try:
-        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "from-scratch", "wadley", "distance-matrices", "resolution=", "3d-folder=", "seq-folder=" ])
+        opts, _ = getopt.getopt( sys.argv[1:], "r:h", [ "help", "from-scratch", "wadley", "distance-matrices", "resolution=", "3d-folder=", "seq-folder=", "hire-rna=" ])
     except getopt.GetoptError as err:
         print(err)
         sys.exit(2)
@@ -3000,6 +3001,7 @@ if __name__ == "__main__":
             print("--from-scratch\t\t\tDo not use precomputed results from past runs, recompute everything")
             print("--distance-matrices\t\tCompute average distance between nucleotide pairs for each family.")
             print("--wadley\t\t\tReproduce Wadley & al 2007 clustering of pseudotorsions.")
+            print("--hire-rna\t\t\tCompute distances between atoms and torsion angles for HiRE-RNA model, and plot GMMs on the data.")
 
             sys.exit()
         elif opt == '--version':
@@ -3023,10 +3025,12 @@ if __name__ == "__main__":
             DO_AVG_DISTANCE_MATRIX = True
         elif opt=='--wadley':
             DO_WADLEY_ANALYSIS = True
+        elif opt=='--hire-rna':
+            DO_HIRE_RNA_MEASURES = True
     
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
-    '''
+    
     print("Loading mappings list...")
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
@@ -3050,7 +3054,7 @@ if __name__ == "__main__":
     print(f"Found {len(famlist)} families with chains of resolution {res_thr}A or better.")
     if len(ignored):
         print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
-    '''
+    
     if DELETE_OLD_DATA:
         for f in famlist:
             subprocess.run(["rm","-f", runDir + f"/data/{f}.npy", runDir + f"/data/{f}_pairs.csv", runDir + f"/data/{f}_counts.csv"])
@@ -3068,7 +3072,7 @@ if __name__ == "__main__":
 
     # Define the tasks
     joblist = []
-    '''
+    
     if n_unmapped_chains and DO_WADLEY_ANALYSIS:
         joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
         joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
@@ -3090,15 +3094,20 @@ if __name__ == "__main__":
         joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
-    '''
-
+    
+    f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
+    for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
+        joblist.append(Job(function=dist_atoms, args=(f,)))
+    
+    if DO_HIRE_RNA_MEASURES:
+        f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
+        for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
+            joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
+            joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
+            joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
     
     '''
-    f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
-    #exit()
-    for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
-        joblist.append(Job(function=dist_atoms, args=(f,)))
-    '''
+    Basepairs
     '''
     ld=os.listdir(path_to_3D_data +'datapoints')[:1000]
     if '4zdo_1_E' in ld :
@@ -3109,19 +3118,9 @@ if __name__ == "__main__":
     
     for cle in dictionnaire.keys():
         joblist.append(Job(function=parse, args=(cle,)))
-    '''
+    
     
     #exit()
-    '''
-    f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
-
-    for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
-        joblist.append(Job(function=dist_atoms, args=(f,)))
-        joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
-        joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
-        joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
-    
-    '''
     
     p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
@@ -3153,8 +3152,8 @@ if __name__ == "__main__":
     print()
     print()
 
-    
     # finish the work after the parallel portions
+    
     '''
     per_chain_stats()
     seq_idty()
@@ -3162,6 +3161,10 @@ if __name__ == "__main__":
     if n_unmapped_chains:
         general_stats()
     '''
+    
+    if DO_WADLEY_ANALYSIS:
+        graph_eta_theta()
+    
     concatenate('/results/all-atoms/distances/', 'dist_atoms.csv')    
     graph_dist_atoms()
     concatenate('/results/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')
@@ -3173,7 +3176,7 @@ if __name__ == "__main__":
     graph_plans_h_RNA()
     
     graph_angles_torsion()
-    graph_eta_theta()
+    
     
     concatenate('/results/basepairs/', 'basepairs.csv')
     graph_basepairs()
