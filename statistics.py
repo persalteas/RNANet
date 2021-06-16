@@ -2060,7 +2060,7 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, couleur=None, save=Tr
             plt.plot(newx, newy, c=colors[i])
         else:
             # store for later summation
-            courbes.append(newy)
+            courbes.append(np.array(newy))
 
     if hist:
         plt.title("Histogramme " +name_data+ " avec GMM pour " +str(nb_components)+ " composantes (" + str(len(data_ori))+" valeurs)")
@@ -2069,7 +2069,12 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, couleur=None, save=Tr
             plt.close()
     else:
         # Plot their sum, do not save figure yet
-        plt.plot(newx, sum(courbes), c=couleur, label=name_data)
+        try:
+            plt.plot(newx, sum(courbes), c=couleur, label=name_data)
+        except TypeError:
+            print("N curves:", len(courbes))
+            for c in courbes:
+                print(c)
         plt.legend()
 
         # Save the json
