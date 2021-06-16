@@ -1745,7 +1745,7 @@ def conversion_angles(bdd):
             elif np.pi < nt[i] <= 2*np.pi : #if value of the angle between pi and 2pi, negative
                 angle=((180/np.pi)*nt[i])-360
             else :
-                angle=nt[i] # dans le cas ou certains angles seraient en degres -> supprimer?
+                angle=nt[i] # some angles already in degrees
             angles_deg.append(angle)
         angles_torsion.append(angles_deg)
     return angles_torsion
@@ -2387,7 +2387,7 @@ def graph_angles_torsion():
     epsilon=[]
     zeta=[]
     chi = []
-    for angles_deg in conversion_angles("/home/atabot/RNANet.db") : #chemin à modifier 
+    for angles_deg in conversion_angles(runDir +"/results/RNANet.db") : #chemin à modifier 
         alpha.append(angles_deg[2])
         beta.append(angles_deg[3])
         gamma.append(angles_deg[4])
@@ -3096,12 +3096,12 @@ if __name__ == "__main__":
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database
     
     f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
-    for f in os.listdir(path_to_3D_data + "rna_only")[:100]: 
+    for f in os.listdir(path_to_3D_data + "rna_only"): 
         joblist.append(Job(function=dist_atoms, args=(f,)))
     
     if DO_HIRE_RNA_MEASURES:
         f_prec=os.listdir(path_to_3D_data + "rna_only")[0]
-        for f in os.listdir(path_to_3D_data + "rna_only")[:100]:
+        for f in os.listdir(path_to_3D_data + "rna_only"):
             joblist.append(Job(function=dist_atoms_hire_RNA, args=(f,)))
             joblist.append(Job(function=angles_torsion_hire_RNA, args=(f,)))
             joblist.append(Job(function=angles_plans_hire_RNA, args=(f,)))
@@ -3109,7 +3109,7 @@ if __name__ == "__main__":
     '''
     Basepairs
     '''
-    ld=os.listdir(path_to_3D_data +'datapoints')[:1000]
+    ld=os.listdir(path_to_3D_data +'datapoints')
     if '4zdo_1_E' in ld :
         ld.remove('4zdo_1_E')#cas particuliers
     if '4zdp_1_E' in ld :
