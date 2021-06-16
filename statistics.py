@@ -1268,6 +1268,9 @@ def get_euclidian_distance(L1, L2):
             e += float(L1[i] - L2[i])**2
         except TypeError:
             print("Terms: ", L1, L2)
+        except IndexError:
+            print("Terms: ", L1, L2)
+
     return np.sqrt(e)
 
 def get_flat_angle(L1, L2, L3):
@@ -1282,7 +1285,7 @@ def get_torsion_angle(L1, L2, L3, L4):
     
     return calc_dihedral(Vector(L1[0]), Vector(L2[0]), Vector(L3[0]), Vector(L4[0]))*(180/np.pi)
 
-def pos_b1(res) :
+def pos_b1(res):
     """
     Returns the coordinates of virtual atom B1 (center of the first aromatic cycle)
     """
@@ -1334,7 +1337,11 @@ def pos_b1(res) :
             coordb1.append(moy_x_b1)
             coordb1.append(moy_y_b1)
             coordb1.append(moy_z_b1)
-    return(coordb1)
+
+    if len(coordb1):
+        return [coordb1]
+    else:
+        return []
 
 def pos_b2(res):
     """
@@ -1365,7 +1372,10 @@ def pos_b2(res):
             coordb2.append(moy_x_b2)
             coordb2.append(moy_y_b2)
             coordb2.append(moy_z_b2)
-    return coordb2
+    if len(coordb2):
+        return [coordb2]
+    else:
+        return []
 
 def basepair_apex_distance(res, pair):
     """
@@ -1418,6 +1428,7 @@ def basepair_flat_angle(res, pair):
     angles=[a, b, c, d]
     return angles
 
+@trace_unhandled_exceptions
 def measure_from_structure(f):
     """
     Do geometric measures required on a given filename
@@ -1446,6 +1457,7 @@ def measure_from_structure(f):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+@trace_unhandled_exceptions
 def measures_wadley(name, s, thr_idx):
     """
     Measures the distances and plane angles involving C1' and P atoms 
@@ -1496,6 +1508,7 @@ def measures_wadley(name, s, thr_idx):
     df = pd.DataFrame(liste_angl, columns=["Residu", "P-C1'-P°", "C1'-P°-C1'°"])
     df.to_csv(runDir + "/results/geometry/Pyle/angles/angles_plans_wadley "+name+".csv")
 
+@trace_unhandled_exceptions
 def measures_aa(name, s, thr_idx):
     """
     Measures the distance between atoms linked by covalent bonds
@@ -1657,6 +1670,7 @@ def measures_aa(name, s, thr_idx):
     
     df.to_csv(runDir+"/results/geometry/all-atoms/distances/dist_atoms "+name+".csv")
 
+@trace_unhandled_exceptions
 def measures_hrna(name, s, thr_idx):
     """
     Measures the distance/angles between the atoms of the HiRE-RNA model linked by covalent bonds
@@ -1680,7 +1694,7 @@ def measures_hrna(name, s, thr_idx):
 
     chain = next(s[0].get_chains())
     residues=list(chain.get_residues())
-    for res in tqdm(chain0, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {name} measures_hrna", unit="res", leave=False):
+    for res in tqdm(chain, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {name} measures_hrna", unit="res", leave=False):
         # distances
         p_o5p = None
         o5p_c5p = None
@@ -1720,12 +1734,12 @@ def measures_hrna(name, s, thr_idx):
             atom_b2 = pos_b2(res) # position b2 to be calculated only for those with 2 cycles
 
             # Distances. If one of the atoms is empty, the euclidian distance returns NaN.
-            last_c4p_p = get_euclidian_distance(last_c4p[0], atom_p[0])
-            p_o5p = get_euclidian_distance(atom_p[0], atom_o5p[0])
-            o5p_c5p = get_euclidian_distance(atom_o5p[0], atom_c5p[0])
-            c5p_c4p = get_euclidian_distance(atom_c5p[0], atom_c4p[0])
-            c4p_c1p = get_euclidian_distance(atom_c4p[0], atom_c1p[0])
-            c1p_b1 = get_euclidian_distance(atom_c1p[0], atom_b1)
+            last_c4p_p = get_euclidian_distance(last_c4p, atom_p)
+            p_o5p = get_euclidian_distance(atom_p, atom_o5p)
+            o5p_c5p = get_euclidian_distance(atom_o5p, atom_c5p)
+            c5p_c4p = get_euclidian_distance(atom_c5p, atom_c4p)
+            c4p_c1p = get_euclidian_distance(atom_c4p, atom_c1p)
+            c1p_b1 = get_euclidian_distance(atom_c1p, atom_b1)
             b1_b2 = get_euclidian_distance(atom_b1, atom_b2)
 
             # flat angles. Same.
@@ -1758,10 +1772,11 @@ def measures_hrna(name, s, thr_idx):
     df = pd.DataFrame(liste_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/distances/dist_atoms_hire_RNA '+name+'.csv')
     df = pd.DataFrame(liste_angl, columns=["Residu", "C4'-P-O5'", "C1'-C4'-P", "C5'-C4'-P", "P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2"])
-    df.to_csv(runDur + '/results/geometry/HiRE-RNA/angles/angles_hire_RNA ' + name + ".csv")
-    df=pd.DataFrame(liste_angles_torsion, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
+    df.to_csv(runDir + '/results/geometry/HiRE-RNA/angles/angles_hire_RNA ' + name + ".csv")
+    df=pd.DataFrame(liste_tors, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/torsions/angles_torsion_hire_RNA '+name+'.csv')
 
+@trace_unhandled_exceptions
 def measure_hrna_basepairs(cle):
     """
     Open a complete RNAcifs/ file, and run measure_hrna_basepairs_chain() on every chain
@@ -1812,6 +1827,7 @@ def measure_hrna_basepairs(cle):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+@trace_unhandled_exceptions
 def measure_hrna_basepairs_chain(chain, df, thr_idx):
     """
     Cleanup of the dataset
