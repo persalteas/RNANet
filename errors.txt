@@ -1,0 +1,3038 @@
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 24, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 594, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 601, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 700, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 606, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 600, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 60, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 35, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 35, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DA', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 73, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DA', 60, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 54, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 2, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 12, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1694, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 24, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 32, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 0, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 408, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', -19, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 203, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 71, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1032, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1694, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 659, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1694, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1694, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 71, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 211, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DA', 17, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DA', 6, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1308, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1408, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1208, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1508, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 73, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 6, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 13, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 13, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 0, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 14, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 0, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 7, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 7, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 7, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 7, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DI', 10, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 287, in extract
+    res=chain[(' ', resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: (' ', 201, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 9, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 18, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 9, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 19, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 934, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 934, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 11, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 44, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 44, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 44, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 44, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 29, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DT', 13, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DT', 13, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 73, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 28, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 8, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 12, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 20, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 18, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 24, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 20, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 20, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 6, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 20, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 20, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 4, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 28, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 12, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 36, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 44, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 110, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 202, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 210, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 302, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 105, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 102, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 378, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 1, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_N', 39, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 264, in extract
+    model=new_s[0]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: 0
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 5, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DU', 3, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DG', 21, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_I', 34, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 16, ' ')
+
+
+Exception in work_build_chain
+Traceback (most recent call last):
+  File "RNAnet.py", line 50, in wrapped_func
+    return func(*args, **kwargs)
+  File "RNAnet.py", line 2347, in work_build_chain
+    c.extract(df, khetatm)
+  File "RNAnet.py", line 290, in extract
+    res=chain[(het, resseq, icode_res)]
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Chain.py", line 108, in __getitem__
+    return Entity.__getitem__(self, id)
+  File "/home/atabot/.local/lib/python3.8/site-packages/Bio/PDB/Entity.py", line 42, in __getitem__
+    return self.child_dict[id]
+KeyError: ('H_DC', 8, ' ')
+
+

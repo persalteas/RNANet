@@ -201,7 +201,8 @@ class Chain:
             self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
         else:
             status = f"Extract {self.pdb_id}-{self.pdb_chain_id}"
-            self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
+            self.file = path_to_3D_data+"renumbered_rna_only/"+self.chain_label+".cif"
+            #self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
 
         # Check if file exists, if yes, abort (do not recompute)
         if os.path.exists(self.file):
@@ -235,11 +236,85 @@ class Chain:
 
             # Define a selection
             sel = SelectivePortionSelector(model_idx, self.pdb_chain_id, valid_set, khetatm)
+            
+            # save the selection sel into a new structure
+            new_s=pdb.Structure.Structure(s.get_id())
+    
+            for model in s:
+                if sel.accept_model(model):
+                    new_model=pdb.Model.Model(model.get_id())
+                    for chain in model:
+                        if sel.accept_chain(chain):
+                            new_chain=pdb.Chain.Chain(chain.get_id())
+                            for res in chain:
+                                if sel.accept_residue(res):
+                                    res_atoms=res.get_atoms()
+                                    new_residu=pdb.Residue.Residue(res.get_id(), res.get_resname(), res.get_segid())
+                                    for atom in list(res.get_atoms()):
+                                        if sel.accept_atom(atom):
+                                            new_atom=atom.copy()
+                                            new_residu.add(new_atom)
+                                    new_chain.add(new_residu)
 
+                            new_model.add(new_chain)
+                    new_s.add(new_model)
+
+            # renumber this structure (portion of the original) with the index_chain and save it in a cif file
+            t=pdb.Structure.Structure(new_s.get_id())
+            model=new_s[0]
+            new_model_t=pdb.Model.Model(model.get_id())
+            for chain in model:
+                nums=df[["index_chain", "old_nt_resnum", "nt_name"]]
+                new_chain_t=pdb.Chain.Chain(chain.get_id())
+                for i in nums.index:
+                    resseq=nums.at[i, 'old_nt_resnum']
+                    icode_res=' '
+                    if type(resseq) is str:
+                        if resseq=='not resolved':
+                            continue
+                        if resseq[0] != '-' :
+                            while resseq.isdigit() is False:
+                                l=len(resseq)
+                                if icode_res==' ':
+                                    icode_res=resseq[l-1]
+                                else :
+                                    icode_res=resseq[l-1]+icode_res
+                                resseq=resseq[:l-1]
+                    resseq=int(resseq)
+                    index_chain=nums.at[i, "index_chain"]
+                    nt=nums.at[i, "nt_name"]
+                    if nt == 'A' or nt == 'G' or nt == 'C' or nt == 'U':
+                        res=chain[(' ', resseq, icode_res)]
+                    else : #modified nucleotides (e.g. chain 5l4o_1_A)
+                        het='H_' + nt
+                        res=chain[(het, resseq, icode_res)]
+                    res_id=res.get_id()
+                    res_id=list(res_id)
+                    res_id[1]=index_chain
+                    res_id[2]=' '
+                    res_id[0]=' '
+                    res_id=tuple(res_id)
+                    res_atoms=res.get_atoms()
+                    new_residu_t=pdb.Residue.Residue(res_id, res.get_resname(), res.get_segid())
+                    for atom in list(res.get_atoms()):
+                        new_atom_t=atom.copy()
+                        new_residu_t.add(new_atom_t)
+                    new_chain_t.add(new_residu_t)
+
+                new_model_t.add(new_chain_t)
+            t.add(new_model_t)
+                    
+            # Save that renumbered selection on the mmCIF object s to file       
+            ioobj = pdb.MMCIFIO()
+            ioobj.set_structure(t)
+            ioobj.save(self.file)   
+            
             # Save that selection on the mmCIF object s to file
+            '''
             ioobj = pdb.MMCIFIO()
             ioobj.set_structure(s)
             ioobj.save(self.file, sel)
+            '''
 
         notify(status)
 
@@ -1311,9 +1386,14 @@ class Pipeline:
             if self.HOMOLOGY and not os.path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
                 # for the portions mapped to Rfam
                 os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam")
+            '''
             if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "rna_only"):
                 # extract chains of pure RNA
                 os.makedirs(path_to_3D_data + "rna_only")
+            '''
+            if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "renumbered_rna_only"):
+                # extract chains of pure RNA
+                os.makedirs(path_to_3D_data + "renumbered_rna_only")
 
         # define and run jobs
         joblist = []
@@ -2809,8 +2889,7 @@ def work_save(c, homology=True):
             
         filename = path_to_3D_data + "datapoints/" + c.chain_label
     conn.close()
-    pairs=df[['index_chain', 'old_nt_resnum', 'paired']]
-    print(pairs.iloc[:40])
+
     df.to_csv(filename, float_format="%.2f", index=False)
 
 if __name__ == "__main__":

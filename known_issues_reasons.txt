@@ -5134,3 +5134,1434 @@ Sequence is too short. (< 5 resolved nts)
 5hjz_1_C
 Sequence is too short. (< 5 resolved nts)
 
+6vff_1_D+6VFF
+Could not find nucleotides of chain D+6VFF in annotation 6vff.json. Either there is a problem with 6vff mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lr4_1_A+5LR4
+Could not find nucleotides of chain A+5LR4 in annotation 5lr4.json. Either there is a problem with 5lr4 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j0o_1_E+3J0O
+Could not find nucleotides of chain E+3J0O in annotation 3j0o.json. Either there is a problem with 3j0o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6z8k_1_P+6Z8K
+Could not find nucleotides of chain P+6Z8K in annotation 6z8k.json. Either there is a problem with 6z8k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5kvj_1_A+5KVJ
+Could not find nucleotides of chain A+5KVJ in annotation 5kvj.json. Either there is a problem with 5kvj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3lrr_1_C+3LRR
+Could not find nucleotides of chain C+3LRR in annotation 3lrr.json. Either there is a problem with 3lrr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4b3r_1_Z+4B3R
+Could not find nucleotides of chain Z+4B3R in annotation 4b3r.json. Either there is a problem with 4b3r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1yzd_1_A+1YZD
+Could not find nucleotides of chain A+1YZD in annotation 1yzd.json. Either there is a problem with 1yzd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7dco_1_H+7DCO
+Could not find nucleotides of chain H+7DCO in annotation 7dco.json. Either there is a problem with 7dco mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2gjw_1_I+2GJW
+Could not find nucleotides of chain I+2GJW in annotation 2gjw.json. Either there is a problem with 2gjw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7bv2_1_T+7BV2
+Could not find nucleotides of chain T+7BV2 in annotation 7bv2.json. Either there is a problem with 7bv2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6nd4_1_0+6ND4
+Could not find nucleotides of chain 0+6ND4 in annotation 6nd4.json. Either there is a problem with 6nd4 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r1e_1_A+3R1E
+Could not find nucleotides of chain A+3R1E in annotation 3r1e.json. Either there is a problem with 3r1e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5hnj_1_A+5HNJ
+Could not find nucleotides of chain A+5HNJ in annotation 5hnj.json. Either there is a problem with 5hnj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6sgc_1_54+6SGC
+Could not find nucleotides of chain 54+6SGC in annotation 6sgc.json. Either there is a problem with 6sgc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2uxc_1_X+2UXC
+Could not find nucleotides of chain X+2UXC in annotation 2uxc.json. Either there is a problem with 2uxc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2g3s_1_I+2G3S
+Could not find nucleotides of chain I+2G3S in annotation 2g3s.json. Either there is a problem with 2g3s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6bu9_1_B+6BU9
+Could not find nucleotides of chain B+6BU9 in annotation 6bu9.json. Either there is a problem with 6bu9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+205d_1_A+205D
+Could not find nucleotides of chain A+205D in annotation 205d.json. Either there is a problem with 205d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1n32_1_Y+1N32
+Could not find nucleotides of chain Y+1N32 in annotation 1n32.json. Either there is a problem with 1n32 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6s8b_1_V+6S8B
+Could not find nucleotides of chain V+6S8B in annotation 6s8b.json. Either there is a problem with 6s8b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wta_1_T+4WTA
+Could not find nucleotides of chain T+4WTA in annotation 4wta.json. Either there is a problem with 4wta mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1i9x_1_A+1I9X
+Could not find nucleotides of chain A+1I9X in annotation 1i9x.json. Either there is a problem with 1i9x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5xy3_1_1+5XY3
+Could not find nucleotides of chain 1+5XY3 in annotation 5xy3.json. Either there is a problem with 5xy3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7nun_1_C
+Could not download and/or find annotations for 7nun_1_C.
+
+7l1f_1_T+7L1F
+Could not find nucleotides of chain T+7L1F in annotation 7l1f.json. Either there is a problem with 7l1f mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3p59_1_E+3P59
+Could not find nucleotides of chain E+3P59 in annotation 3p59.json. Either there is a problem with 3p59 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5e3h_1_B+5E3H
+Could not find nucleotides of chain B+5E3H in annotation 5e3h.json. Either there is a problem with 5e3h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5m3h_1_V+5M3H
+Could not find nucleotides of chain V+5M3H in annotation 5m3h.json. Either there is a problem with 5m3h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5tbw_1_1+5TBW
+Could not find nucleotides of chain 1+5TBW in annotation 5tbw.json. Either there is a problem with 5tbw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3nl0_1_B+3NL0
+Could not find nucleotides of chain B+3NL0 in annotation 3nl0.json. Either there is a problem with 3nl0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6qdv_1_2+6QDV
+Could not find nucleotides of chain 2+6QDV in annotation 6qdv.json. Either there is a problem with 6qdv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7ctt_1_T+7CTT
+Could not find nucleotides of chain T+7CTT in annotation 7ctt.json. Either there is a problem with 7ctt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5f8j_1_B+5F8J
+Could not find nucleotides of chain B+5F8J in annotation 5f8j.json. Either there is a problem with 5f8j mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3bbm_1_B+3BBM
+Could not find nucleotides of chain B+3BBM in annotation 3bbm.json. Either there is a problem with 3bbm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wtm_1_T+4WTM
+Could not find nucleotides of chain T+4WTM in annotation 4wtm.json. Either there is a problem with 4wtm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6hct_1_A+6HCT
+Could not find nucleotides of chain A+6HCT in annotation 6hct.json. Either there is a problem with 6hct mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1kd4_1_A+1KD4
+Could not find nucleotides of chain A+1KD4 in annotation 1kd4.json. Either there is a problem with 1kd4 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6swa_1_Q+6SWA
+Could not find nucleotides of chain Q+6SWA in annotation 6swa.json. Either there is a problem with 6swa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1qc0_1_C+1QC0
+Could not find nucleotides of chain C+1QC0 in annotation 1qc0.json. Either there is a problem with 1qc0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6zmi_1_L5+6ZMI
+Could not find nucleotides of chain L5+6ZMI in annotation 6zmi.json. Either there is a problem with 6zmi mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2p7e_1_D+2P7E
+Could not find nucleotides of chain D+2P7E in annotation 2p7e.json. Either there is a problem with 2p7e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2uxb_1_Y+2UXB
+Could not find nucleotides of chain Y+2UXB in annotation 2uxb.json. Either there is a problem with 2uxb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v8p_1_D1+4V8P
+Could not find nucleotides of chain D1+4V8P in annotation 4v8p.json. Either there is a problem with 4v8p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6wb0_1_D+6WB0
+Could not find nucleotides of chain D+6WB0 in annotation 6wb0.json. Either there is a problem with 6wb0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1yyw_1_I+1YYW
+Could not find nucleotides of chain I+1YYW in annotation 1yyw.json. Either there is a problem with 1yyw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4jab_1_A+4JAB
+Could not find nucleotides of chain A+4JAB in annotation 4jab.json. Either there is a problem with 4jab mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+439d_1_A+439D
+Could not find nucleotides of chain A+439D in annotation 439d.json. Either there is a problem with 439d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3bnr_1_C+3BNR
+Could not find nucleotides of chain C+3BNR in annotation 3bnr.json. Either there is a problem with 3bnr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6yyt_1_P+6YYT
+Could not find nucleotides of chain P+6YYT in annotation 6yyt.json. Either there is a problem with 6yyt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5c9h_1_C+5C9H
+Could not find nucleotides of chain C+5C9H in annotation 5c9h.json. Either there is a problem with 5c9h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7jqq_1_O
+Could not download and/or find annotations for 7jqq_1_O.
+
+3fte_1_C+3FTE
+Could not find nucleotides of chain C+3FTE in annotation 3fte.json. Either there is a problem with 3fte mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2zi0_1_C+2ZI0
+Could not find nucleotides of chain C+2ZI0 in annotation 2zi0.json. Either there is a problem with 2zi0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7nuq_1_C
+Could not download and/or find annotations for 7nuq_1_C.
+
+4k31_1_B+4K31
+Could not find nucleotides of chain B+4K31 in annotation 4k31.json. Either there is a problem with 4k31 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6mpi_1_X+6MPI
+Could not find nucleotides of chain X+6MPI in annotation 6mpi.json. Either there is a problem with 6mpi mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7jl1_1_X+7JL1
+Could not find nucleotides of chain X+7JL1 in annotation 7jl1.json. Either there is a problem with 7jl1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3dh3_1_F+3DH3
+Could not find nucleotides of chain F+3DH3 in annotation 3dh3.json. Either there is a problem with 3dh3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ifk_1_N+6IFK
+Could not find nucleotides of chain N+6IFK in annotation 6ifk.json. Either there is a problem with 6ifk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wtd_1_T+4WTD
+Could not find nucleotides of chain T+4WTD in annotation 4wtd.json. Either there is a problem with 4wtd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7cyq_1_J+7CYQ
+Could not find nucleotides of chain J+7CYQ in annotation 7cyq.json. Either there is a problem with 7cyq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1rpu_1_C+1RPU
+Could not find nucleotides of chain C+1RPU in annotation 1rpu.json. Either there is a problem with 1rpu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3c3z_1_A+3C3Z
+Could not find nucleotides of chain A+3C3Z in annotation 3c3z.json. Either there is a problem with 3c3z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lqp_1_SA+6LQP
+Could not find nucleotides of chain SA+6LQP in annotation 6lqp.json. Either there is a problem with 6lqp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3jb7_1_T+3JB7
+Could not find nucleotides of chain T+3JB7 in annotation 3jb7.json. Either there is a problem with 3jb7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jbj_1_X+5JBJ
+Could not find nucleotides of chain X+5JBJ in annotation 5jbj.json. Either there is a problem with 5jbj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j0o_1_G+3J0O
+Could not find nucleotides of chain G+3J0O in annotation 3j0o.json. Either there is a problem with 3j0o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ciy_1_C+3CIY
+Could not find nucleotides of chain C+3CIY in annotation 3ciy.json. Either there is a problem with 3ciy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7ndj_1_C
+Could not download and/or find annotations for 7ndj_1_C.
+
+419d_1_C+419D
+Could not find nucleotides of chain C+419D in annotation 419d.json. Either there is a problem with 419d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6zj3_1_LH+6ZJ3
+Could not find nucleotides of chain LH+6ZJ3 in annotation 6zj3.json. Either there is a problem with 6zj3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4p43_1_B+4P43
+Could not find nucleotides of chain B+4P43 in annotation 4p43.json. Either there is a problem with 4p43 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1yyk_1_C+1YYK
+Could not find nucleotides of chain C+1YYK in annotation 1yyk.json. Either there is a problem with 1yyk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1iha_1_A+1IHA
+Could not find nucleotides of chain A+1IHA in annotation 1iha.json. Either there is a problem with 1iha mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v7e_1_AA+4V7E
+Could not find nucleotides of chain AA+4V7E in annotation 4v7e.json. Either there is a problem with 4v7e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7jl3_1_X+7JL3
+Could not find nucleotides of chain X+7JL3 in annotation 7jl3.json. Either there is a problem with 7jl3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3szx_1_A+3SZX
+Could not find nucleotides of chain A+3SZX in annotation 3szx.json. Either there is a problem with 3szx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wtl_1_T+4WTL
+Could not find nucleotides of chain T+4WTL in annotation 4wtl.json. Either there is a problem with 4wtl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1xnq_1_X+1XNQ
+Could not find nucleotides of chain X+1XNQ in annotation 1xnq.json. Either there is a problem with 1xnq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5d8t_1_A+5D8T
+Could not find nucleotides of chain A+5D8T in annotation 5d8t.json. Either there is a problem with 5d8t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wrt_1_V+4WRT
+Could not find nucleotides of chain V+4WRT in annotation 4wrt.json. Either there is a problem with 4wrt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1z7f_1_B+1Z7F
+Could not find nucleotides of chain B+1Z7F in annotation 1z7f.json. Either there is a problem with 1z7f mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e58_1_D+4E58
+Could not find nucleotides of chain D+4E58 in annotation 4e58.json. Either there is a problem with 4e58 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3l25_1_C+3L25
+Could not find nucleotides of chain C+3L25 in annotation 3l25.json. Either there is a problem with 3l25 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3vnv_1_T+3VNV
+Could not find nucleotides of chain T+3VNV in annotation 3vnv.json. Either there is a problem with 3vnv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1fuf_1_A+1FUF
+Could not find nucleotides of chain A+1FUF in annotation 1fuf.json. Either there is a problem with 1fuf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5ed2_1_F+5ED2
+Could not find nucleotides of chain F+5ED2 in annotation 5ed2.json. Either there is a problem with 5ed2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5y6z_1_B+5Y6Z
+Could not find nucleotides of chain B+5Y6Z in annotation 5y6z.json. Either there is a problem with 5y6z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5nrl_1_2+5NRL
+Could not find nucleotides of chain 2+5NRL in annotation 5nrl.json. Either there is a problem with 5nrl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2gxb_1_E+2GXB
+Could not find nucleotides of chain E+2GXB in annotation 2gxb.json. Either there is a problem with 2gxb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7m4y_1_A
+Could not download and/or find annotations for 7m4y_1_A.
+
+4wtj_1_T+4WTJ
+Could not find nucleotides of chain T+4WTJ in annotation 4wtj.json. Either there is a problem with 4wtj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jxs_1_B+5JXS
+Could not find nucleotides of chain B+5JXS in annotation 5jxs.json. Either there is a problem with 5jxs mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2nug_1_E+2NUG
+Could not find nucleotides of chain E+2NUG in annotation 2nug.json. Either there is a problem with 2nug mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lsf_1_C+6LSF
+Could not find nucleotides of chain C+6LSF in annotation 6lsf.json. Either there is a problem with 6lsf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3cgp_1_B+3CGP
+Could not find nucleotides of chain B+3CGP in annotation 3cgp.json. Either there is a problem with 3cgp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4qpx_1_P+4QPX
+Could not find nucleotides of chain P+4QPX in annotation 4qpx.json. Either there is a problem with 4qpx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3avy_1_T+3AVY
+Could not find nucleotides of chain T+3AVY in annotation 3avy.json. Either there is a problem with 3avy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6hak_1_T+6HAK
+Could not find nucleotides of chain T+6HAK in annotation 6hak.json. Either there is a problem with 6hak mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6z6b_1_HHH+6Z6B
+Could not find nucleotides of chain HHH+6Z6B in annotation 6z6b.json. Either there is a problem with 6z6b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6o5f_1_D+6O5F
+Could not find nucleotides of chain D+6O5F in annotation 6o5f.json. Either there is a problem with 6o5f mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3siv_1_C+3SIV
+Could not find nucleotides of chain C+3SIV in annotation 3siv.json. Either there is a problem with 3siv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4z4d_1_B+4Z4D
+Could not find nucleotides of chain B+4Z4D in annotation 4z4d.json. Either there is a problem with 4z4d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3td0_1_B+3TD0
+Could not find nucleotides of chain B+3TD0 in annotation 3td0.json. Either there is a problem with 3td0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lr5_1_C+5LR5
+Could not find nucleotides of chain C+5LR5 in annotation 5lr5.json. Either there is a problem with 5lr5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4kyy_1_A+4KYY
+Could not find nucleotides of chain A+4KYY in annotation 4kyy.json. Either there is a problem with 4kyy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7am2_1_R1
+Sequence is too short. (< 5 resolved nts)
+
+7d8c_1_C
+Could not download and/or find annotations for 7d8c_1_C.
+
+7d8c_1_B
+Could not download and/or find annotations for 7d8c_1_B.
+
+359d_1_B+359D
+Could not find nucleotides of chain B+359D in annotation 359d.json. Either there is a problem with 359d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6mkn_1_X+6MKN
+Could not find nucleotides of chain X+6MKN in annotation 6mkn.json. Either there is a problem with 6mkn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+246d_1_A+246D
+Could not find nucleotides of chain A+246D in annotation 246d.json. Either there is a problem with 246d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wte_1_T+4WTE
+Could not find nucleotides of chain T+4WTE in annotation 4wte.json. Either there is a problem with 4wte mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4u35_1_B+4U35
+Could not find nucleotides of chain B+4U35 in annotation 4u35.json. Either there is a problem with 4u35 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2v6w_1_A+2V6W
+Could not find nucleotides of chain A+2V6W in annotation 2v6w.json. Either there is a problem with 2v6w mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4eya_1_E+4EYA
+Could not find nucleotides of chain E+4EYA in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2e9r_1_A+2E9R
+Could not find nucleotides of chain A+2E9R in annotation 2e9r.json. Either there is a problem with 2e9r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1jzv_1_B+1JZV
+Could not find nucleotides of chain B+1JZV in annotation 1jzv.json. Either there is a problem with 1jzv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r1c_1_Q+3R1C
+Could not find nucleotides of chain Q+3R1C in annotation 3r1c.json. Either there is a problem with 3r1c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jch_1_U+5JCH
+Could not find nucleotides of chain U+5JCH in annotation 5jch.json. Either there is a problem with 5jch mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1t0e_1_A+1T0E
+Could not find nucleotides of chain A+1T0E in annotation 1t0e.json. Either there is a problem with 1t0e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4a36_1_R+4A36
+Could not find nucleotides of chain R+4A36 in annotation 4a36.json. Either there is a problem with 4a36 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r1d_1_A+3R1D
+Could not find nucleotides of chain A+3R1D in annotation 3r1d.json. Either there is a problem with 3r1d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6jq5_1_B+6JQ5
+Could not find nucleotides of chain B+6JQ5 in annotation 6jq5.json. Either there is a problem with 6jq5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1t0k_1_D+1T0K
+Could not find nucleotides of chain D+1T0K in annotation 1t0k.json. Either there is a problem with 1t0k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6qct_1_R+6QCT
+Could not find nucleotides of chain R+6QCT in annotation 6qct.json. Either there is a problem with 6qct mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6z1p_1_AB+6Z1P
+Could not find nucleotides of chain AB+6Z1P in annotation 6z1p.json. Either there is a problem with 6z1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7krn_1_T+7KRN
+Could not find nucleotides of chain T+7KRN in annotation 7krn.json. Either there is a problem with 7krn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1j9h_1_A+1J9H
+Could not find nucleotides of chain A+1J9H in annotation 1j9h.json. Either there is a problem with 1j9h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ftf_1_C+3FTF
+Could not find nucleotides of chain C+3FTF in annotation 3ftf.json. Either there is a problem with 3ftf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6b19_1_C+6B19
+Could not find nucleotides of chain C+6B19 in annotation 6b19.json. Either there is a problem with 6b19 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6v4x_1_Z+6V4X
+Could not find nucleotides of chain Z+6V4X in annotation 6v4x.json. Either there is a problem with 6v4x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+438d_1_A+438D
+Could not find nucleotides of chain A+438D in annotation 438d.json. Either there is a problem with 438d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6rxu_1_C1+6RXU
+Could not find nucleotides of chain C1+6RXU in annotation 6rxu.json. Either there is a problem with 6rxu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1xnr_1_X+1XNR
+Could not find nucleotides of chain X+1XNR in annotation 1xnr.json. Either there is a problem with 1xnr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5ed1_1_C+5ED1
+Could not find nucleotides of chain C+5ED1 in annotation 5ed1.json. Either there is a problem with 5ed1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3mei_1_A+3MEI
+Could not find nucleotides of chain A+3MEI in annotation 3mei.json. Either there is a problem with 3mei mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3htx_1_B+3HTX
+Could not find nucleotides of chain B+3HTX in annotation 3htx.json. Either there is a problem with 3htx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4eya_1_G+4EYA
+Could not find nucleotides of chain G+4EYA in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e48_1_A+4E48
+Could not find nucleotides of chain A+4E48 in annotation 4e48.json. Either there is a problem with 4e48 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2r1s_1_A+2R1S
+Could not find nucleotides of chain A+2R1S in annotation 2r1s.json. Either there is a problem with 2r1s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6cap_1_W+6CAP
+Could not find nucleotides of chain W+6CAP in annotation 6cap.json. Either there is a problem with 6cap mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lr3_1_A+5LR3
+Could not find nucleotides of chain A+5LR3 in annotation 5lr3.json. Either there is a problem with 5lr3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5gan_1_V+5GAN
+Could not find nucleotides of chain V+5GAN in annotation 5gan.json. Either there is a problem with 5gan mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5dhc_1_C+5DHC
+Could not find nucleotides of chain C+5DHC in annotation 5dhc.json. Either there is a problem with 5dhc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3cgr_1_B+3CGR
+Could not find nucleotides of chain B+3CGR in annotation 3cgr.json. Either there is a problem with 3cgr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+353d_1_A+353D
+Could not find nucleotides of chain A+353D in annotation 353d.json. Either there is a problem with 353d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lqs_1_3A+6LQS
+Could not find nucleotides of chain 3A+6LQS in annotation 6lqs.json. Either there is a problem with 6lqs mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6htu_1_D+6HTU
+Could not find nucleotides of chain D+6HTU in annotation 6htu.json. Either there is a problem with 6htu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3jb9_1_N+3JB9
+Could not find nucleotides of chain N+3JB9 in annotation 3jb9.json. Either there is a problem with 3jb9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6tz2_1_N+6TZ2
+Could not find nucleotides of chain N+6TZ2 in annotation 6tz2.json. Either there is a problem with 6tz2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6rxx_1_C1+6RXX
+Could not find nucleotides of chain C1+6RXX in annotation 6rxx.json. Either there is a problem with 6rxx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4ts2_1_Y+4TS2
+Could not find nucleotides of chain Y+4TS2 in annotation 4ts2.json. Either there is a problem with 4ts2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e59_1_A+4E59
+Could not find nucleotides of chain A+4E59 in annotation 4e59.json. Either there is a problem with 4e59 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1csl_1_B+1CSL
+Could not find nucleotides of chain B+1CSL in annotation 1csl.json. Either there is a problem with 1csl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6waz_1_D+6WAZ
+Could not find nucleotides of chain D+6WAZ in annotation 6waz.json. Either there is a problem with 6waz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4xw0_1_A+4XW0
+Could not find nucleotides of chain A+4XW0 in annotation 4xw0.json. Either there is a problem with 4xw0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2oe5_1_B+2OE5
+Could not find nucleotides of chain B+2OE5 in annotation 2oe5.json. Either there is a problem with 2oe5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7dvq_1_F+7DVQ
+Could not find nucleotides of chain F+7DVQ in annotation 7dvq.json. Either there is a problem with 7dvq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6gkh_1_X+6GKH
+Could not find nucleotides of chain X+6GKH in annotation 6gkh.json. Either there is a problem with 6gkh mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2noq_1_D+2NOQ
+Could not find nucleotides of chain D+2NOQ in annotation 2noq.json. Either there is a problem with 2noq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7k5l_1_R
+Sequence is too short. (< 5 resolved nts)
+
+6ra4_1_L+6RA4
+Could not find nucleotides of chain L+6RA4 in annotation 6ra4.json. Either there is a problem with 6ra4 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6v9b_1_B+6V9B
+Could not find nucleotides of chain B+6V9B in annotation 6v9b.json. Either there is a problem with 6v9b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ozo_1_C+6OZO
+Could not find nucleotides of chain C+6OZO in annotation 6ozo.json. Either there is a problem with 6ozo mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4gl2_1_C+4GL2
+Could not find nucleotides of chain C+4GL2 in annotation 4gl2.json. Either there is a problem with 4gl2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2i91_1_F+2I91
+Could not find nucleotides of chain F+2I91 in annotation 2i91.json. Either there is a problem with 2i91 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6mdz_1_E+6MDZ
+Could not find nucleotides of chain E+6MDZ in annotation 6mdz.json. Either there is a problem with 6mdz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5ay2_1_A+5AY2
+Could not find nucleotides of chain A+5AY2 in annotation 5ay2.json. Either there is a problem with 5ay2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1zci_1_A+1ZCI
+Could not find nucleotides of chain A+1ZCI in annotation 1zci.json. Either there is a problem with 1zci mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1nuv_1_E+1NUV
+Could not find nucleotides of chain E+1NUV in annotation 1nuv.json. Either there is a problem with 1nuv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5wnt_1_B+5WNT
+Could not find nucleotides of chain B+5WNT in annotation 5wnt.json. Either there is a problem with 5wnt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6szv_1_R+6SZV
+Could not find nucleotides of chain R+6SZV in annotation 6szv.json. Either there is a problem with 6szv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+364d_1_C+364D
+Could not find nucleotides of chain C+364D in annotation 364d.json. Either there is a problem with 364d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2oe8_1_B+2OE8
+Could not find nucleotides of chain B+2OE8 in annotation 2oe8.json. Either there is a problem with 2oe8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4kq0_1_B+4KQ0
+Could not find nucleotides of chain B+4KQ0 in annotation 4kq0.json. Either there is a problem with 4kq0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r1c_1_K+3R1C
+Could not find nucleotides of chain K+3R1C in annotation 3r1c.json. Either there is a problem with 3r1c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2h1m_1_A+2H1M
+Could not find nucleotides of chain A+2H1M in annotation 2h1m.json. Either there is a problem with 2h1m mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6z1p_1_BB+6Z1P
+Could not find nucleotides of chain BB+6Z1P in annotation 6z1p.json. Either there is a problem with 6z1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5zwo_1_H+5ZWO
+Could not find nucleotides of chain H+5ZWO in annotation 5zwo.json. Either there is a problem with 5zwo mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6az3_1_1+6AZ3
+Could not find nucleotides of chain 1+6AZ3 in annotation 6az3.json. Either there is a problem with 6az3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2et8_1_A+2ET8
+Could not find nucleotides of chain A+2ET8 in annotation 2et8.json. Either there is a problem with 2et8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1feu_1_C+1FEU
+Could not find nucleotides of chain C+1FEU in annotation 1feu.json. Either there is a problem with 1feu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2uxd_1_Y+2UXD
+Could not find nucleotides of chain Y+2UXD in annotation 2uxd.json. Either there is a problem with 2uxd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5g4t_1_A+5G4T
+Could not find nucleotides of chain A+5G4T in annotation 5g4t.json. Either there is a problem with 5g4t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ol9_1_B+3OL9
+Could not find nucleotides of chain B+3OL9 in annotation 3ol9.json. Either there is a problem with 3ol9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3adi_1_D+3ADI
+Could not find nucleotides of chain D+3ADI in annotation 3adi.json. Either there is a problem with 3adi mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7b3d_1_T+7B3D
+Could not find nucleotides of chain T+7B3D in annotation 7b3d.json. Either there is a problem with 7b3d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5dv7_1_A+5DV7
+Could not find nucleotides of chain A+5DV7 in annotation 5dv7.json. Either there is a problem with 5dv7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5w0o_1_C+5W0O
+Could not find nucleotides of chain C+5W0O in annotation 5w0o.json. Either there is a problem with 5w0o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2g92_1_A+2G92
+Could not find nucleotides of chain A+2G92 in annotation 2g92.json. Either there is a problem with 2g92 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6yhs_1_8+6YHS
+Could not find nucleotides of chain 8+6YHS in annotation 6yhs.json. Either there is a problem with 6yhs mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4j50_1_A+4J50
+Could not find nucleotides of chain A+4J50 in annotation 4j50.json. Either there is a problem with 4j50 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3pla_1_G+3PLA
+Could not find nucleotides of chain G+3PLA in annotation 3pla.json. Either there is a problem with 3pla mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1ry1_1_Q+1RY1
+Could not find nucleotides of chain Q+1RY1 in annotation 1ry1.json. Either there is a problem with 1ry1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2o3x_1_A+2O3X
+Could not find nucleotides of chain A+2O3X in annotation 2o3x.json. Either there is a problem with 2o3x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4x62_1_B+4X62
+Could not find nucleotides of chain B+4X62 in annotation 4x62.json. Either there is a problem with 4x62 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1nta_1_A+1NTA
+Could not find nucleotides of chain A+1NTA in annotation 1nta.json. Either there is a problem with 1nta mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1zx7_1_C+1ZX7
+Could not find nucleotides of chain C+1ZX7 in annotation 1zx7.json. Either there is a problem with 1zx7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6id1_1_H+6ID1
+Could not find nucleotides of chain H+6ID1 in annotation 6id1.json. Either there is a problem with 6id1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2f8s_1_C+2F8S
+Could not find nucleotides of chain C+2F8S in annotation 2f8s.json. Either there is a problem with 2f8s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+472d_1_A+472D
+Could not find nucleotides of chain A+472D in annotation 472d.json. Either there is a problem with 472d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5amr_1_B+5AMR
+Could not find nucleotides of chain B+5AMR in annotation 5amr.json. Either there is a problem with 5amr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2pn3_1_A+2PN3
+Could not find nucleotides of chain A+2PN3 in annotation 2pn3.json. Either there is a problem with 2pn3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2e9t_1_B+2E9T
+Could not find nucleotides of chain B+2E9T in annotation 2e9t.json. Either there is a problem with 2e9t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3fs0_1_B+3FS0
+Could not find nucleotides of chain B+3FS0 in annotation 3fs0.json. Either there is a problem with 3fs0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j9b_1_K+3J9B
+Could not find nucleotides of chain K+3J9B in annotation 3j9b.json. Either there is a problem with 3j9b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1nuv_1_A+1NUV
+Could not find nucleotides of chain A+1NUV in annotation 1nuv.json. Either there is a problem with 1nuv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1yz9_1_C+1YZ9
+Could not find nucleotides of chain C+1YZ9 in annotation 1yz9.json. Either there is a problem with 1yz9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4ig8_1_B+4IG8
+Could not find nucleotides of chain B+4IG8 in annotation 4ig8.json. Either there is a problem with 4ig8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3s49_1_E+3S49
+Could not find nucleotides of chain E+3S49 in annotation 3s49.json. Either there is a problem with 3s49 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7krp_1_P+7KRP
+Could not find nucleotides of chain P+7KRP in annotation 7krp.json. Either there is a problem with 7krp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1h1k_1_K+1H1K
+Could not find nucleotides of chain K+1H1K in annotation 1h1k.json. Either there is a problem with 1h1k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ia2_1_A+6IA2
+Could not find nucleotides of chain A+6IA2 in annotation 6ia2.json. Either there is a problem with 6ia2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wtk_1_T+4WTK
+Could not find nucleotides of chain T+4WTK in annotation 4wtk.json. Either there is a problem with 4wtk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4gha_1_I+4GHA
+Could not find nucleotides of chain I+4GHA in annotation 4gha.json. Either there is a problem with 4gha mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7jju_1_A+7JJU
+Could not find nucleotides of chain A+7JJU in annotation 7jju.json. Either there is a problem with 7jju mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1duq_1_B+1DUQ
+Could not find nucleotides of chain B+1DUQ in annotation 1duq.json. Either there is a problem with 1duq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4db2_1_E+4DB2
+Could not find nucleotides of chain E+4DB2 in annotation 4db2.json. Either there is a problem with 4db2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1mhk_1_L+1MHK
+Could not find nucleotides of chain L+1MHK in annotation 1mhk.json. Either there is a problem with 1mhk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ozr_1_C+6OZR
+Could not find nucleotides of chain C+6OZR in annotation 6ozr.json. Either there is a problem with 6ozr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4o41_1_C+4O41
+Could not find nucleotides of chain C+4O41 in annotation 4o41.json. Either there is a problem with 4o41 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6k32_1_T+6K32
+Could not find nucleotides of chain T+6K32 in annotation 6k32.json. Either there is a problem with 6k32 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6vem_1_A+6VEM
+Could not find nucleotides of chain A+6VEM in annotation 6vem.json. Either there is a problem with 6vem mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6gvy_1_C+6GVY
+Could not find nucleotides of chain C+6GVY in annotation 6gvy.json. Either there is a problem with 6gvy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3loa_1_B+3LOA
+Could not find nucleotides of chain B+3LOA in annotation 3loa.json. Either there is a problem with 3loa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4k0k_1_Y+4K0K
+Could not find nucleotides of chain Y+4K0K in annotation 4k0k.json. Either there is a problem with 4k0k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1h1k_1_I+1H1K
+Could not find nucleotides of chain I+1H1K in annotation 1h1k.json. Either there is a problem with 1h1k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wtc_1_T+4WTC
+Could not find nucleotides of chain T+4WTC in annotation 4wtc.json. Either there is a problem with 4wtc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1ry1_1_O+1RY1
+Could not find nucleotides of chain O+1RY1 in annotation 1ry1.json. Either there is a problem with 1ry1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4kz2_1_B+4KZ2
+Could not find nucleotides of chain B+4KZ2 in annotation 4kz2.json. Either there is a problem with 4kz2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wzq_1_B+4WZQ
+Could not find nucleotides of chain B+4WZQ in annotation 4wzq.json. Either there is a problem with 4wzq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3tzr_1_A+3TZR
+Could not find nucleotides of chain A+3TZR in annotation 3tzr.json. Either there is a problem with 3tzr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3nvk_1_K+3NVK
+Could not find nucleotides of chain K+3NVK in annotation 3nvk.json. Either there is a problem with 3nvk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1g1x_1_J+1G1X
+Could not find nucleotides of chain J+1G1X in annotation 1g1x.json. Either there is a problem with 1g1x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2v7r_1_A+2V7R
+Could not find nucleotides of chain A+2V7R in annotation 2v7r.json. Either there is a problem with 2v7r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1n35_1_C+1N35
+Could not find nucleotides of chain C+1N35 in annotation 1n35.json. Either there is a problem with 1n35 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6m6s_1_C+6M6S
+Could not find nucleotides of chain C+6M6S in annotation 6m6s.json. Either there is a problem with 6m6s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3vyx_1_B+3VYX
+Could not find nucleotides of chain B+3VYX in annotation 3vyx.json. Either there is a problem with 3vyx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1tfw_1_G+1TFW
+Could not find nucleotides of chain G+1TFW in annotation 1tfw.json. Either there is a problem with 1tfw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1sdr_1_A+1SDR
+Could not find nucleotides of chain A+1SDR in annotation 1sdr.json. Either there is a problem with 1sdr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1yvp_1_C+1YVP
+Could not find nucleotides of chain C+1YVP in annotation 1yvp.json. Either there is a problem with 1yvp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6zj3_1_LC+6ZJ3
+Could not find nucleotides of chain LC+6ZJ3 in annotation 6zj3.json. Either there is a problem with 6zj3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5dhb_1_A+5DHB
+Could not find nucleotides of chain A+5DHB in annotation 5dhb.json. Either there is a problem with 5dhb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1ytu_1_E+1YTU
+Could not find nucleotides of chain E+1YTU in annotation 1ytu.json. Either there is a problem with 1ytu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5t5h_1_A+5T5H
+Could not find nucleotides of chain A+5T5H in annotation 5t5h.json. Either there is a problem with 5t5h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+435d_1_C+435D
+Could not find nucleotides of chain C+435D in annotation 435d.json. Either there is a problem with 435d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3cgs_1_B+3CGS
+Could not find nucleotides of chain B+3CGS in annotation 3cgs.json. Either there is a problem with 3cgs mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4phy_1_A+4PHY
+Could not find nucleotides of chain A+4PHY in annotation 4phy.json. Either there is a problem with 4phy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1dqh_1_B+1DQH
+Could not find nucleotides of chain B+1DQH in annotation 1dqh.json. Either there is a problem with 1dqh mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5h0r_1_H+5H0R
+Could not find nucleotides of chain H+5H0R in annotation 5h0r.json. Either there is a problem with 5h0r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3kmq_1_B+3KMQ
+Could not find nucleotides of chain B+3KMQ in annotation 3kmq.json. Either there is a problem with 3kmq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7m4y_1_V
+Could not download and/or find annotations for 7m4y_1_V.
+
+6hct_1_E+6HCT
+Could not find nucleotides of chain E+6HCT in annotation 6hct.json. Either there is a problem with 6hct mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ty9_1_T+6TY9
+Could not find nucleotides of chain T+6TY9 in annotation 6ty9.json. Either there is a problem with 6ty9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5ued_1_A+5UED
+Could not find nucleotides of chain A+5UED in annotation 5ued.json. Either there is a problem with 5ued mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1qbp_1_A+1QBP
+Could not find nucleotides of chain A+1QBP in annotation 1qbp.json. Either there is a problem with 1qbp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6bgb_1_A+6BGB
+Could not find nucleotides of chain A+6BGB in annotation 6bgb.json. Either there is a problem with 6bgb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6kur_1_V+6KUR
+Could not find nucleotides of chain V+6KUR in annotation 6kur.json. Either there is a problem with 6kur mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+464d_1_A+464D
+Could not find nucleotides of chain A+464D in annotation 464d.json. Either there is a problem with 464d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5l00_1_A+5L00
+Could not find nucleotides of chain A+5L00 in annotation 5l00.json. Either there is a problem with 5l00 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+485d_1_A+485D
+Could not find nucleotides of chain A+485D in annotation 485d.json. Either there is a problem with 485d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v6w_1_A5+4V6W
+Could not find nucleotides of chain A5+4V6W in annotation 4v6w.json. Either there is a problem with 4v6w mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+422d_1_A+422D
+Could not find nucleotides of chain A+422D in annotation 422d.json. Either there is a problem with 422d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5c45_1_X+5C45
+Could not find nucleotides of chain X+5C45 in annotation 5c45.json. Either there is a problem with 5c45 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1rna_1_A+1RNA
+Could not find nucleotides of chain A+1RNA in annotation 1rna.json. Either there is a problem with 1rna mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5xxb_1_1+5XXB
+Could not find nucleotides of chain 1+5XXB in annotation 5xxb.json. Either there is a problem with 5xxb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r1c_1_E+3R1C
+Could not find nucleotides of chain E+3R1C in annotation 3r1c.json. Either there is a problem with 3r1c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4zc7_1_A+4ZC7
+Could not find nucleotides of chain A+4ZC7 in annotation 4zc7.json. Either there is a problem with 4zc7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lqo_1_A+5LQO
+Could not find nucleotides of chain A+5LQO in annotation 5lqo.json. Either there is a problem with 5lqo mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v7h_1_B5+4V7H
+Could not find nucleotides of chain B5+4V7H in annotation 4v7h.json. Either there is a problem with 4v7h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4gkk_1_X+4GKK
+Could not find nucleotides of chain X+4GKK in annotation 4gkk.json. Either there is a problem with 4gkk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ogz_1_B+6OGZ
+Could not find nucleotides of chain B+6OGZ in annotation 6ogz.json. Either there is a problem with 6ogz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3jxq_1_L+3JXQ
+Could not find nucleotides of chain L+3JXQ in annotation 3jxq.json. Either there is a problem with 3jxq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7kjv_1_C+7KJV
+Could not find nucleotides of chain C+7KJV in annotation 7kjv.json. Either there is a problem with 7kjv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6rr7_1_D+6RR7
+Could not find nucleotides of chain D+6RR7 in annotation 6rr7.json. Either there is a problem with 6rr7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6xqb_1_F+6XQB
+Could not find nucleotides of chain F+6XQB in annotation 6xqb.json. Either there is a problem with 6xqb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jaj_1_X+5JAJ
+Could not find nucleotides of chain X+5JAJ in annotation 5jaj.json. Either there is a problem with 5jaj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7bzf_1_F+7BZF
+Could not find nucleotides of chain F+7BZF in annotation 7bzf.json. Either there is a problem with 7bzf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5wnp_1_A+5WNP
+Could not find nucleotides of chain A+5WNP in annotation 5wnp.json. Either there is a problem with 5wnp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3avv_1_T+3AVV
+Could not find nucleotides of chain T+3AVV in annotation 3avv.json. Either there is a problem with 3avv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2zko_1_C+2ZKO
+Could not find nucleotides of chain C+2ZKO in annotation 2zko.json. Either there is a problem with 2zko mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3avw_1_T+3AVW
+Could not find nucleotides of chain T+3AVW in annotation 3avw.json. Either there is a problem with 3avw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1kd5_1_A+1KD5
+Could not find nucleotides of chain A+1KD5 in annotation 1kd5.json. Either there is a problem with 1kd5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1zh5_1_C+1ZH5
+Could not find nucleotides of chain C+1ZH5 in annotation 1zh5.json. Either there is a problem with 1zh5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2val_1_A+2VAL
+Could not find nucleotides of chain A+2VAL in annotation 2val.json. Either there is a problem with 2val mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1dqf_1_B+1DQF
+Could not find nucleotides of chain B+1DQF in annotation 1dqf.json. Either there is a problem with 1dqf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7b9v_1_2+7B9V
+Could not find nucleotides of chain 2+7B9V in annotation 7b9v.json. Either there is a problem with 7b9v mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1icg_1_A+1ICG
+Could not find nucleotides of chain A+1ICG in annotation 1icg.json. Either there is a problem with 1icg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4k4s_1_B+4K4S
+Could not find nucleotides of chain B+4K4S in annotation 4k4s.json. Either there is a problem with 4k4s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4fvu_1_B+4FVU
+Could not find nucleotides of chain B+4FVU in annotation 4fvu.json. Either there is a problem with 4fvu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3h5x_1_T+3H5X
+Could not find nucleotides of chain T+3H5X in annotation 3h5x.json. Either there is a problem with 3h5x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4ngf_1_G+4NGF
+Could not find nucleotides of chain G+4NGF in annotation 4ngf.json. Either there is a problem with 4ngf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3nmu_1_E+3NMU
+Could not find nucleotides of chain E+3NMU in annotation 3nmu.json. Either there is a problem with 3nmu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2a0p_1_A+2A0P
+Could not find nucleotides of chain A+2A0P in annotation 2a0p.json. Either there is a problem with 2a0p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1d4r_1_B+1D4R
+Could not find nucleotides of chain B+1D4R in annotation 1d4r.json. Either there is a problem with 1d4r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4rwn_1_B+4RWN
+Could not find nucleotides of chain B+4RWN in annotation 4rwn.json. Either there is a problem with 4rwn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j7q_1_5+3J7Q
+Could not find nucleotides of chain 5+3J7Q in annotation 3j7q.json. Either there is a problem with 3j7q mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4mcf_1_B+4MCF
+Could not find nucleotides of chain B+4MCF in annotation 4mcf.json. Either there is a problem with 4mcf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3avx_1_T+3AVX
+Could not find nucleotides of chain T+3AVX in annotation 3avx.json. Either there is a problem with 3avx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7bg6_1_C
+Could not download and/or find annotations for 7bg6_1_C.
+
+4gv6_1_C+4GV6
+Could not find nucleotides of chain C+4GV6 in annotation 4gv6.json. Either there is a problem with 4gv6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3mqk_1_D+3MQK
+Could not find nucleotides of chain D+3MQK in annotation 3mqk.json. Either there is a problem with 3mqk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5zuu_1_E+5ZUU
+Could not find nucleotides of chain E+5ZUU in annotation 5zuu.json. Either there is a problem with 5zuu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6d06_1_B+6D06
+Could not find nucleotides of chain B+6D06 in annotation 6d06.json. Either there is a problem with 6d06 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lqt_1_A+5LQT
+Could not find nucleotides of chain A+5LQT in annotation 5lqt.json. Either there is a problem with 5lqt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7am2_1_R2+7AM2
+Could not find nucleotides of chain R2+7AM2 in annotation 7am2.json. Either there is a problem with 7am2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6zqa_1_D3+6ZQA
+Could not find nucleotides of chain D3+6ZQA in annotation 6zqa.json. Either there is a problem with 6zqa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4gkj_1_X+4GKJ
+Could not find nucleotides of chain X+4GKJ in annotation 4gkj.json. Either there is a problem with 4gkj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7c2k_1_F+7C2K
+Could not find nucleotides of chain F+7C2K in annotation 7c2k.json. Either there is a problem with 7c2k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7aap_1_T+7AAP
+Could not find nucleotides of chain T+7AAP in annotation 7aap.json. Either there is a problem with 7aap mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1sa9_1_C+1SA9
+Could not find nucleotides of chain C+1SA9 in annotation 1sa9.json. Either there is a problem with 1sa9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6sx2_1_C+6SX2
+Could not find nucleotides of chain C+6SX2 in annotation 6sx2.json. Either there is a problem with 6sx2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5vci_1_A+5VCI
+Could not find nucleotides of chain A+5VCI in annotation 5vci.json. Either there is a problem with 5vci mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+280d_1_A+280D
+Could not find nucleotides of chain A+280D in annotation 280d.json. Either there is a problem with 280d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4yhw_1_F+4YHW
+Could not find nucleotides of chain F+4YHW in annotation 4yhw.json. Either there is a problem with 4yhw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6pzq_1_J+6PZQ
+Could not find nucleotides of chain J+6PZQ in annotation 6pzq.json. Either there is a problem with 6pzq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3gm7_1_G+3GM7
+Could not find nucleotides of chain G+3GM7 in annotation 3gm7.json. Either there is a problem with 3gm7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5c9h_1_G+5C9H
+Could not find nucleotides of chain G+5C9H in annotation 5c9h.json. Either there is a problem with 5c9h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lse_1_C+6LSE
+Could not find nucleotides of chain C+6LSE in annotation 6lse.json. Either there is a problem with 6lse mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3cz3_1_G+3CZ3
+Could not find nucleotides of chain G+3CZ3 in annotation 3cz3.json. Either there is a problem with 3cz3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7b3c_1_T+7B3C
+Could not find nucleotides of chain T+7B3C in annotation 7b3c.json. Either there is a problem with 7b3c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5une_1_A+5UNE
+Could not find nucleotides of chain A+5UNE in annotation 5une.json. Either there is a problem with 5une mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2e9z_1_B+2E9Z
+Could not find nucleotides of chain B+2E9Z in annotation 2e9z.json. Either there is a problem with 2e9z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4k4z_1_N+4K4Z
+Could not find nucleotides of chain N+4K4Z in annotation 4k4z.json. Either there is a problem with 4k4z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6szu_1_V+6SZU
+Could not find nucleotides of chain V+6SZU in annotation 6szu.json. Either there is a problem with 6szu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5ew4_1_B+5EW4
+Could not find nucleotides of chain B+5EW4 in annotation 5ew4.json. Either there is a problem with 5ew4 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ncu_1_C+3NCU
+Could not find nucleotides of chain C+3NCU in annotation 3ncu.json. Either there is a problem with 3ncu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2vuq_1_A+2VUQ
+Could not find nucleotides of chain A+2VUQ in annotation 2vuq.json. Either there is a problem with 2vuq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6hu6_1_B+6HU6
+Could not find nucleotides of chain B+6HU6 in annotation 6hu6.json. Either there is a problem with 6hu6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5v1k_1_A+5V1K
+Could not find nucleotides of chain A+5V1K in annotation 5v1k.json. Either there is a problem with 5v1k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3dkn_1_D+3DKN
+Could not find nucleotides of chain D+3DKN in annotation 3dkn.json. Either there is a problem with 3dkn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2xsl_1_C+2XSL
+Could not find nucleotides of chain C+2XSL in annotation 2xsl.json. Either there is a problem with 2xsl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6e9f_1_B+6E9F
+Could not find nucleotides of chain B+6E9F in annotation 6e9f.json. Either there is a problem with 6e9f mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+418d_1_A+418D
+Could not find nucleotides of chain A+418D in annotation 418d.json. Either there is a problem with 418d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e6b_1_A+4E6B
+Could not find nucleotides of chain A+4E6B in annotation 4e6b.json. Either there is a problem with 4e6b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6g19_1_X+6G19
+Could not find nucleotides of chain X+6G19 in annotation 6g19.json. Either there is a problem with 6g19 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1wne_1_B+1WNE
+Could not find nucleotides of chain B+1WNE in annotation 1wne.json. Either there is a problem with 1wne mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4jrt_1_A+4JRT
+Could not find nucleotides of chain A+4JRT in annotation 4jrt.json. Either there is a problem with 4jrt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2ao5_1_C+2AO5
+Could not find nucleotides of chain C+2AO5 in annotation 2ao5.json. Either there is a problem with 2ao5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6oj6_1_T+6OJ6
+Could not find nucleotides of chain T+6OJ6 in annotation 6oj6.json. Either there is a problem with 6oj6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2r92_1_T+2R92
+Could not find nucleotides of chain T+2R92 in annotation 2r92.json. Either there is a problem with 2r92 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4k4u_1_B+4K4U
+Could not find nucleotides of chain B+4K4U in annotation 4k4u.json. Either there is a problem with 4k4u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4u3l_1_A+4U3L
+Could not find nucleotides of chain A+4U3L in annotation 4u3l.json. Either there is a problem with 4u3l mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1tfw_1_H+1TFW
+Could not find nucleotides of chain H+1TFW in annotation 1tfw.json. Either there is a problem with 1tfw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6kuk_1_V+6KUK
+Could not find nucleotides of chain V+6KUK in annotation 6kuk.json. Either there is a problem with 6kuk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+402d_1_A+402D
+Could not find nucleotides of chain A+402D in annotation 402d.json. Either there is a problem with 402d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3og8_1_C+3OG8
+Could not find nucleotides of chain C+3OG8 in annotation 3og8.json. Either there is a problem with 3og8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4yhw_1_E+4YHW
+Could not find nucleotides of chain E+4YHW in annotation 4yhw.json. Either there is a problem with 4yhw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3cjz_1_A+3CJZ
+Could not find nucleotides of chain A+3CJZ in annotation 3cjz.json. Either there is a problem with 3cjz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6bbo_1_F+6BBO
+Could not find nucleotides of chain F+6BBO in annotation 6bbo.json. Either there is a problem with 6bbo mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6mfn_1_E+6MFN
+Could not find nucleotides of chain E+6MFN in annotation 6mfn.json. Either there is a problem with 6mfn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5u0q_1_C+5U0Q
+Could not find nucleotides of chain C+5U0Q in annotation 5u0q.json. Either there is a problem with 5u0q mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2ec0_1_B+2EC0
+Could not find nucleotides of chain B+2EC0 in annotation 2ec0.json. Either there is a problem with 2ec0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3glp_1_B+3GLP
+Could not find nucleotides of chain B+3GLP in annotation 3glp.json. Either there is a problem with 3glp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5h1k_1_C+5H1K
+Could not find nucleotides of chain C+5H1K in annotation 5h1k.json. Either there is a problem with 5h1k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4dr6_1_W+4DR6
+Could not find nucleotides of chain W+4DR6 in annotation 4dr6.json. Either there is a problem with 4dr6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4eya_1_M+4EYA
+Could not find nucleotides of chain M+4EYA in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3hjy_1_D+3HJY
+Could not find nucleotides of chain D+3HJY in annotation 3hjy.json. Either there is a problem with 3hjy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3kna_1_B+3KNA
+Could not find nucleotides of chain B+3KNA in annotation 3kna.json. Either there is a problem with 3kna mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3vnu_1_G+3VNU
+Could not find nucleotides of chain G+3VNU in annotation 3vnu.json. Either there is a problem with 3vnu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6tw1_1_V+6TW1
+Could not find nucleotides of chain V+6TW1 in annotation 6tw1.json. Either there is a problem with 6tw1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lsg_1_B+6LSG
+Could not find nucleotides of chain B+6LSG in annotation 6lsg.json. Either there is a problem with 6lsg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ks8_1_E+3KS8
+Could not find nucleotides of chain E+3KS8 in annotation 3ks8.json. Either there is a problem with 3ks8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e6b_1_E+4E6B
+Could not find nucleotides of chain E+4E6B in annotation 4e6b.json. Either there is a problem with 4e6b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+406d_1_A+406D
+Could not find nucleotides of chain A+406D in annotation 406d.json. Either there is a problem with 406d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1qc0_1_B+1QC0
+Could not find nucleotides of chain B+1QC0 in annotation 1qc0.json. Either there is a problem with 1qc0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3a6p_1_E+3A6P
+Could not find nucleotides of chain E+3A6P in annotation 3a6p.json. Either there is a problem with 3a6p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6kuv_1_V+6KUV
+Could not find nucleotides of chain V+6KUV in annotation 6kuv.json. Either there is a problem with 6kuv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6qwl_1_W+6QWL
+Could not find nucleotides of chain W+6QWL in annotation 6qwl.json. Either there is a problem with 6qwl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wsb_1_V+4WSB
+Could not find nucleotides of chain V+4WSB in annotation 4wsb.json. Either there is a problem with 4wsb mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+332d_1_A+332D
+Could not find nucleotides of chain A+332D in annotation 332d.json. Either there is a problem with 332d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3qrp_1_B+3QRP
+Could not find nucleotides of chain B+3QRP in annotation 3qrp.json. Either there is a problem with 3qrp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1qcu_1_A+1QCU
+Could not find nucleotides of chain A+1QCU in annotation 1qcu.json. Either there is a problem with 1qcu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4p3u_1_C+4P3U
+Could not find nucleotides of chain C+4P3U in annotation 4p3u.json. Either there is a problem with 4p3u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e78_1_P+4E78
+Could not find nucleotides of chain P+4E78 in annotation 4e78.json. Either there is a problem with 4e78 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4eya_1_O+4EYA
+Could not find nucleotides of chain O+4EYA in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3gvn_1_A+3GVN
+Could not find nucleotides of chain A+3GVN in annotation 3gvn.json. Either there is a problem with 3gvn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j0e_1_E+3J0E
+Could not find nucleotides of chain E+3J0E in annotation 3j0e.json. Either there is a problem with 3j0e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6qn3_1_A+6QN3
+Could not find nucleotides of chain A+6QN3 in annotation 6qn3.json. Either there is a problem with 6qn3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2az0_1_C+2AZ0
+Could not find nucleotides of chain C+2AZ0 in annotation 2az0.json. Either there is a problem with 2az0 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wzm_1_B+4WZM
+Could not find nucleotides of chain B+4WZM in annotation 4wzm.json. Either there is a problem with 4wzm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2o3y_1_A+2O3Y
+Could not find nucleotides of chain A+2O3Y in annotation 2o3y.json. Either there is a problem with 2o3y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4u34_1_B+4U34
+Could not find nucleotides of chain B+4U34 in annotation 4u34.json. Either there is a problem with 4u34 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+377d_1_A+377D
+Could not find nucleotides of chain A+377D in annotation 377d.json. Either there is a problem with 377d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4z31_1_C+4Z31
+Could not find nucleotides of chain C+4Z31 in annotation 4z31.json. Either there is a problem with 4z31 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5wnu_1_B+5WNU
+Could not find nucleotides of chain B+5WNU in annotation 5wnu.json. Either there is a problem with 5wnu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2bgg_1_P+2BGG
+Could not find nucleotides of chain P+2BGG in annotation 2bgg.json. Either there is a problem with 2bgg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3avu_1_T+3AVU
+Could not find nucleotides of chain T+3AVU in annotation 3avu.json. Either there is a problem with 3avu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6t0s_1_V+6T0S
+Could not find nucleotides of chain V+6T0S in annotation 6t0s.json. Either there is a problem with 6t0s mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6dn2_1_Y+6DN2
+Could not find nucleotides of chain Y+6DN2 in annotation 6dn2.json. Either there is a problem with 6dn2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5f8n_1_B+5F8N
+Could not find nucleotides of chain B+5F8N in annotation 5f8n.json. Either there is a problem with 5f8n mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7d3j_1_B
+Could not download and/or find annotations for 7d3j_1_B.
+
+6kuj_1_V+6KUJ
+Could not find nucleotides of chain V+6KUJ in annotation 6kuj.json. Either there is a problem with 6kuj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6bk8_1_2+6BK8
+Could not find nucleotides of chain 2+6BK8 in annotation 6bk8.json. Either there is a problem with 6bk8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5g4u_1_I+5G4U
+Could not find nucleotides of chain I+5G4U in annotation 5g4u.json. Either there is a problem with 5g4u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2rfk_1_E+2RFK
+Could not find nucleotides of chain E+2RFK in annotation 2rfk.json. Either there is a problem with 2rfk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3bnn_1_C+3BNN
+Could not find nucleotides of chain C+3BNN in annotation 3bnn.json. Either there is a problem with 3bnn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6g1x_1_X+6G1X
+Could not find nucleotides of chain X+6G1X in annotation 6g1x.json. Either there is a problem with 6g1x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2o3v_1_A+2O3V
+Could not find nucleotides of chain A+2O3V in annotation 2o3v.json. Either there is a problem with 2o3v mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1dfu_1_M+1DFU
+Could not find nucleotides of chain M+1DFU in annotation 1dfu.json. Either there is a problem with 1dfu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1tfy_1_H+1TFY
+Could not find nucleotides of chain H+1TFY in annotation 1tfy.json. Either there is a problem with 1tfy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1r3e_1_D+1R3E
+Could not find nucleotides of chain D+1R3E in annotation 1r3e.json. Either there is a problem with 1r3e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6tz1_1_T+6TZ1
+Could not find nucleotides of chain T+6TZ1 in annotation 6tz1.json. Either there is a problem with 6tz1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1uon_1_C+1UON
+Could not find nucleotides of chain C+1UON in annotation 1uon.json. Either there is a problem with 1uon mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4eya_1_K+4EYA
+Could not find nucleotides of chain K+4EYA in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4g9z_1_E+4G9Z
+Could not find nucleotides of chain E+4G9Z in annotation 4g9z.json. Either there is a problem with 4g9z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2g91_1_A+2G91
+Could not find nucleotides of chain A+2G91 in annotation 2g91.json. Either there is a problem with 2g91 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6o7h_1_G+6O7H
+Could not find nucleotides of chain G+6O7H in annotation 6o7h.json. Either there is a problem with 6o7h mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3nma_1_B+3NMA
+Could not find nucleotides of chain B+3NMA in annotation 3nma.json. Either there is a problem with 3nma mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3wbm_1_X+3WBM
+Could not find nucleotides of chain X+3WBM in annotation 3wbm.json. Either there is a problem with 3wbm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1tfy_1_G+1TFY
+Could not find nucleotides of chain G+1TFY in annotation 1tfy.json. Either there is a problem with 1tfy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4wti_1_T+4WTI
+Could not find nucleotides of chain T+4WTI in annotation 4wti.json. Either there is a problem with 4wti mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3sj2_1_A+3SJ2
+Could not find nucleotides of chain A+3SJ2 in annotation 3sj2.json. Either there is a problem with 3sj2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v8m_1_BA+4V8M
+Could not find nucleotides of chain BA+4V8M in annotation 4v8m.json. Either there is a problem with 4v8m mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6zqd_1_D4+6ZQD
+Could not find nucleotides of chain D4+6ZQD in annotation 6zqd.json. Either there is a problem with 6zqd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6o1o_1_M+6O1O
+Could not find nucleotides of chain M+6O1O in annotation 6o1o.json. Either there is a problem with 6o1o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3adl_1_B+3ADL
+Could not find nucleotides of chain B+3ADL in annotation 3adl.json. Either there is a problem with 3adl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2w89_1_A+2W89
+Could not find nucleotides of chain A+2W89 in annotation 2w89.json. Either there is a problem with 2w89 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+433d_1_A+433D
+Could not find nucleotides of chain A+433D in annotation 433d.json. Either there is a problem with 433d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3r2d_1_R+3R2D
+Could not find nucleotides of chain R+3R2D in annotation 3r2d.json. Either there is a problem with 3r2d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ozp_1_C+6OZP
+Could not find nucleotides of chain C+6OZP in annotation 6ozp.json. Either there is a problem with 6ozp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6lsh_1_B+6LSH
+Could not find nucleotides of chain B+6LSH in annotation 6lsh.json. Either there is a problem with 6lsh mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5t3k_1_A+5T3K
+Could not find nucleotides of chain A+5T3K in annotation 5t3k.json. Either there is a problem with 5t3k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6t0v_1_R+6T0V
+Could not find nucleotides of chain R+6T0V in annotation 6t0v.json. Either there is a problem with 6t0v mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+409d_1_C+409D
+Could not find nucleotides of chain C+409D in annotation 409d.json. Either there is a problem with 409d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e7a_1_P+4E7A
+Could not find nucleotides of chain P+4E7A in annotation 4e7a.json. Either there is a problem with 4e7a mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3ftm_1_D+3FTM
+Could not find nucleotides of chain D+3FTM in annotation 3ftm.json. Either there is a problem with 3ftm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3koa_1_B+3KOA
+Could not find nucleotides of chain B+3KOA in annotation 3koa.json. Either there is a problem with 3koa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7abg_1_2+7ABG
+Could not find nucleotides of chain 2+7ABG in annotation 7abg.json. Either there is a problem with 7abg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1saq_1_A+1SAQ
+Could not find nucleotides of chain A+1SAQ in annotation 1saq.json. Either there is a problem with 1saq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4p3u_1_B+4P3U
+Could not find nucleotides of chain B+4P3U in annotation 4p3u.json. Either there is a problem with 4p3u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6n4o_1_C+6N4O
+Could not find nucleotides of chain C+6N4O in annotation 6n4o.json. Either there is a problem with 6n4o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+354d_1_A+354D
+Could not find nucleotides of chain A+354D in annotation 354d.json. Either there is a problem with 354d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4pco_1_A+4PCO
+Could not find nucleotides of chain A+4PCO in annotation 4pco.json. Either there is a problem with 4pco mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4a2x_1_L+4A2X
+Could not find nucleotides of chain L+4A2X in annotation 4a2x.json. Either there is a problem with 4a2x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1n33_1_Y+1N33
+Could not find nucleotides of chain Y+1N33 in annotation 1n33.json. Either there is a problem with 1n33 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6dti_1_X+6DTI
+Could not find nucleotides of chain X+6DTI in annotation 6dti.json. Either there is a problem with 6dti mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5cnr_1_A+5CNR
+Could not find nucleotides of chain A+5CNR in annotation 5cnr.json. Either there is a problem with 5cnr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1qcu_1_C+1QCU
+Could not find nucleotides of chain C+1QCU in annotation 1qcu.json. Either there is a problem with 1qcu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7cxm_1_J+7CXM
+Could not find nucleotides of chain J+7CXM in annotation 7cxm.json. Either there is a problem with 7cxm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1zz5_1_A+1ZZ5
+Could not find nucleotides of chain A+1ZZ5 in annotation 1zz5.json. Either there is a problem with 1zz5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4x2b_1_B+4X2B
+Could not find nucleotides of chain B+4X2B in annotation 4x2b.json. Either there is a problem with 4x2b mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4p3t_1_A+4P3T
+Could not find nucleotides of chain A+4P3T in annotation 4p3t.json. Either there is a problem with 4p3t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4jah_1_A+4JAH
+Could not find nucleotides of chain A+4JAH in annotation 4jah.json. Either there is a problem with 4jah mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4e5c_1_A+4E5C
+Could not find nucleotides of chain A+4E5C in annotation 4e5c.json. Either there is a problem with 4e5c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1n38_1_C+1N38
+Could not find nucleotides of chain C+1N38 in annotation 1n38.json. Either there is a problem with 1n38 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6qit_1_A+6QIT
+Could not find nucleotides of chain A+6QIT in annotation 6qit.json. Either there is a problem with 6qit mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2f8t_1_C+2F8T
+Could not find nucleotides of chain C+2F8T in annotation 2f8t.json. Either there is a problem with 2f8t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1ry1_1_N+1RY1
+Could not find nucleotides of chain N+1RY1 in annotation 1ry1.json. Either there is a problem with 1ry1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6mpf_1_X+6MPF
+Could not find nucleotides of chain X+6MPF in annotation 6mpf.json. Either there is a problem with 6mpf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+397d_1_A+397D
+Could not find nucleotides of chain A+397D in annotation 397d.json. Either there is a problem with 397d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5tsn_1_P+5TSN
+Could not find nucleotides of chain P+5TSN in annotation 5tsn.json. Either there is a problem with 5tsn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jcf_1_Y+5JCF
+Could not find nucleotides of chain Y+5JCF in annotation 5jcf.json. Either there is a problem with 5jcf mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6nta_1_XV+6NTA
+Could not find nucleotides of chain XV+6NTA in annotation 6nta.json. Either there is a problem with 6nta mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7dmq_1_B+7DMQ
+Could not find nucleotides of chain B+7DMQ in annotation 7dmq.json. Either there is a problem with 7dmq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3eqt_1_C+3EQT
+Could not find nucleotides of chain C+3EQT in annotation 3eqt.json. Either there is a problem with 3eqt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4p97_1_A+4P97
+Could not find nucleotides of chain A+4P97 in annotation 4p97.json. Either there is a problem with 4p97 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ifl_1_J+6IFL
+Could not find nucleotides of chain J+6IFL in annotation 6ifl.json. Either there is a problem with 6ifl mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+315d_1_A+315D
+Could not find nucleotides of chain A+315D in annotation 315d.json. Either there is a problem with 315d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5zwm_1_H+5ZWM
+Could not find nucleotides of chain H+5ZWM in annotation 5zwm.json. Either there is a problem with 5zwm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6exn_1_2+6EXN
+Could not find nucleotides of chain 2+6EXN in annotation 6exn.json. Either there is a problem with 6exn mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3nj7_1_C+3NJ7
+Could not find nucleotides of chain C+3NJ7 in annotation 3nj7.json. Either there is a problem with 3nj7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5jc7_1_X+5JC7
+Could not find nucleotides of chain X+5JC7 in annotation 5jc7.json. Either there is a problem with 5jc7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lqw_1_6+5LQW
+Could not find nucleotides of chain 6+5LQW in annotation 5lqw.json. Either there is a problem with 5lqw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5yzg_1_H+5YZG
+Could not find nucleotides of chain H+5YZG in annotation 5yzg.json. Either there is a problem with 5yzg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j79_1_A+3J79
+Could not find nucleotides of chain A+3J79 in annotation 3j79.json. Either there is a problem with 3j79 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4qik_1_C+4QIK
+Could not find nucleotides of chain C+4QIK in annotation 4qik.json. Either there is a problem with 4qik mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4erd_1_C+4ERD
+Could not find nucleotides of chain C+4ERD in annotation 4erd.json. Either there is a problem with 4erd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6uz7_1_5+6UZ7
+Could not find nucleotides of chain 5+6UZ7 in annotation 6uz7.json. Either there is a problem with 6uz7 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1h1k_1_J+1H1K
+Could not find nucleotides of chain J+1H1K in annotation 1h1k.json. Either there is a problem with 1h1k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2xbm_1_E+2XBM
+Could not find nucleotides of chain E+2XBM in annotation 2xbm.json. Either there is a problem with 2xbm mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1jbr_1_C+1JBR
+Could not find nucleotides of chain C+1JBR in annotation 1jbr.json. Either there is a problem with 1jbr mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2q1o_1_C+2Q1O
+Could not find nucleotides of chain C+2Q1O in annotation 2q1o.json. Either there is a problem with 2q1o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1lnt_1_A+1LNT
+Could not find nucleotides of chain A+1LNT in annotation 1lnt.json. Either there is a problem with 1lnt mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1g1x_1_D+1G1X
+Could not find nucleotides of chain D+1G1X in annotation 1g1x.json. Either there is a problem with 1g1x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
