@@ -2478,14 +2478,14 @@ def gmm_hrna():
     os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
     os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
 
-    GMM_histo_toric(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
-    GMM_histo_toric(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
-    GMM_histo_toric(lastc5p_lastc4p_p, "C5'-C4'-P", toric=True)
-    GMM_histo_toric(p_o5p_c5p, "P-O5'-C5'", toric=True)
-    GMM_histo_toric(o5p_c5p_c4p, "O5'-C5'-C4'", toric=True)
-    GMM_histo_toric(c5p_c4p_c1p, "C5'-C4'-C1'", toric=True)
-    GMM_histo_toric(c4p_c1p_b1, "C4'-C1'-B1", toric=True)
-    GMM_histo_toric(c1p_b1_b2, "C1'-B1-B2", toric=True)
+    GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
+    GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
+    GMM_histo(lastc5p_lastc4p_p, "C5'-C4'-P", toric=True)
+    GMM_histo(p_o5p_c5p, "P-O5'-C5'", toric=True)
+    GMM_histo(o5p_c5p_c4p, "O5'-C5'-C4'", toric=True)
+    GMM_histo(c5p_c4p_c1p, "C5'-C4'-C1'", toric=True)
+    GMM_histo(c4p_c1p_b1, "C4'-C1'-B1", toric=True)
+    GMM_histo(c1p_b1_b2, "C1'-B1-B2", toric=True)
     
     GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True, hist=False, couleur='lightcoral')
     GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True, hist=False, couleur='limegreen')
@@ -2517,14 +2517,14 @@ def gmm_hrna():
     os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/HiRE-RNA/torsions/")
 
-    GMM_histo_toric(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True)
-    GMM_histo_toric(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True)
-    GMM_histo_toric(c5_c4_c1_b1, "C5'-C4'-C1'-B1", toric=True)
-    GMM_histo_toric(c4_c1_b1_b2, "C4'-C1'-B1-B2", toric=True)
-    GMM_histo_toric(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", toric=True)
-    GMM_histo_toric(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", toric=True)
-    GMM_histo_toric(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", toric=True)
-    GMM_histo_toric(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", toric=True)
+    GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True)
+    GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True)
+    GMM_histo(c5_c4_c1_b1, "C5'-C4'-C1'-B1", toric=True)
+    GMM_histo(c4_c1_b1_b2, "C4'-C1'-B1-B2", toric=True)
+    GMM_histo(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", toric=True)
+    GMM_histo(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", toric=True)
+    GMM_histo(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", toric=True)
+    GMM_histo(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", toric=True)
 
     GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True, hist=False, couleur='darkred')
     GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True, hist=False, couleur='chocolate')
@@ -2976,7 +2976,7 @@ if __name__ == "__main__":
     
     #exit()
     
-    process_jobs(joblist)
+    # process_jobs(joblist)
 
     # Now process the memory-heavy tasks family by family
     if DO_AVG_DISTANCE_MATRIX:
@@ -2992,11 +2992,11 @@ if __name__ == "__main__":
 
     # finish the work after the parallel portions
     
-    per_chain_stats()   # per chain base frequencies en basepair types
-    seq_idty()          # identity matrices from pre-computed .npy matrices
-    stats_pairs()
+    # per_chain_stats()   # per chain base frequencies en basepair types
+    # seq_idty()          # identity matrices from pre-computed .npy matrices
+    # stats_pairs()
     if n_unmapped_chains:
-        general_stats()
+        # general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
         joblist = []
@@ -3020,8 +3020,4 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_wadley, args=()))
         if len(joblist):
             process_jobs(joblist)
-    
-    
-    
-    
     
