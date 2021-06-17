@@ -5134,3 +5134,69 @@ Sequence is too short. (< 5 resolved nts)
 5hjz_1_C
 Sequence is too short. (< 5 resolved nts)
 
+7nrc_1_SM
+Could not find nucleotides of chain SM in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7nrc_1_SN
+Could not find nucleotides of chain SN in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7am2_1_R1
+Sequence is too short. (< 5 resolved nts)
+
+7k5l_1_R
+Sequence is too short. (< 5 resolved nts)
+
+7b5k_1_X
+Could not find nucleotides of chain X in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7d8c_1_C
+Sequence is too short. (< 5 resolved nts)
+
+7m4y_1_V
+Could not find nucleotides of chain V in annotation 7m4y.json. Either there is a problem with 7m4y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7m4x_1_V
+Could not find nucleotides of chain V in annotation 7m4x.json. Either there is a problem with 7m4x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7b5k_1_Z
+Could not find nucleotides of chain Z in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7m4u_1_A
+Could not find nucleotides of chain A in annotation 7m4u.json. Either there is a problem with 7m4u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n06_1_G
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_H
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_I
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_J
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_K
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_L
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_G
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_H
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_I
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_J
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_K
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_L
+Sequence is too short. (< 5 resolved nts)
+

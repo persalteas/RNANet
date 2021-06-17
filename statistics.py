@@ -1403,29 +1403,45 @@ def basepair_apex_distance(res, pair):
 
 def basepair_flat_angle(res, pair):
     """
-    measurement of the plane angles formed by the vectors C1-> B1 of the paired nucleotides
+    measurement of the plane angles formed by the vectors C1->B1 of the paired nucleotides
     """
     if res.get_resname()=='A' or res.get_resname()=='G' or res.get_resname()=='C' or res.get_resname()=='U' :
         atom_c4_res = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ] 
         atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
-        atom_b1_res=pos_b1(res)
-        c4_res=Vector(atom_c4_res[0])
-        c1_res=Vector(atom_c1p_res[0])
-        b1_res=Vector(atom_b1_res)
-        if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
-            atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
-            atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
-            atom_b1_pair=pos_b1(pair)
-            c4_pair=Vector(atom_c4_pair[0])
-            c1_pair=Vector(atom_c1p_pair[0])
-            b1_pair=Vector(atom_b1_pair)
-            #we calculate the 4 plane angles including these vectors
-            
-            a=calc_angle(c4_res, c1_res, b1_res)*(180/np.pi)
-            b=calc_angle(c1_res, b1_res, b1_pair)*(180/np.pi)
-            c=calc_angle(b1_res, b1_pair, c1_pair)*(180/np.pi)
-            d=calc_angle(b1_pair, c1_pair, c4_pair)*(180/np.pi)
-    angles=[a, b, c, d]
+        atom_b1_res = pos_b1(res)
+        a1_res = Vector(atom_c4_res[0])
+        a2_res = Vector(atom_c1p_res[0])
+        a3_res = Vector(atom_b1_res[0])
+    if res.get_resname()=='C' or res.get_resname()=='U' :
+        atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+        atom_b1_res = pos_b1(res)
+        atom_b2_res = pos_b2(res)
+        a1_res = Vector(atom_c1p_res[0])
+        a2_res = Vector(atom_b1_res[0])
+        a3_res = Vector(atom_b2_res[0])
+        
+    if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
+        atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
+        atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
+        atom_b1_pair = pos_b1(pair)
+        a1_pair = Vector(atom_c4_pair[0])
+        a2_pair = Vector(atom_c1p_pair[0])
+        a3_pair = Vector(atom_b1_pair)
+    if pair.get_resname()=='C' or pair.get_resname()=='U' :
+        atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
+        atom_b1_pair = pos_b1(pair)
+        atom_b2_pair = pos_b2(pair)
+        a1_pair = Vector(atom_c1p_pair[0])
+        a2_pair = Vector(atom_b1_pair[0])
+        a3_pair = Vector(atom_b2_pair[0])
+
+    # we calculate the 4 plane angles including these vectors
+    
+    a = calc_angle(a1_res, a2_res, a3_res)*(180/np.pi)
+    b = calc_angle(a2_res, a3_res, a3_pair)*(180/np.pi)
+    c = calc_angle(a3_res, a3_pair, a2_pair)*(180/np.pi)
+    d = calc_angle(a3_pair, a2_pair, a1_pair)*(180/np.pi)
+    angles = [a, b, c, d]
     return angles
 
 @trace_unhandled_exceptions
@@ -1465,7 +1481,7 @@ def measures_wadley(name, s, thr_idx):
     """
 
     # do not recompute something already computed
-    if (path.isfile(runDir + '/results/geometry/Pyle/angles/angles_plans_wadley '+name+'.csv') and
+    if (path.isfile(runDir + '/results/geometry/Pyle/angles/angles_plans_wadley ' + name + '.csv') and
         path.isfile(runDir + "/results/geometry/Pyle/distances/distances_wadley " + name + ".csv")):
         return
 
@@ -2789,6 +2805,7 @@ def list_chains_in_dir(ld):
             dictionnaire[pdb_id] = liste_chaines
     return dictionnaire
 
+@trace_unhandled_exceptions
 def concat_dataframes(fpath, outfilename):
     """
     Concatenates the dataframes containing measures 
@@ -2946,10 +2963,10 @@ if __name__ == "__main__":
     # Define the tasks
     joblist = []
 
-    # # Do eta/theta plots
-    # if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
-    #     joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
-    #     joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
+    # Do eta/theta plots
+    if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
+        joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
+        joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
 
     # Do distance matrices for each family excl. LSU/SSU (will be processed later)
     if DO_AVG_DISTANCE_MATRIX:  
@@ -2964,13 +2981,13 @@ if __name__ == "__main__":
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
 
-    # # Do general family statistics
-    # joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
-    # joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
-    # for f in famlist:
-    #     joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
-    #     if f not in ignored:
-    #         joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
+    # Do general family statistics
+    joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
+    joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
+    for f in famlist:
+        joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
+        if f not in ignored:
+            joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
     
     # Do geometric measures on all chains
     if n_unmapped_chains:
@@ -3008,23 +3025,23 @@ if __name__ == "__main__":
 
     # finish the work after the parallel portions
     
-    # per_chain_stats()   # per chain base frequencies en basepair types
-    # seq_idty()          # identity matrices from pre-computed .npy matrices
-    # stats_pairs()
+    per_chain_stats()   # per chain base frequencies en basepair types
+    seq_idty()          # identity matrices from pre-computed .npy matrices
+    stats_pairs()
     if n_unmapped_chains:
-        # general_stats()
+        general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
         joblist = []
-        # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
-        # if DO_HIRE_RNA_MEASURES:
-        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
-        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_hire_RNA.csv')))
-        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')))
-        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs.csv')))
+        joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
+        if DO_HIRE_RNA_MEASURES:
+            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
+            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_hire_RNA.csv')))
+            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')))
+            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs.csv')))
         if DO_WADLEY_ANALYSIS:
             joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/distances/', 'distances_wadley.csv')))
-            # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/angles/', 'angles_plans_wadley.csv')))
+            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/angles/', 'angles_plans_wadley.csv')))
         process_jobs(joblist)
         joblist = []
         joblist.append(Job(function=gmm_aa_dists, args=()))
@@ -3036,4 +3053,3 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_wadley, args=()))
         if len(joblist):
             process_jobs(joblist)
-    
