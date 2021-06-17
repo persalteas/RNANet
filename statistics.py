@@ -1484,6 +1484,7 @@ def measures_wadley(name, s, thr_idx):
         if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA', "2BA"] :
             atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
             atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+            atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
             if len(atom_c1p) > 1:
                 for atom in res:
                     if "C1'" in atom.get_fullname():
@@ -2454,8 +2455,8 @@ def gmm_hrna():
     c1p_b1 = list(df["C1'-B1"][~ np.isnan(df["C1'-B1"])])
     b1_b2 = list(df["B1-B2"][~ np.isnan(df["B1-B2"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/distances/")
 
     GMM_histo(o5p_c5p, "O5'-C5'")
     GMM_histo(b1_b2, "B1-B2")
@@ -2476,7 +2477,7 @@ def gmm_hrna():
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
     plt.title("GMM des distances entre atomes HiRE-RNA")
-    plt.savefig(runDir + "/results/figures/HiRE-RNA/distances/GMM des distances entre atomes HiRE-RNA.png")
+    plt.savefig(runDir + "/results/figures/GMM/HiRE-RNA/distances/GMM des distances entre atomes HiRE-RNA.png")
     plt.close()
 
     # Angles
@@ -2491,8 +2492,8 @@ def gmm_hrna():
     c4p_c1p_b1 = list(df["C4'-C1'-B1"][~ np.isnan(df["C4'-C1'-B1"])])
     c1p_b1_b2 = list(df["C1'-B1-B2"][~ np.isnan(df["C1'-B1-B2"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/distances/")
 
     GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
     GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
@@ -2515,7 +2516,7 @@ def gmm_hrna():
     axes.set_ylim(0, 100)
     plt.xlabel("Angle (Degré)")
     plt.title("GMM des angles entre atomes HiRE-RNA")
-    plt.savefig(runDir + "/results/figures/HiRE-RNA/angles/GMM des angles entre atomes HiRE-RNA.png")
+    plt.savefig(runDir + "/results/figures/GMM/HiRE-RNA/angles/GMM des angles entre atomes HiRE-RNA.png")
     plt.close()
 
     # Torsions    
@@ -2530,8 +2531,8 @@ def gmm_hrna():
     c4_psuiv_o5suiv_c5suiv = list(df["C4'-P°-O5'°-C5'°"][~ np.isnan(df["C4'-P°-O5'°-C5'°"])])
     c1_c4_psuiv_o5suiv = list(df["C1'-C4'-P°-O5'°"][~ np.isnan(df["C1'-C4'-P°-O5'°"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/torsions/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/torsions/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/torsions/")
 
     GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True)
     GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True)
@@ -2945,10 +2946,10 @@ if __name__ == "__main__":
     # Define the tasks
     joblist = []
 
-    # Do eta/theta plots
-    if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
-        joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
-        joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
+    # # Do eta/theta plots
+    # if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
+    #     joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
+    #     joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
 
     # Do distance matrices for each family excl. LSU/SSU (will be processed later)
     if DO_AVG_DISTANCE_MATRIX:  
@@ -2963,18 +2964,17 @@ if __name__ == "__main__":
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
 
-    # Do general family statistics
-    joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
-    joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
-    for f in famlist:
-        joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
-        if f not in ignored:
-            joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
+    # # Do general family statistics
+    # joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
+    # joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
+    # for f in famlist:
+    #     joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
+    #     if f not in ignored:
+    #         joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
     
     # Do geometric measures on all chains
     if n_unmapped_chains:
         os.makedirs(runDir+"/results/geometry/all-atoms/distances/", exist_ok=True)
-        os.makedirs(runDir+"/results/geometry/all-atoms/angles/", exist_ok=True)
         f_prec = os.listdir(path_to_3D_data + "rna_only")[0]
         for f in os.listdir(path_to_3D_data + "rna_only"): 
             joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
@@ -2992,7 +2992,7 @@ if __name__ == "__main__":
     
     #exit()
     
-    # process_jobs(joblist)
+    process_jobs(joblist)
 
     # Now process the memory-heavy tasks family by family
     if DO_AVG_DISTANCE_MATRIX:
@@ -3016,15 +3016,15 @@ if __name__ == "__main__":
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
         joblist = []
-        joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
-        if DO_HIRE_RNA_MEASURES:
-            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
-            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_hire_RNA.csv')))
-            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')))
-            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs.csv')))
+        # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
+        # if DO_HIRE_RNA_MEASURES:
+        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
+        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_hire_RNA.csv')))
+        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/torsions/', 'angles_torsion_hire_RNA.csv')))
+        #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs.csv')))
         if DO_WADLEY_ANALYSIS:
             joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/distances/', 'distances_wadley.csv')))
-            joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/angles/', 'angles_plans_wadley.csv')))
+            # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/angles/', 'angles_plans_wadley.csv')))
         process_jobs(joblist)
         joblist = []
         joblist.append(Job(function=gmm_aa_dists, args=()))
