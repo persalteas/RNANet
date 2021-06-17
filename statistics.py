@@ -1405,14 +1405,14 @@ def basepair_flat_angle(res, pair):
     """
     measurement of the plane angles formed by the vectors C1->B1 of the paired nucleotides
     """
-    if res.get_resname()=='A' or res.get_resname()=='G' or res.get_resname()=='C' or res.get_resname()=='U' :
+    if res.get_resname()=='C' or res.get_resname()=='U' :
         atom_c4_res = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ] 
         atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
         atom_b1_res = pos_b1(res)
         a1_res = Vector(atom_c4_res[0])
         a2_res = Vector(atom_c1p_res[0])
         a3_res = Vector(atom_b1_res[0])
-    if res.get_resname()=='C' or res.get_resname()=='U' :
+    if res.get_resname()=='A' or res.get_resname()=='G' :
         atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
         atom_b1_res = pos_b1(res)
         atom_b2_res = pos_b2(res)
@@ -1420,14 +1420,14 @@ def basepair_flat_angle(res, pair):
         a2_res = Vector(atom_b1_res[0])
         a3_res = Vector(atom_b2_res[0])
         
-    if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
+    if pair.get_resname()=='C' or pair.get_resname()=='U' :
         atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
         atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
         atom_b1_pair = pos_b1(pair)
         a1_pair = Vector(atom_c4_pair[0])
         a2_pair = Vector(atom_c1p_pair[0])
         a3_pair = Vector(atom_b1_pair)
-    if pair.get_resname()=='C' or pair.get_resname()=='U' :
+    if pair.get_resname()=='A' or pair.get_resname()=='G' :
         atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
         atom_b1_pair = pos_b1(pair)
         atom_b2_pair = pos_b2(pair)
@@ -1627,7 +1627,6 @@ def measures_aa(name, s, thr_idx):
             atom_n4 = [ atom.get_coord() for atom in res if "N4" in atom.get_fullname() ]
             atom_o4 = [ atom.get_coord() for atom in res if atom.get_name() == "O4"]
             
-
             op3_p = get_euclidian_distance(atom_op3[0], atom_p[0])
             last_o3p_p = get_euclidian_distance(last_o3p[0], atom_p[0]) # link with the previous nucleotide
             p_op1 = get_euclidian_distance(atom_op1[0], atom_p[0])
@@ -1685,7 +1684,7 @@ def measures_aa(name, s, thr_idx):
     df=pd.concat([df_comm, df_pur, df_pyr], axis = 1)
     pbar.close()
     
-    df.to_csv(runDir+"/results/geometry/all-atoms/distances/dist_atoms "+name+".csv")
+    df.to_csv(runDir + "/results/geometry/all-atoms/distances/dist_atoms " + name + ".csv")
 
 @trace_unhandled_exceptions
 def measures_hrna(name, s, thr_idx):
