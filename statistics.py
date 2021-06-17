@@ -1268,6 +1268,9 @@ def get_euclidian_distance(L1, L2):
             e += float(L1[i] - L2[i])**2
         except TypeError:
             print("Terms: ", L1, L2)
+        except IndexError:
+            print("Terms: ", L1, L2)
+
     return np.sqrt(e)
 
 def get_flat_angle(L1, L2, L3):
@@ -1282,7 +1285,7 @@ def get_torsion_angle(L1, L2, L3, L4):
     
     return calc_dihedral(Vector(L1[0]), Vector(L2[0]), Vector(L3[0]), Vector(L4[0]))*(180/np.pi)
 
-def pos_b1(res) :
+def pos_b1(res):
     """
     Returns the coordinates of virtual atom B1 (center of the first aromatic cycle)
     """
@@ -1334,7 +1337,11 @@ def pos_b1(res) :
             coordb1.append(moy_x_b1)
             coordb1.append(moy_y_b1)
             coordb1.append(moy_z_b1)
-    return(coordb1)
+
+    if len(coordb1):
+        return [coordb1]
+    else:
+        return []
 
 def pos_b2(res):
     """
@@ -1365,7 +1372,10 @@ def pos_b2(res):
             coordb2.append(moy_x_b2)
             coordb2.append(moy_y_b2)
             coordb2.append(moy_z_b2)
-    return coordb2
+    if len(coordb2):
+        return [coordb2]
+    else:
+        return []
 
 def basepair_apex_distance(res, pair):
     """
@@ -1393,31 +1403,48 @@ def basepair_apex_distance(res, pair):
 
 def basepair_flat_angle(res, pair):
     """
-    measurement of the plane angles formed by the vectors C1-> B1 of the paired nucleotides
+    measurement of the plane angles formed by the vectors C1->B1 of the paired nucleotides
     """
     if res.get_resname()=='A' or res.get_resname()=='G' or res.get_resname()=='C' or res.get_resname()=='U' :
         atom_c4_res = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ] 
         atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
-        atom_b1_res=pos_b1(res)
-        c4_res=Vector(atom_c4_res[0])
-        c1_res=Vector(atom_c1p_res[0])
-        b1_res=Vector(atom_b1_res)
-        if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
-            atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
-            atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
-            atom_b1_pair=pos_b1(pair)
-            c4_pair=Vector(atom_c4_pair[0])
-            c1_pair=Vector(atom_c1p_pair[0])
-            b1_pair=Vector(atom_b1_pair)
-            #we calculate the 4 plane angles including these vectors
-            
-            a=calc_angle(c4_res, c1_res, b1_res)*(180/np.pi)
-            b=calc_angle(c1_res, b1_res, b1_pair)*(180/np.pi)
-            c=calc_angle(b1_res, b1_pair, c1_pair)*(180/np.pi)
-            d=calc_angle(b1_pair, c1_pair, c4_pair)*(180/np.pi)
-    angles=[a, b, c, d]
+        atom_b1_res = pos_b1(res)
+        a1_res = Vector(atom_c4_res[0])
+        a2_res = Vector(atom_c1p_res[0])
+        a3_res = Vector(atom_b1_res[0])
+    if res.get_resname()=='C' or res.get_resname()=='U' :
+        atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+        atom_b1_res = pos_b1(res)
+        atom_b2_res = pos_b2(res)
+        a1_res = Vector(atom_c1p_res[0])
+        a2_res = Vector(atom_b1_res[0])
+        a3_res = Vector(atom_b2_res[0])
+        
+    if pair.get_resname()=='A' or pair.get_resname()=='G' or pair.get_resname()=='C' or pair.get_resname()=='U' :
+        atom_c4_pair = [ atom.get_coord() for atom in pair if "C4'" in atom.get_fullname() ]
+        atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
+        atom_b1_pair = pos_b1(pair)
+        a1_pair = Vector(atom_c4_pair[0])
+        a2_pair = Vector(atom_c1p_pair[0])
+        a3_pair = Vector(atom_b1_pair)
+    if pair.get_resname()=='C' or pair.get_resname()=='U' :
+        atom_c1p_pair = [ atom.get_coord() for atom in pair if "C1'" in atom.get_fullname() ]
+        atom_b1_pair = pos_b1(pair)
+        atom_b2_pair = pos_b2(pair)
+        a1_pair = Vector(atom_c1p_pair[0])
+        a2_pair = Vector(atom_b1_pair[0])
+        a3_pair = Vector(atom_b2_pair[0])
+
+    # we calculate the 4 plane angles including these vectors
+    
+    a = calc_angle(a1_res, a2_res, a3_res)*(180/np.pi)
+    b = calc_angle(a2_res, a3_res, a3_pair)*(180/np.pi)
+    c = calc_angle(a3_res, a3_pair, a2_pair)*(180/np.pi)
+    d = calc_angle(a3_pair, a2_pair, a1_pair)*(180/np.pi)
+    angles = [a, b, c, d]
     return angles
 
+@trace_unhandled_exceptions
 def measure_from_structure(f):
     """
     Do geometric measures required on a given filename
@@ -1446,6 +1473,7 @@ def measure_from_structure(f):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+@trace_unhandled_exceptions
 def measures_wadley(name, s, thr_idx):
     """
     Measures the distances and plane angles involving C1' and P atoms 
@@ -1453,7 +1481,7 @@ def measures_wadley(name, s, thr_idx):
     """
 
     # do not recompute something already computed
-    if (path.isfile(runDir + '/results/geometry/Pyle/angles/angles_plans_wadley '+name+'.csv') and
+    if (path.isfile(runDir + '/results/geometry/Pyle/angles/angles_plans_wadley ' + name + '.csv') and
         path.isfile(runDir + "/results/geometry/Pyle/distances/distances_wadley " + name + ".csv")):
         return
 
@@ -1472,6 +1500,7 @@ def measures_wadley(name, s, thr_idx):
         if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA', "2BA"] :
             atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
             atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
+            atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
             if len(atom_c1p) > 1:
                 for atom in res:
                     if "C1'" in atom.get_fullname():
@@ -1496,6 +1525,7 @@ def measures_wadley(name, s, thr_idx):
     df = pd.DataFrame(liste_angl, columns=["Residu", "P-C1'-P°", "C1'-P°-C1'°"])
     df.to_csv(runDir + "/results/geometry/Pyle/angles/angles_plans_wadley "+name+".csv")
 
+@trace_unhandled_exceptions
 def measures_aa(name, s, thr_idx):
     """
     Measures the distance between atoms linked by covalent bonds
@@ -1657,6 +1687,7 @@ def measures_aa(name, s, thr_idx):
     
     df.to_csv(runDir+"/results/geometry/all-atoms/distances/dist_atoms "+name+".csv")
 
+@trace_unhandled_exceptions
 def measures_hrna(name, s, thr_idx):
     """
     Measures the distance/angles between the atoms of the HiRE-RNA model linked by covalent bonds
@@ -1680,7 +1711,7 @@ def measures_hrna(name, s, thr_idx):
 
     chain = next(s[0].get_chains())
     residues=list(chain.get_residues())
-    for res in tqdm(chain0, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {name} measures_hrna", unit="res", leave=False):
+    for res in tqdm(chain, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {name} measures_hrna", unit="res", leave=False):
         # distances
         p_o5p = None
         o5p_c5p = None
@@ -1720,12 +1751,12 @@ def measures_hrna(name, s, thr_idx):
             atom_b2 = pos_b2(res) # position b2 to be calculated only for those with 2 cycles
 
             # Distances. If one of the atoms is empty, the euclidian distance returns NaN.
-            last_c4p_p = get_euclidian_distance(last_c4p[0], atom_p[0])
-            p_o5p = get_euclidian_distance(atom_p[0], atom_o5p[0])
-            o5p_c5p = get_euclidian_distance(atom_o5p[0], atom_c5p[0])
-            c5p_c4p = get_euclidian_distance(atom_c5p[0], atom_c4p[0])
-            c4p_c1p = get_euclidian_distance(atom_c4p[0], atom_c1p[0])
-            c1p_b1 = get_euclidian_distance(atom_c1p[0], atom_b1)
+            last_c4p_p = get_euclidian_distance(last_c4p, atom_p)
+            p_o5p = get_euclidian_distance(atom_p, atom_o5p)
+            o5p_c5p = get_euclidian_distance(atom_o5p, atom_c5p)
+            c5p_c4p = get_euclidian_distance(atom_c5p, atom_c4p)
+            c4p_c1p = get_euclidian_distance(atom_c4p, atom_c1p)
+            c1p_b1 = get_euclidian_distance(atom_c1p, atom_b1)
             b1_b2 = get_euclidian_distance(atom_b1, atom_b2)
 
             # flat angles. Same.
@@ -1758,10 +1789,11 @@ def measures_hrna(name, s, thr_idx):
     df = pd.DataFrame(liste_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/distances/dist_atoms_hire_RNA '+name+'.csv')
     df = pd.DataFrame(liste_angl, columns=["Residu", "C4'-P-O5'", "C1'-C4'-P", "C5'-C4'-P", "P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2"])
-    df.to_csv(runDur + '/results/geometry/HiRE-RNA/angles/angles_hire_RNA ' + name + ".csv")
-    df=pd.DataFrame(liste_angles_torsion, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
+    df.to_csv(runDir + '/results/geometry/HiRE-RNA/angles/angles_hire_RNA ' + name + ".csv")
+    df=pd.DataFrame(liste_tors, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/torsions/angles_torsion_hire_RNA '+name+'.csv')
 
+@trace_unhandled_exceptions
 def measure_hrna_basepairs(cle):
     """
     Open a complete RNAcifs/ file, and run measure_hrna_basepairs_chain() on every chain
@@ -1812,6 +1844,7 @@ def measure_hrna_basepairs(cle):
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
+@trace_unhandled_exceptions
 def measure_hrna_basepairs_chain(chain, df, thr_idx):
     """
     Cleanup of the dataset
@@ -2438,8 +2471,8 @@ def gmm_hrna():
     c1p_b1 = list(df["C1'-B1"][~ np.isnan(df["C1'-B1"])])
     b1_b2 = list(df["B1-B2"][~ np.isnan(df["B1-B2"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/distances/")
 
     GMM_histo(o5p_c5p, "O5'-C5'")
     GMM_histo(b1_b2, "B1-B2")
@@ -2460,7 +2493,7 @@ def gmm_hrna():
     axes.set_ylim(0, 100)
     plt.xlabel("Distance (Angström)")
     plt.title("GMM des distances entre atomes HiRE-RNA")
-    plt.savefig(runDir + "/results/figures/HiRE-RNA/distances/GMM des distances entre atomes HiRE-RNA.png")
+    plt.savefig(runDir + "/results/figures/GMM/HiRE-RNA/distances/GMM des distances entre atomes HiRE-RNA.png")
     plt.close()
 
     # Angles
@@ -2475,17 +2508,17 @@ def gmm_hrna():
     c4p_c1p_b1 = list(df["C4'-C1'-B1"][~ np.isnan(df["C4'-C1'-B1"])])
     c1p_b1_b2 = list(df["C1'-B1-B2"][~ np.isnan(df["C1'-B1-B2"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/distances/")
 
-    GMM_histo_toric(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
-    GMM_histo_toric(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
-    GMM_histo_toric(lastc5p_lastc4p_p, "C5'-C4'-P", toric=True)
-    GMM_histo_toric(p_o5p_c5p, "P-O5'-C5'", toric=True)
-    GMM_histo_toric(o5p_c5p_c4p, "O5'-C5'-C4'", toric=True)
-    GMM_histo_toric(c5p_c4p_c1p, "C5'-C4'-C1'", toric=True)
-    GMM_histo_toric(c4p_c1p_b1, "C4'-C1'-B1", toric=True)
-    GMM_histo_toric(c1p_b1_b2, "C1'-B1-B2", toric=True)
+    GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
+    GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
+    GMM_histo(lastc5p_lastc4p_p, "C5'-C4'-P", toric=True)
+    GMM_histo(p_o5p_c5p, "P-O5'-C5'", toric=True)
+    GMM_histo(o5p_c5p_c4p, "O5'-C5'-C4'", toric=True)
+    GMM_histo(c5p_c4p_c1p, "C5'-C4'-C1'", toric=True)
+    GMM_histo(c4p_c1p_b1, "C4'-C1'-B1", toric=True)
+    GMM_histo(c1p_b1_b2, "C1'-B1-B2", toric=True)
     
     GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True, hist=False, couleur='lightcoral')
     GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True, hist=False, couleur='limegreen')
@@ -2499,7 +2532,7 @@ def gmm_hrna():
     axes.set_ylim(0, 100)
     plt.xlabel("Angle (Degré)")
     plt.title("GMM des angles entre atomes HiRE-RNA")
-    plt.savefig(runDir + "/results/figures/HiRE-RNA/angles/GMM des angles entre atomes HiRE-RNA.png")
+    plt.savefig(runDir + "/results/figures/GMM/HiRE-RNA/angles/GMM des angles entre atomes HiRE-RNA.png")
     plt.close()
 
     # Torsions    
@@ -2514,17 +2547,17 @@ def gmm_hrna():
     c4_psuiv_o5suiv_c5suiv = list(df["C4'-P°-O5'°-C5'°"][~ np.isnan(df["C4'-P°-O5'°-C5'°"])])
     c1_c4_psuiv_o5suiv = list(df["C1'-C4'-P°-O5'°"][~ np.isnan(df["C1'-C4'-P°-O5'°"])])
 
-    os.makedirs(runDir + "/results/figures/HiRE-RNA/torsions/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/HiRE-RNA/torsions/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/torsions/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/torsions/")
 
-    GMM_histo_toric(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True)
-    GMM_histo_toric(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True)
-    GMM_histo_toric(c5_c4_c1_b1, "C5'-C4'-C1'-B1", toric=True)
-    GMM_histo_toric(c4_c1_b1_b2, "C4'-C1'-B1-B2", toric=True)
-    GMM_histo_toric(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", toric=True)
-    GMM_histo_toric(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", toric=True)
-    GMM_histo_toric(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", toric=True)
-    GMM_histo_toric(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", toric=True)
+    GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True)
+    GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True)
+    GMM_histo(c5_c4_c1_b1, "C5'-C4'-C1'-B1", toric=True)
+    GMM_histo(c4_c1_b1_b2, "C4'-C1'-B1-B2", toric=True)
+    GMM_histo(o5_c5_c4_psuiv, "O5'-C5'-C4'-P°", toric=True)
+    GMM_histo(c5_c4_psuiv_o5suiv, "C5'-C4'-P°-O5'°", toric=True)
+    GMM_histo(c4_psuiv_o5suiv_c5suiv, "C4'-P°-O5'°-C5'°", toric=True)
+    GMM_histo(c1_c4_psuiv_o5suiv, "C1'-C4'-P°-O5'°", toric=True)
 
     GMM_histo(p_o5_c5_c4, "P-O5'-C5'-C4'", toric=True, hist=False, couleur='darkred')
     GMM_histo(o5_c5_c4_c1, "O5'-C5'-C4'-C1'", toric=True, hist=False, couleur='chocolate')
@@ -2772,6 +2805,7 @@ def list_chains_in_dir(ld):
             dictionnaire[pdb_id] = liste_chaines
     return dictionnaire
 
+@trace_unhandled_exceptions
 def concat_dataframes(fpath, outfilename):
     """
     Concatenates the dataframes containing measures 
@@ -2958,7 +2992,6 @@ if __name__ == "__main__":
     # Do geometric measures on all chains
     if n_unmapped_chains:
         os.makedirs(runDir+"/results/geometry/all-atoms/distances/", exist_ok=True)
-        os.makedirs(runDir+"/results/geometry/all-atoms/angles/", exist_ok=True)
         f_prec = os.listdir(path_to_3D_data + "rna_only")[0]
         for f in os.listdir(path_to_3D_data + "rna_only"): 
             joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
@@ -3020,8 +3053,3 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_wadley, args=()))
         if len(joblist):
             process_jobs(joblist)
-    
-    
-    
-    
-    
