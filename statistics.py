@@ -1627,51 +1627,51 @@ def measures_aa(name, s, thr_idx):
             atom_n4 = [ atom.get_coord() for atom in res if "N4" in atom.get_fullname() ]
             atom_o4 = [ atom.get_coord() for atom in res if atom.get_name() == "O4"]
             
-            op3_p = get_euclidian_distance(atom_op3[0], atom_p[0])
-            last_o3p_p = get_euclidian_distance(last_o3p[0], atom_p[0]) # link with the previous nucleotide
-            p_op1 = get_euclidian_distance(atom_op1[0], atom_p[0])
-            p_op2 = get_euclidian_distance(atom_op2[0], atom_p[0])
-            p_o5p = get_euclidian_distance(atom_o5p[0], atom_p[0])
-            o5p_c5p = get_euclidian_distance(atom_o5p[0], atom_c5p[0])
-            c5p_c4p = get_euclidian_distance(atom_c5p[0], atom_c4p[0])
-            c4p_o4p = get_euclidian_distance(atom_c4p[0], atom_o4p[0])
-            c4p_c3p = get_euclidian_distance(atom_c4p[0], atom_c3p[0])
-            o4p_c1p = get_euclidian_distance(atom_o4p[0], atom_c1p[0])
-            c1p_c2p = get_euclidian_distance(atom_c1p[0], atom_c2p[0])
-            c2p_o2p = get_euclidian_distance(atom_c2p[0], atom_o2p[0])
-            c2p_c3p = get_euclidian_distance(atom_c2p[0], atom_c3p[0])
-            c3p_o3p = get_euclidian_distance(atom_c3p[0], atom_o3p[0])
+            op3_p = get_euclidian_distance(atom_op3, atom_p)
+            last_o3p_p = get_euclidian_distance(last_o3p, atom_p) # link with the previous nucleotide
+            p_op1 = get_euclidian_distance(atom_op1, atom_p)
+            p_op2 = get_euclidian_distance(atom_op2, atom_p)
+            p_o5p = get_euclidian_distance(atom_o5p, atom_p)
+            o5p_c5p = get_euclidian_distance(atom_o5p, atom_c5p)
+            c5p_c4p = get_euclidian_distance(atom_c5p, atom_c4p)
+            c4p_o4p = get_euclidian_distance(atom_c4p, atom_o4p)
+            c4p_c3p = get_euclidian_distance(atom_c4p, atom_c3p)
+            o4p_c1p = get_euclidian_distance(atom_o4p, atom_c1p)
+            c1p_c2p = get_euclidian_distance(atom_c1p, atom_c2p)
+            c2p_o2p = get_euclidian_distance(atom_c2p, atom_o2p)
+            c2p_c3p = get_euclidian_distance(atom_c2p, atom_c3p)
+            c3p_o3p = get_euclidian_distance(atom_c3p, atom_o3p)
 
             last_o3p=atom_o3p # o3' of this residue becomes the previous o3' of the following
             
             #different cases for the aromatic cycles
             if res.get_resname()=='A' or res.get_resname()=='G': 
                 # computes the distances between atoms of aromatic cycles
-                c1p_n9 = get_euclidian_distance(atom_c1p[0], atom_n9[0])
-                n9_c8 = get_euclidian_distance(atom_n9[0], atom_c8[0])
-                c8_n7 = get_euclidian_distance(atom_c8[0], atom_n7[0])
-                n7_c5 = get_euclidian_distance(atom_n7[0], atom_c5[0])
-                c5_c6 = get_euclidian_distance(atom_c5[0], atom_c6[0])
-                c6_o6 = get_euclidian_distance(atom_c6[0], atom_o6[0])
-                c6_n6 = get_euclidian_distance(atom_c6[0], atom_n6[0])
-                c6_n1 = get_euclidian_distance(atom_c6[0], atom_n1[0])
-                n1_c2 = get_euclidian_distance(atom_n1[0], atom_c2[0])
-                c2_n2 = get_euclidian_distance(atom_c2[0], atom_n2[0])
-                c2_n3 = get_euclidian_distance(atom_c2[0], atom_n3[0])
-                n3_c4 = get_euclidian_distance(atom_n3[0], atom_c4[0])
-                c4_n9 = get_euclidian_distance(atom_c4[0], atom_n9[0])
-                c4_c5 = get_euclidian_distance(atom_c4[0], atom_c5[0])
+                c1p_n9 = get_euclidian_distance(atom_c1p, atom_n9)
+                n9_c8 = get_euclidian_distance(atom_n9, atom_c8)
+                c8_n7 = get_euclidian_distance(atom_c8, atom_n7)
+                n7_c5 = get_euclidian_distance(atom_n7, atom_c5)
+                c5_c6 = get_euclidian_distance(atom_c5, atom_c6)
+                c6_o6 = get_euclidian_distance(atom_c6, atom_o6)
+                c6_n6 = get_euclidian_distance(atom_c6, atom_n6)
+                c6_n1 = get_euclidian_distance(atom_c6, atom_n1)
+                n1_c2 = get_euclidian_distance(atom_n1, atom_c2)
+                c2_n2 = get_euclidian_distance(atom_c2, atom_n2)
+                c2_n3 = get_euclidian_distance(atom_c2, atom_n3)
+                n3_c4 = get_euclidian_distance(atom_n3, atom_c4)
+                c4_n9 = get_euclidian_distance(atom_c4, atom_n9)
+                c4_c5 = get_euclidian_distance(atom_c4, atom_c5)
             if res.get_resname()=='C' or res.get_resname()=='U' :
-                c1p_n1 = get_euclidian_distance(atom_c1p[0], atom_n1[0])
-                n1_c6 = get_euclidian_distance(atom_n1[0], atom_c6[0])
-                c6_c5 = get_euclidian_distance(atom_c6[0], atom_c5[0])
-                c5_c4 = get_euclidian_distance(atom_c5[0], atom_c4[0])
-                c4_n3 = get_euclidian_distance(atom_c4[0], atom_n3[0])
-                n3_c2 = get_euclidian_distance(atom_n3[0], atom_c2[0])
-                c2_o2 = get_euclidian_distance(atom_c2[0], atom_o2[0])
-                c2_n1 = get_euclidian_distance(atom_c2[0], atom_n1[0])
-                c4_n4 = get_euclidian_distance(atom_c4[0], atom_n4[0])
-                c4_o4 = get_euclidian_distance(atom_c4[0], atom_o4[0])
+                c1p_n1 = get_euclidian_distance(atom_c1p, atom_n1)
+                n1_c6 = get_euclidian_distance(atom_n1, atom_c6)
+                c6_c5 = get_euclidian_distance(atom_c6, atom_c5)
+                c5_c4 = get_euclidian_distance(atom_c5, atom_c4)
+                c4_n3 = get_euclidian_distance(atom_c4, atom_n3)
+                n3_c2 = get_euclidian_distance(atom_n3, atom_c2)
+                c2_o2 = get_euclidian_distance(atom_c2, atom_o2)
+                c2_n1 = get_euclidian_distance(atom_c2, atom_n1)
+                c4_n4 = get_euclidian_distance(atom_c4, atom_n4)
+                c4_o4 = get_euclidian_distance(atom_c4, atom_o4)
 
             liste_common.append([res.get_resname(), last_o3p_p, op3_p, p_op1, p_op2, p_o5p, o5p_c5p, c5p_c4p, c4p_o4p, c4p_c3p, o4p_c1p, c1p_c2p, c2p_o2p, c2p_c3p, c3p_o3p] )
             liste_purines.append([c1p_n9, n9_c8, c8_n7, n7_c5, c5_c6, c6_o6, c6_n6, c6_n1, n1_c2, c2_n2, c2_n3, n3_c4, c4_n9, c4_c5])
@@ -3004,6 +3004,7 @@ if __name__ == "__main__":
             joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
     
     # Basepair geometries statistics (from RNACifs/ 3D files)  
+    
     ld = os.listdir(path_to_3D_data +'datapoints')
     if '4zdo_1_E' in ld :
         ld.remove('4zdo_1_E') # weird cases to remove for now
@@ -3015,6 +3016,7 @@ if __name__ == "__main__":
     
     
     #exit()
+    
     
     process_jobs(joblist)
 
@@ -3029,7 +3031,7 @@ if __name__ == "__main__":
 
     print()
     print()
-
+    
     # finish the work after the parallel portions
     
     per_chain_stats()   # per chain base frequencies en basepair types
@@ -3060,3 +3062,4 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_wadley, args=()))
         if len(joblist):
             process_jobs(joblist)
+    
