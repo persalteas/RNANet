@@ -1927,8 +1927,8 @@ def measure_hrna_basepairs_chain(chain, df, thr_idx):
                         
                 resnum=int(resnum)
             try :
-                d=basepair_apex_distance(chain[(' ',resseq, icode_res)], chain[(' ', resnum, icode_pair)]) #calculation of the distance between the tips of the paired nucleotides
-                angle=basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                d = basepair_apex_distance(chain[(' ',resseq, icode_res)], chain[(' ', resnum, icode_pair)]) # calculation of the distance between the tips of the paired nucleotides
+                angle = basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
                 if d != 0.0:
                     liste_dist.append([chain, type_LW, resseq, resnum, d,  angle[0], angle[1], angle[2], angle[3]])   
             except :
@@ -1952,8 +1952,8 @@ def measure_hrna_basepairs_chain(chain, df, thr_idx):
                                 resnum=resnum[:l-1]
                         resnum=int(resnum)
                     try :
-                        d=basepair_apex_distance(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
-                        angle=basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                        d = basepair_apex_distance(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                        angle = basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
                         if d != 0.0:
                             liste_dist.append([chain, type_LW[j], resseq, resnum, d, angle[0], angle[1], angle[2], angle[3]])
                     except:
@@ -2043,7 +2043,7 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, couleur=None, save=Tr
     else:
         D = obs.ravel()
         xmin = D.min()
-        xmax = D.max()
+        xmax = min(10.0, D.max())
         x = np.linspace(xmin,xmax,1000)
     colors=['red', 'blue', 'gold', 'cyan', 'magenta', 'white', 'black', 'green']
 
@@ -2366,8 +2366,8 @@ def gmm_wadley():
     p_c4p = list(df["C4'-P"][~ np.isnan(df["C4'-P"])])
     c4p_p = list(df["P-C4'"][~ np.isnan(df["P-C4'"])])
 
-    os.makedirs(runDir + "/results/figures/Pyle/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/Pyle/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/Pyle/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/Pyle/distances/")
 
     GMM_histo(p_c1p, "P-C1'")
     GMM_histo(c1p_p, "C1'-P")
@@ -2390,8 +2390,8 @@ def gmm_wadley():
     c1p_psuiv_c1psuiv = list(df["C1'-P°-C1'°"][~ np.isnan(df["C1'-P°-C1'°"])])
 
 
-    os.makedirs(runDir + "/results/figures/Pyle/angles/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/Pyle/angles/")
+    os.makedirs(runDir + "/results/figures/GMM/Pyle/angles/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/Pyle/angles/")
 
     GMM_histo(p_c1p_psuiv, "P-C1'-P°", toric=True)
     GMM_histo(c1p_psuiv_c1psuiv, "C1'-P°-C1'°", toric=True)
@@ -2427,8 +2427,8 @@ def gmm_wadley():
     theta_base=[i for i in theta_base if i != None]
 
 
-    os.makedirs(runDir + "/results/figures/Pyle/pseudotorsions/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/Pyle/pseudotorsions/")
+    os.makedirs(runDir + "/results/figures/GMM/Pyle/pseudotorsions/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/Pyle/pseudotorsions/")
 
     GMM_histo(eta, "Eta", toric=True)
     GMM_histo(theta, "Theta", toric=True)
@@ -2507,8 +2507,8 @@ def gmm_hrna():
     c4p_c1p_b1 = list(df["C4'-C1'-B1"][~ np.isnan(df["C4'-C1'-B1"])])
     c1p_b1_b2 = list(df["C1'-B1-B2"][~ np.isnan(df["C1'-B1-B2"])])
 
-    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
-    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/distances/")
+    os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/angles/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/HiRE-RNA/angles/")
 
     GMM_histo(lastc4p_p_o5p, "C4'-P-O5'", toric=True)
     GMM_histo(lastc1p_lastc4p_p, "C1'-C4'-P", toric=True)
@@ -2908,12 +2908,20 @@ if __name__ == "__main__":
             DO_WADLEY_ANALYSIS = True
             os.makedirs(runDir+"/results/geometry/Pyle/distances/", exist_ok=True)
             os.makedirs(runDir+"/results/geometry/Pyle/angles/", exist_ok=True)
+            os.makedirs(runDir+"/results/geometry/Pyle/pseudotorsions/", exist_ok=True)
+            os.makedirs(runDir+"/results/figures/GMM/Pyle/distances/", exist_ok=True)
+            os.makedirs(runDir+"/results/figures/GMM/Pyle/angles/", exist_ok=True)
+            os.makedirs(runDir+"/results/figures/GMM/Pyle/pseudotorsions/", exist_ok=True)
         elif opt=='--hire-rna':
             DO_HIRE_RNA_MEASURES = True
             os.makedirs(runDir + "/results/geometry/HiRE-RNA/distances/", exist_ok=True)
             os.makedirs(runDir + "/results/geometry/HiRE-RNA/angles/", exist_ok=True)
             os.makedirs(runDir + "/results/geometry/HiRE-RNA/torsions/", exist_ok=True)
             os.makedirs(runDir + "/results/geometry/HiRE-RNA/basepairs/", exist_ok=True)
+            os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/distances/", exist_ok=True)
+            os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/angles/", exist_ok=True)
+            os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/torsions/", exist_ok=True)
+            os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/basepairs/", exist_ok=True)
     
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
