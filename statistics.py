@@ -1462,11 +1462,12 @@ def measure_from_structure(f):
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
         parser=MMCIFParser()
-        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
+        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "renumbered_rna_only/" + f))
 
     measures_aa(name, s, thr_idx)
     if DO_HIRE_RNA_MEASURES:
         measures_hrna(name, s, thr_idx)
+        measures_hrna_basepairs(name, s, thr_idx)
     if DO_WADLEY_ANALYSIS:
         measures_wadley(name, s, thr_idx)
 
@@ -1793,58 +1794,31 @@ def measures_hrna(name, s, thr_idx):
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/torsions/angles_torsion_hire_RNA '+name+'.csv')
 
 @trace_unhandled_exceptions
-def measure_hrna_basepairs(cle):
+def measures_hrna_basepairs(name, s, thr_idx):
     """
-    Open a complete RNAcifs/ file, and run measure_hrna_basepairs_chain() on every chain
+    Open a renumbered_rna_only/ file, and run measures_hrna_basepairs_chain() on every chain
     """  
 
-    global idxQueue
-    thr_idx = idxQueue.get()
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measure_hrna_basepairs({cle})")
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measures_hrna_basepairs({name})")
     
-    # Open the structure 
-    with warnings.catch_warnings():
-        # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
-        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
-        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
-        parser=MMCIFParser()
-        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "RNAcifs/" + cle + ".cif"))
-
     l=[]
-    for model in s:
-        for valeur in chain_list[cle]:
+    chain = next(s[0].get_chains())
             
-            # do not recompute something already computed
-            if path.isfile(runDir + "/results/geometry/HiRE-RNA/basepairs/basepairs "+cle+'_'+valeur+".csv"):
-                continue
+    # do not recompute something already computed
+    if path.isfile(runDir + "/results/geometry/HiRE-RNA/basepairs/basepairs "+name+".csv"):
+        return
 
-            if len(valeur) > 2: # if several RNA chains in the same structure
-                df_tot=[]
-                for id_chain in tqdm(valeur, desc=f"Worker {thr_idx+1}: Chains in {cle}", unit="chains", leave=False):
-                    for data in ld:
-                        if (len(data)<10): #unmapped
-                            chaine=str.split(data, '_')
-                            if chaine[0]==cle and chaine[2]==id_chain:
-                                df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + data))
-                                if df['index_chain'][0]==1:#ignore files with numbering errors
-                                    l = measure_hrna_basepairs_chain(model[id_chain], df, thr_idx)
-            else : # only one RNA chain
-                for data in ld:
-                    if (len(data)<10): #unmapped
-                        chaine=str.split(data, '_')
-                        if chaine[0]==cle and chaine[2]==valeur:
-                            df=pd.read_csv(os.path.abspath(path_to_3D_data + "datapoints/" + data))
-                            if df['index_chain'][0]==1:
-                                l = measure_hrna_basepairs_chain(model[valeur], df, thr_idx)
+    df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + name))
 
-            df_calc=pd.DataFrame(l, columns=["Chaine", "type LW", "Resseq", "Num paired", "Distance", "C4'-C1'-B1", "C1'-B1-B1pair", "B1-B1pair-C1'pair", "B1pair-C1'pair-C4'pair"])
-            df_calc.to_csv(runDir + "/results/geometry/HiRE-RNA/basepairs/"+'basepairs '+cle+'_'+valeur+'.csv')
+    if df['index_chain'][0]==1:#ignore files with numbering errors
+        l = measures_hrna_basepairs_chain(chain, df, thr_idx)
+    
+    df_calc=pd.DataFrame(l, columns=["Chaine", "type LW", "Resseq", "Num paired", "Distance", "C4'-C1'-B1", "C1'-B1-B1pair", "B1-B1pair-C1'pair", "B1pair-C1'pair-C4'pair"])
+    df_calc.to_csv(runDir + "/results/geometry/HiRE-RNA/basepairs/"+'basepairs '+name+'.csv')
 
-    idxQueue.put(thr_idx) # replace the thread index in the queue
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
 @trace_unhandled_exceptions
-def measure_hrna_basepairs_chain(chain, df, thr_idx):
+def measures_hrna_basepairs_chain(chain, df, thr_idx):
     """
     Cleanup of the dataset
     measurements of distances and angles between paired nucleotides in the chain
@@ -1888,74 +1862,30 @@ def measure_hrna_basepairs_chain(chain, df, thr_idx):
     indexNames=pairs[pairs['paired_int'] == 0].index
     pairs.drop(indexNames, inplace=True)#deletion of lines with a 0 in paired_int (matching to another RNA chain)
 
-    for i in pairs.index:
+    for i in tqdm(pairs.index, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {chain} measures_hrna_basepairs_chain", unit="res", leave=False):
         """
         calculations for each row of the pairs dataset
         """
-        resseq=pairs.at[i, 'old_nt_resnum'] #number of the residue in the chain
-        #code to delete letters in old_nt_resnum
-        icode_res=' '
-        if type(resseq) is str:
-            if resseq[0] != '-' :
-                while resseq.isdigit() is False:
-                    l=len(resseq)
-                    if icode_res==' ':
-                        icode_res=resseq[l-1]
-                    else :
-                        icode_res=resseq[l-1]+icode_res
-                    resseq=resseq[:l-1]
-        resseq=int(resseq)
         index=pairs.at[i, 'index_chain'] 
         type_LW=pairs.at[i, 'pair_type_LW_bis'] #pairing type
         num_paired=pairs.at[i, 'paired_int'] #number (index_chain) of the paired nucleotide
         
-
         if type(num_paired) is int or type(num_paired) is np.int64:
-            l=pairs[pairs['index_chain']==num_paired].index.to_list()
-            
-            resnum=pairs.at[l[0], 'old_nt_resnum']
-            icode_pair=' '
-            if type(resnum) is str:
-                if resnum[0] != '-' :
-                    while resnum.isdigit() is False:
-                        l=len(resnum)
-                        if icode_pair==' ':
-                            icode_pair=resnum[l-1]
-                        else :
-                            icode_pair=resnum[l-1]+icode_pair
-                        resnum=resnum[:l-1]
-                        
-                resnum=int(resnum)
             try :
-                d = basepair_apex_distance(chain[(' ',resseq, icode_res)], chain[(' ', resnum, icode_pair)]) # calculation of the distance between the tips of the paired nucleotides
-                angle = basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                d = basepair_apex_distance(chain[(' ',index, ' ')], chain[(' ', num_paired, ' ')]) 
+                angle = basepair_flat_angle(chain[(' ', index, ' ')], chain[(' ', num_paired, ' ')])
                 if d != 0.0:
-                    liste_dist.append([chain, type_LW, resseq, resnum, d,  angle[0], angle[1], angle[2], angle[3]])   
+                    liste_dist.append([chain, type_LW, index, num_paired, d,  angle[0], angle[1], angle[2], angle[3]])   
             except :
                 pass
         else : 
             for j in range(len(num_paired)): #if several pairings, process them one by one
                 if num_paired[j] != 0 :
-                    l=pairs[pairs['index_chain']==num_paired[j]].index.to_list()
-                    
-                    resnum=pairs.at[l[0], 'old_nt_resnum']
-                    
-                    icode_pair=' '
-                    if type(resnum) is str:
-                        if resnum[0] != '-' :
-                            while resnum.isdigit() is False:
-                                l=len(resnum)
-                                if icode_pair==' ':
-                                    icode_pair=resnum[l-1]
-                                else :
-                                    icode_pair=resnum[l-1]+icode_pair
-                                resnum=resnum[:l-1]
-                        resnum=int(resnum)
                     try :
-                        d = basepair_apex_distance(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
-                        angle = basepair_flat_angle(chain[(' ', resseq, icode_res)], chain[(' ', resnum, icode_pair)])
+                        d = basepair_apex_distance(chain[(' ', index, ' ')], chain[(' ', num_paired[j], ' ')])
+                        angle = basepair_flat_angle(chain[(' ', index, ' ')], chain[(' ', num_paired[j], ' ')])
                         if d != 0.0:
-                            liste_dist.append([chain, type_LW[j], resseq, resnum, d, angle[0], angle[1], angle[2], angle[3]])
+                            liste_dist.append([chain, type_LW[j], index, num_paired[j], d, angle[0], angle[1], angle[2], angle[3]])
                     except:
                         pass
 
@@ -2759,7 +2689,7 @@ def gmm_hrna_basepairs():
     GMM_histo(cHS_dist, "cHS", toric=False, hist=False, couleur='deeppink')
     GMM_histo(cSH_dist, "cSH", toric=False, hist=False, couleur='navy')
     plt.xlabel('Distance (Angström)')
-    plt.title("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs cis ("+str(nc)+ " valeurs)", fontsize=9)
+    plt.title("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs cis ("+str(nc)+ " valeurs)", fontsize=8)
     plt.savefig("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs cis (" +str(nc)+ " valeurs).png")
     plt.close()
 
@@ -2774,36 +2704,13 @@ def gmm_hrna_basepairs():
     GMM_histo(tHS_dist, "tHS",  toric=False, hist=False, couleur='tan')
     GMM_histo(tSH_dist, "tSH",  toric=False, hist=False, couleur='lime')
     plt.xlabel('Distance (Angström)')
-    plt.title("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs trans ("+str(nt)+ " valeurs)", fontsize=9)
+    plt.title("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs trans ("+str(nt)+ " valeurs)", fontsize=8)
     plt.savefig("GMM des distances entre pointes des nucléotides pour les measure_hrna_basepairs trans (" +str(nt)+ " valeurs).png")
     plt.close()
 
     os.chdir(runDir)
     setproctitle(f"GMM (HiRE-RNA basepairs) finished")
    
-def list_chains_in_dir(ld):
-    """
-    creates a dictionary of chains available in files from the ld list.
-    key = pdb identifier of the structure
-    value = list of RNA chains
-    """
-    dictionnaire=dict()
-    pdb=set()
-    for f in ld:
-        pdb_id = str.split(f, '_')[0]
-        pdb.add(pdb_id) # we create a list of distinct structures
-    for pdb_id in tqdm(pdb, desc="Scanning datapoints/ files content", leave=False): # for all structures found
-        liste_chaines = []
-        for f in ld:
-            if (len(f)<10): # unmapped to a Rfam family
-                chaine = str.split(f, '_')
-                if chaine[0] == pdb_id:
-                    id_chain = chaine[2]
-                    liste_chaines.append(id_chain)
-        if liste_chaines != []:
-            dictionnaire[pdb_id] = liste_chaines
-    return dictionnaire
-
 @trace_unhandled_exceptions
 def concat_dataframes(fpath, outfilename):
     """
@@ -2989,6 +2896,7 @@ if __name__ == "__main__":
             joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
 
     # Do general family statistics
+    
     joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
     joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
     for f in famlist:
@@ -2996,26 +2904,19 @@ if __name__ == "__main__":
         if f not in ignored:
             joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
     
+    
     # Do geometric measures on all chains
+    
     if n_unmapped_chains:
         os.makedirs(runDir+"/results/geometry/all-atoms/distances/", exist_ok=True)
-        f_prec = os.listdir(path_to_3D_data + "rna_only")[0]
-        for f in os.listdir(path_to_3D_data + "rna_only"): 
+        liste_struct=os.listdir(path_to_3D_data + "renumbered_rna_only")
+        f_prec = os.listdir(path_to_3D_data + "renumbered_rna_only")[0]
+        if '4zdo_1_E.cif' in liste_struct:
+            liste_struct.remove('4zdo_1_E.cif') # weird cases to remove for now
+        if '4zdp_1_E.cif' in liste_struct:
+            liste_struct.remove('4zdp_1_E.cif')
+        for f in liste_struct: 
             joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
-    
-    # Basepair geometries statistics (from RNACifs/ 3D files)  
-    
-    ld = os.listdir(path_to_3D_data +'datapoints')
-    if '4zdo_1_E' in ld :
-        ld.remove('4zdo_1_E') # weird cases to remove for now
-    if '4zdp_1_E' in ld :
-        ld.remove('4zdp_1_E')
-    chain_list = list_chains_in_dir(ld)
-    for c in chain_list.keys():
-        joblist.append(Job(function=measure_hrna_basepairs, args=(c,), how_many_in_parallel=nworkers))
-    
-    
-    #exit()
     
     
     process_jobs(joblist)
@@ -3037,6 +2938,7 @@ if __name__ == "__main__":
     per_chain_stats()   # per chain base frequencies en basepair types
     seq_idty()          # identity matrices from pre-computed .npy matrices
     stats_pairs()
+    
     if n_unmapped_chains:
         general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
@@ -3062,4 +2964,4 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_wadley, args=()))
         if len(joblist):
             process_jobs(joblist)
-    
+
