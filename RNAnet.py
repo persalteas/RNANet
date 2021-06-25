@@ -148,7 +148,9 @@ class SelectivePortionSelector(object):
         # Refuse hydrogens
         if self.hydrogen_regex.match(atom.get_id()):
             return 0
-
+        # Refuse the first two phosohate groups when residue is a triphosphate
+        if atom.get_id() in ['O3B', 'O2B', 'O1B', 'PB', 'O3G', 'O2G', 'O1G', 'PG' ]:
+            return 0
         # Accept all atoms otherwise.
         return 1
 
@@ -295,10 +297,25 @@ class Chain:
                         res_id[2]=' '
                         res_id[0]=' '
                         res_id=tuple(res_id)
+                        if nt in ['ATP', 'GTP', 'CTP', 'UTP']:
+                            res_name = res.get_resname()[0]
+                        else :
+                            res_name=res.get_resname()
                         res_atoms=res.get_atoms()
-                        new_residu_t=pdb.Residue.Residue(res_id, res.get_resname(), res.get_segid())
+                        new_residu_t=pdb.Residue.Residue(res_id, res_name, res.get_segid())
                         for atom in list(res.get_atoms()):
-                            new_atom_t=atom.copy()
+                            if atom.get_name() in ['PA', 'O1A', 'O2A', 'O3A']:
+                                if atom.get_name() == 'PA':
+                                    atom_name = 'P'
+                                if atom.get_name() == 'O1A':
+                                    atom_name = 'OP1'
+                                if atom.get_name() == 'O2A':
+                                    atom_name = 'OP2'
+                                if atom.get_name() == 'O3A':
+                                    atom_name = 'OP3'
+                                new_atom_t = pdb.Atom.Atom(atom_name, atom.get_coord(), atom.get_bfactor(), atom.get_occupancy(), atom.get_altloc(), atom_name, atom.get_serial_number())
+                            else :
+                                new_atom_t=atom.copy()
                             new_residu_t.add(new_atom_t)
                         new_chain_t.add(new_residu_t)
 
