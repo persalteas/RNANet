@@ -2026,9 +2026,9 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, col=None, save=True) 
         mean = means[i]
         sigma = np.sqrt(covariances[i])
         weight = weights[i]
-        summary_data["means"].append(str(mean))
-        summary_data["std"].append(str(sigma))
-        summary_data["weights"].append(str(weight))
+        summary_data["means"].append("{:.2f}".format(float(str(mean).strip("[]"))))
+        summary_data["std"].append("{:.2f}".format(float(str(sigma).strip("[]"))))
+        summary_data["weights"].append("{:.2f}".format(str(weight).strip("[]")))
 
         # compute the right x and y data to plot
         y = weight*st.norm.pdf(x, mean, sigma)
@@ -2730,6 +2730,8 @@ def process_jobs(joblist):
         print("Something went wrong")
 
 if __name__ == "__main__":
+    merge_jsons()
+    exit(0)
     os.makedirs(runDir + "/results/figures/", exist_ok=True)
 
     # parse options
