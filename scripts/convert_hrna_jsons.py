@@ -87,4 +87,4 @@ if __name__ == "__main__":
             fullresults[bp[0]][bp[1]].append(this)
 
     with open(runDir + "/results/geometry/json/hirerna_basepairs_processed.json", "w") as f:
-        json.dump(fullresults, f, indent=None)
+        json.dump(fullresults, f, indent=4)

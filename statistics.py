@@ -279,6 +279,7 @@ def stats_len():
                 ncol=1, fontsize='small', bbox_to_anchor=(1.3, 0.5))
 
     # Save the figure
+
     fig.savefig(runDir + f"/results/figures/lengths_{res_thr}A.png")
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
@@ -1457,12 +1458,15 @@ def basepair_measures(res, pair):
     # Measure tau, the dihedral
     u = (res_12**rho).normalized()
     v = (rho**pair_12).normalized()
-    w1 = n1**u
-    w2 = v**n2
     cosTau1 = n1*u
-    cosTau2 = v*n2
+    cosTau2 = v*n2 
+    
+    # cosTau is enough to compute alpha, but we can't distinguish
+    # yet betwwen tau and -tau. If the full computation if required, then:
     tau1 = np.arccos(cosTau1)*(180/np.pi)
     tau2 = np.arccos(cosTau2)*(180/np.pi)
+    w1 = u**n1
+    w2 = v**n2
     if res_12*w1 < 0:
         tau1 = -tau1
     if pair_12*w2 < 0:
@@ -1471,11 +1475,12 @@ def basepair_measures(res, pair):
     # And finally, the a1 and a2 angles between res_12 and p1 / pair_12 and p2
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
-        a1 = res_12.angle(p1)*(180/np.pi)
-        a2 = pair_12.angle(p2)*(180/np.pi)
-    if cosTau1 < 0:
+        a1 = (-res_12).angle(p1)*(180/np.pi)
+        a2 = (-pair_12).angle(p2)*(180/np.pi)
+    if cosTau1 > 0:
+        # CosTau > 0 (Tau < 90 or Tau > 270) implies that alpha > 180.
         a1 = -a1
-    if cosTau2 < 0:
+    if cosTau2 > 0:
         a2 = -a2
 
     return [dist, b, c, d1, d2, a1, a2, tau1, tau2]
@@ -1518,8 +1523,8 @@ def measures_wadley(name, s, thr_idx):
     """
 
     # do not recompute something already computed
-    if (path.isfile(runDir + '/results/geometry/Pyle/angles/flat_angles_pyle ' + name + '.csv') and
-        path.isfile(runDir + "/results/geometry/Pyle/distances/distances_wadley " + name + ".csv")):
+    if (path.isfile(runDir + '/results/geometry/Pyle/angles/flat_angles_pyle_' + name + '.csv') and
+        path.isfile(runDir + "/results/geometry/Pyle/distances/distances_wadley_" + name + ".csv")):
         return
 
     liste_dist = []
@@ -1558,9 +1563,9 @@ def measures_wadley(name, s, thr_idx):
             liste_angl.append([res.get_resname(), p_c1p_psuiv, c1p_psuiv_c1psuiv])
 
     df = pd.DataFrame(liste_dist, columns=["Residu", "C1'-P", "P-C1'", "C4'-P", "P-C4'"])
-    df.to_csv(runDir + "/results/geometry/Pyle/distances/distances_wadley " + name + ".csv")
+    df.to_csv(runDir + "/results/geometry/Pyle/distances/distances_wadley_" + name + ".csv")
     df = pd.DataFrame(liste_angl, columns=["Residu", "P-C1'-P°", "C1'-P°-C1'°"])
-    df.to_csv(runDir + "/results/geometry/Pyle/angles/flat_angles_pyle "+name+".csv")
+    df.to_csv(runDir + "/results/geometry/Pyle/angles/flat_angles_pyle_"+name+".csv")
 
 @trace_unhandled_exceptions
 def measures_aa(name, s, thr_idx):
@@ -1841,7 +1846,7 @@ def measures_hrna_basepairs(name, s, thr_idx):
     chain = next(s[0].get_chains())
             
     # do not recompute something already computed
-    if path.isfile(runDir + "/results/geometry/HiRE-RNA/basepairs/basepairs "+name+".csv"):
+    if path.isfile(runDir + "/results/geometry/HiRE-RNA/basepairs/basepairs_"+name+".csv"):
         return
 
     df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + name))
@@ -1850,7 +1855,7 @@ def measures_hrna_basepairs(name, s, thr_idx):
         l = measures_hrna_basepairs_chain(name, chain, df, thr_idx)
     df_calc = pd.DataFrame(l, columns=["type_LW", "nt1_idx", "nt1_res", "nt2_idx", "nt2_res", "Distance", 
                                         "211_angle", "112_angle", "dB1", "dB2", "alpha1", "alpha2", "3211_torsion", "1123_torsion"])
-    df_calc.to_csv(runDir + "/results/geometry/HiRE-RNA/basepairs/"+'basepairs ' + name + '.csv', float_format="%.3f")
+    df_calc.to_csv(runDir + "/results/geometry/HiRE-RNA/basepairs/"+'basepairs_' + name + '.csv', float_format="%.3f")
 
 @trace_unhandled_exceptions
 def measures_hrna_basepairs_chain(name, chain, df, thr_idx):
@@ -2028,7 +2033,7 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, col=None, save=True) 
         weight = weights[i]
         summary_data["means"].append("{:.2f}".format(float(str(mean).strip("[]"))))
         summary_data["std"].append("{:.2f}".format(float(str(sigma).strip("[]"))))
-        summary_data["weights"].append("{:.2f}".format(str(weight).strip("[]")))
+        summary_data["weights"].append("{:.2f}".format(float(str(weight).strip("[]"))))
 
         # compute the right x and y data to plot
         y = weight*st.norm.pdf(x, mean, sigma)
@@ -2335,11 +2340,11 @@ def gmm_wadley():
 
     GMM_histo(p_c1p, "P-C1'")
     GMM_histo(c1p_p, "C1'-P")
-    GMM_histo(p_c1p, "P-C4'")
-    GMM_histo(c1p_p, "C4'-P")
+    GMM_histo(p_c4p, "P-C4'")
+    GMM_histo(c4p_p, "C4'-P")
 
-    GMM_histo(p_c1p, "P-C4'", toric=False, hist=False, col='gold')
-    GMM_histo(c1p_p, "C4'-P", toric=False, hist=False, col='indigo')
+    GMM_histo(p_c4p, "P-C4'", toric=False, hist=False, col='gold')
+    GMM_histo(c4p_p, "C4'-P", toric=False, hist=False, col='indigo')
     GMM_histo(p_c1p, "P-C1'", toric=False, hist=False, col='firebrick')
     GMM_histo(c1p_p, "C1'-P", toric=False, hist=False, col='seagreen')
     plt.xlabel("Distance (Angströms)")
@@ -2730,8 +2735,6 @@ def process_jobs(joblist):
         print("Something went wrong")
 
 if __name__ == "__main__":
-    merge_jsons()
-    exit(0)
     os.makedirs(runDir + "/results/figures/", exist_ok=True)
 
     # parse options
@@ -2915,7 +2918,7 @@ if __name__ == "__main__":
         # general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
-        joblist = []
+        # joblist = []
         # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
         # if DO_HIRE_RNA_MEASURES:
         #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
@@ -2926,11 +2929,11 @@ if __name__ == "__main__":
         #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/distances/', 'distances_wadley.csv')))
         #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/angles/', 'flat_angles_pyle.csv')))
         # process_jobs(joblist)
-        # joblist = []
-        joblist.append(Job(function=gmm_aa_dists, args=()))
-        joblist.append(Job(function=gmm_aa_torsions, args=()))
+        joblist = []
+        # joblist.append(Job(function=gmm_aa_dists, args=()))
+        # joblist.append(Job(function=gmm_aa_torsions, args=()))
         if DO_HIRE_RNA_MEASURES:
-            joblist.append(Job(function=gmm_hrna, args=()))
+        #     joblist.append(Job(function=gmm_hrna, args=()))
             joblist.append(Job(function=gmm_hrna_basepairs, args=()))
         if DO_WADLEY_ANALYSIS:
             joblist.append(Job(function=gmm_wadley, args=()))
