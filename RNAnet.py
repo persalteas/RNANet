@@ -40,7 +40,8 @@ from Bio.SeqIO.FastaIO import FastaIterator, SimpleFastaParser
 from Bio.Seq import MutableSeq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
-
+from collections import defaultdict
+from Bio.PDB.PDBIO import Select
 runDir = os.getcwd()
 
 def trace_unhandled_exceptions(func):
@@ -153,6 +154,123 @@ class SelectivePortionSelector(object):
             return 0
         # Accept all atoms otherwise.
         return 1
+
+
+_select=Select()
+
+def save_mmcif(ioobj, out_file, select=_select, preserve_atom_numbering=False):
+    if isinstance(out_file, str):
+        fp = open(out_file, "w")
+        close_file = True
+    else:
+        fp = out_file
+        close_file = False
+    #fp = open(out_file, "w")
+    #close_file=True
+    atom_dict = defaultdict(list)
+
+    for model in ioobj.structure.get_list():
+        if not select.accept_model(model):
+            continue
+        # mmCIF files with a single model have it specified as model 1
+        if model.serial_num == 0:
+            model_n = "1"
+        else:
+            model_n = str(model.serial_num)
+        # This is used to write label_entity_id and label_asym_id and
+        # increments from 1, changing with each molecule
+        entity_id = 0
+        if not preserve_atom_numbering:
+            atom_number = 1
+        for chain in model.get_list():
+            if not select.accept_chain(chain):
+                continue
+            chain_id = chain.get_id()
+            if chain_id == " ":
+                chain_id = "."
+            # This is used to write label_seq_id and increments from 1,
+            # remaining blank for hetero residues
+            
+            prev_residue_type = ""
+            prev_resname = ""
+            for residue in chain.get_unpacked_list():
+                if not select.accept_residue(residue):
+                    continue
+                hetfield, resseq, icode = residue.get_id()
+                if hetfield == " ":
+                    residue_type = "ATOM"
+                    label_seq_id = str(resseq)
+                    
+                else:
+                    residue_type = "HETATM"
+                    label_seq_id = "."
+                resseq = str(resseq)
+                if icode == " ":
+                    icode = "?"
+                resname = residue.get_resname()
+                # Check if the molecule changes within the chain
+                # This will always increment for the first residue in a
+                # chain due to the starting values above
+                if residue_type != prev_residue_type or (
+                    residue_type == "HETATM" and resname != prev_resname
+                ):
+                    entity_id += 1
+                prev_residue_type = residue_type
+                prev_resname = resname
+                label_asym_id = ioobj._get_label_asym_id(entity_id)
+                for atom in residue.get_unpacked_list():
+                    if select.accept_atom(atom):
+                        atom_dict["_atom_site.group_PDB"].append(residue_type)
+                        if preserve_atom_numbering:
+                            atom_number = atom.get_serial_number()
+                        atom_dict["_atom_site.id"].append(str(atom_number))
+                        if not preserve_atom_numbering:
+                            atom_number += 1
+                        element = atom.element.strip()
+                        if element == "":
+                            element = "?"
+                        atom_dict["_atom_site.type_symbol"].append(element)
+                        atom_dict["_atom_site.label_atom_id"].append(
+                            atom.get_name().strip()
+                        )
+                        altloc = atom.get_altloc()
+                        if altloc == " ":
+                            altloc = "."
+                        atom_dict["_atom_site.label_alt_id"].append(altloc)
+                        atom_dict["_atom_site.label_comp_id"].append(
+                            resname.strip()
+                        )
+                        atom_dict["_atom_site.label_asym_id"].append(label_asym_id)
+                        # The entity ID should be the same for similar chains
+                        # However this is non-trivial to calculate so we write "?"
+                        atom_dict["_atom_site.label_entity_id"].append("?")
+                        atom_dict["_atom_site.label_seq_id"].append(label_seq_id)
+                        atom_dict["_atom_site.pdbx_PDB_ins_code"].append(icode)
+                        coord = atom.get_coord()
+                        atom_dict["_atom_site.Cartn_x"].append("%.3f" % coord[0])
+                        atom_dict["_atom_site.Cartn_y"].append("%.3f" % coord[1])
+                        atom_dict["_atom_site.Cartn_z"].append("%.3f" % coord[2])
+                        atom_dict["_atom_site.occupancy"].append(
+                            str(atom.get_occupancy())
+                        )
+                        atom_dict["_atom_site.B_iso_or_equiv"].append(
+                            str(atom.get_bfactor())
+                        )
+                        atom_dict["_atom_site.auth_seq_id"].append(resseq)
+                        atom_dict["_atom_site.auth_asym_id"].append(chain_id)
+                        atom_dict["_atom_site.pdbx_PDB_model_num"].append(model_n)
+
+    # Data block name is the structure ID with special characters removed
+    structure_id = ioobj.structure.id
+    for c in ["#", "$", "'", '"', "[", "]", " ", "\t", "\n"]:
+        structure_id = structure_id.replace(c, "")
+    atom_dict["data_"] = structure_id
+
+    # Set the dictionary and write out using the generic dictionary method
+    ioobj.dic = atom_dict
+    ioobj._save_dict(fp)
+    if close_file:
+        fp.close()
 
 
 class Chain:
@@ -325,8 +443,8 @@ class Chain:
             # Save that renumbered selection on the mmCIF object s to file       
             ioobj = pdb.MMCIFIO()
             ioobj.set_structure(t)
-            ioobj.save(self.file)   
-            
+          
+            save_mmcif(ioobj, self.file)
 
         notify(status)
 
