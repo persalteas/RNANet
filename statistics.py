@@ -1503,7 +1503,7 @@ def measure_from_structure(f):
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
         parser=MMCIFParser()
-        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "renumbered_rna_only/" + f))
+        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
 
     measures_aa(name, s, thr_idx)
     if DO_HIRE_RNA_MEASURES:
@@ -1837,7 +1837,7 @@ def measures_hrna(name, s, thr_idx):
 @trace_unhandled_exceptions
 def measures_hrna_basepairs(name, s, thr_idx):
     """
-    Open a renumbered_rna_only/ file, and run measures_hrna_basepairs_chain() on every chain
+    Open a rna_only/ file, and run measures_hrna_basepairs_chain() on every chain
     """  
 
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measures_hrna_basepairs({name})")
@@ -2884,7 +2884,7 @@ if __name__ == "__main__":
     
     # if n_unmapped_chains:
     #     os.makedirs(runDir+"/results/geometry/all-atoms/distances/", exist_ok=True)
-    #     liste_struct = os.listdir(path_to_3D_data + "renumbered_rna_only")
+    #     liste_struct = os.listdir(path_to_3D_data + "rna_only")
     #     if '4zdo_1_E.cif' in liste_struct:
     #         liste_struct.remove('4zdo_1_E.cif') # weird cases to remove for now
     #     if '4zdp_1_E.cif' in liste_struct:
