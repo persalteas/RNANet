@@ -321,8 +321,7 @@ class Chain:
             self.file = path_to_3D_data+"rna_mapped_to_Rfam/"+self.chain_label+".cif"
         else:
             status = f"Extract {self.pdb_id}-{self.pdb_chain_id}"
-            self.file = path_to_3D_data+"renumbered_rna_only/"+self.chain_label+".cif"
-            #self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
+            self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
 
         # Check if file exists, if yes, abort (do not recompute)
         if os.path.exists(self.file):
@@ -1517,9 +1516,9 @@ class Pipeline:
                 # extract chains of pure RNA
                 os.makedirs(path_to_3D_data + "rna_only")
             '''
-            if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "renumbered_rna_only"):
+            if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "rna_only"):
                 # extract chains of pure RNA
-                os.makedirs(path_to_3D_data + "renumbered_rna_only")
+                os.makedirs(path_to_3D_data + "rna_only")
 
         # define and run jobs
         joblist = []
