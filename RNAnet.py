@@ -2593,20 +2593,32 @@ def use_infernal(rfam_acc, alignopts):
         new_ali_path = path_to_seq_data + f"realigned/{rfam_acc}_new.stk"
 
         # Align the new sequences
-        with open(new_ali_path, 'w') as o:
+        with open(path_to_seq_data + f"realigned/{rfam_acc}_new.log", 'w') as o:
             p1 = subprocess.run(["cmalign", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
                                 "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
-                                "-o", path_to_seq_data + f"realigned/{rfam_acc}++.stk",
+                                "-o", path_to_seq_data + f"realigned/{rfam_acc}_new.stk",
                                 path_to_seq_data + f"realigned/{rfam_acc}.cm",
                                 path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
                                 stdout=o, stderr=subprocess.PIPE)
+            if "--mxsize" in p1.stderr.decode("utf-8"):
+                # not enough available RAM to allocate the DP matrix
+                warn(f"Not enough RAM to allocate cmalign DP matrix for family {rfam_acc}. Use --sina or --cmalign-opts.", error=True)
         notify("Aligned new sequences together")
 
         # Detect doublons and remove them
-        existing_stk = AlignIO.read(existing_ali_path, "stockholm")
+        try:
+            existing_stk = AlignIO.read(existing_ali_path, "stockholm")
+        except ValueError:
+            # Not a stockholm file
+            warn(f"Existing alignment is not a Stockholm file !", error=True)
+            return
         existing_ids = [r.id for r in existing_stk]
         del existing_stk
-        new_stk = AlignIO.read(new_ali_path, "stockholm")
+        try:
+            new_stk = AlignIO.read(new_ali_path, "stockholm")
+        except ValueError:
+            # Not a stockholm file
+            warn(f"New alignment {new_ali_path} is not a Stockholm file !", error=True)
         new_ids = [r.id for r in new_stk]
         del new_stk
         doublons = [i for i in existing_ids if i in new_ids]
@@ -2622,10 +2634,14 @@ def use_infernal(rfam_acc, alignopts):
             os.remove(path_to_seq_data + "realigned/toremove.txt")
 
         # And we merge the two alignments
-        p2 = subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
-                            "--rna", existing_ali_path, new_ali_path],
+        p2 = subprocess.run(["cmalign", "--merge" "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
+                            "--rna", path_to_seq_data + f"realigned/{rfam_acc}.cm", existing_ali_path, new_ali_path],
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        stderr = p1.stderr.decode('utf-8') + p2.stderr.decode('utf-8')
+        alignErrors = p1.stderr.decode('utf-8')
+        mergeErrors = p2.stderr.decode('utf-8')
+        alignErrors = "Alignment: "+ alignErrors if len(alignErrors) else "" 
+        mergeErrors = "Alignment: "+ mergeErrors if len(mergeErrors) else "" 
+        stderr = alignErrors + mergeErrors
         subprocess.run(["mv", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk", existing_ali_path])
         notify("Merged alignments into one")
 
