@@ -322,7 +322,6 @@ class Chain:
         else:
             status = f"Extract {self.pdb_id}-{self.pdb_chain_id}"
             self.file = path_to_3D_data+"rna_only/"+self.chain_label+".cif"
-            
 
         # Check if file exists, if yes, abort (do not recompute)
         if os.path.exists(self.file):
