@@ -37,6 +37,7 @@ from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, no
 from sklearn.mixture import GaussianMixture
 import warnings
 from pandas.core.common import SettingWithCopyWarning
+from joblib import Parallel, delayed
 
 
 np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
@@ -1251,6 +1252,25 @@ def nt_3d_centers(cif_file, consider_all_atoms):
                     result.append(res)
     return(result)
 
+def liste_repres(fpath):
+    repres=[]
+    df=pd.read_csv(os.path.abspath(fpath))
+    for i in range(df.shape[0]):
+        up_name=df["representative"][i]
+        if '+' in up_name:
+            up_name=up_name.split('+')
+            for i in range(len(up_name)):
+                chain=up_name[i].split('|')
+                chain=chain[0].lower()+'_'+chain[1]+'_'+chain[2]
+                repres.append(chain+'.cif')
+        else :
+            up_name=up_name.split('|')
+            low_name=up_name[0].lower()+'_'+up_name[1]+'_'+up_name[2]
+            repres.append(low_name+'.cif') 
+        
+    return repres
+
+
 def get_euclidian_distance(L1, L2):
     """
     Returns the distance between two points (coordinates in lists)
@@ -1504,14 +1524,16 @@ def measure_from_structure(f):
         warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
         parser=MMCIFParser()
         s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
-
-    measures_aa(name, s, thr_idx)
+    
+    #pyle_measures(name, s, thr_idx)
+    #measures_aa(name, s, thr_idx)
     if DO_HIRE_RNA_MEASURES:
         measures_hrna(name, s, thr_idx)
         measures_hrna_basepairs(name, s, thr_idx)
     if DO_WADLEY_ANALYSIS:
-        measures_wadley(name, s, thr_idx)
-
+        #measures_wadley(name, s, thr_idx)
+        pyle_measures(name, s, thr_idx)
+    
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
@@ -1931,6 +1953,128 @@ def measures_hrna_basepairs_chain(name, chain, df, thr_idx):
     return results
 
 @trace_unhandled_exceptions
+def pyle_measures(name, s, thr_idx):
+
+    if (path.isfile(runDir + '/results/geometry/Pyle/distances/distances_pyle_'+name+'.csv')):
+        return
+
+    liste_dist=[]
+    #classes=[]
+    #for i in range(0, 150, 5):
+        #classes.append([i, i+5])
+    #classes.append([150, 300])
+    #occur_p_p=len(classes)*[0]
+    #occur_p_c1=len(classes)*[0]
+    #occur_p_c4=len(classes)*[0]
+    #occur_c1_c1=len(classes)*[0]
+    #occur_c4_c4=len(classes)*[0]
+    #nb_occurs=[]
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} pyle_measures({name})")
+
+    chain = next(s[0].get_chains())
+    #residues=list(chain.get_residues())
+    for res1 in tqdm(chain, position=thr_idx+1, desc=f"Worker {thr_idx+1}: {name} pyle_measures", unit="res", leave=False):
+        #res1=chain[i]
+        if res1.get_resname() in ["A", "C", "G", "U"]:
+            resnum1=list(res1.get_id())[1]
+            atom_p_1 = [ atom.get_coord() for atom in res1 if atom.get_name() ==  "P"]
+            atom_c1p_1 = [ atom.get_coord() for atom in res1 if "C1'" in atom.get_fullname() ]
+            atom_c4p_1 = [ atom.get_coord() for atom in res1 if "C4'" in atom.get_fullname() ]
+            for res2 in chain:
+                resnum2=list(res2.get_id())[1]
+                if resnum2-resnum1 < 4 :
+                    continue
+                p_p=np.nan
+                p_c4p=np.nan
+                p_c1p=np.nan
+                c4p_c4p=np.nan
+                c1p_c1p=np.nan
+                #res2=chain[j]
+                if res2.get_resname() in ["A", "C", "G", "U"]:
+                    
+                    atom_p_2 = [ atom.get_coord() for atom in res2 if atom.get_name() ==  "P"]
+                    atom_c1p_2 = [ atom.get_coord() for atom in res2 if "C1'" in atom.get_fullname() ]
+                    atom_c4p_2 = [ atom.get_coord() for atom in res2 if "C4'" in atom.get_fullname() ]
+
+                    p_p = get_euclidian_distance(atom_p_1, atom_p_2)
+                    p_c4p= get_euclidian_distance(atom_p_1, atom_c4p_2)
+                    p_c1p= get_euclidian_distance(atom_p_1, atom_c1p_2)
+                    c4p_c4p= get_euclidian_distance(atom_c4p_1, atom_c4p_2)
+                    c1p_c1p= get_euclidian_distance(atom_c1p_1, atom_c1p_2)
+
+                    liste_dist.append([res1.get_resname(), int(resnum1), res2.get_resname(), int(resnum2), p_p, p_c4p, p_c1p, c4p_c4p, c1p_c1p])
+                    '''
+                    for x in range(len(classes)):
+                        if classes[x][0] <= p_p <= classes[x][1]:
+                            occur_p_p[x]=occur_p_p[x]+1
+                        if classes[x][0] <= p_c4p <= classes[x][1]:
+                            occur_p_c4[x]=occur_p_c4[x]+1                        
+                        if classes[x][0] <= p_c1p <= classes[x][1]:
+                            occur_p_c1[x]=occur_p_c1[x]+1
+                        if classes[x][0] <= c4p_c4p <= classes[x][1]:
+                            occur_c4_c4[x]=occur_c4_c4[x]+1
+                        if classes[x][0] <= c1p_c1p <= classes[x][1]:
+                            occur_c1_c1[x]=occur_c1_c1[x]+1
+                    '''
+    #for x in range(len(classes)):
+        # for i in range(len(liste_dist)):
+        #     if classes[x][0] <= liste_dist[i][4] <= classes[x][1]:
+        #         occur_p_p[x]=occur_p_p[x]+1
+        #     if classes[x][0] <= liste_dist[i][5] <= classes[x][1]:
+        #         occur_p_c4[x]=occur_p_c4[x]+1                        
+        #     if classes[x][0] <= liste_dist[i][6] <= classes[x][1]:
+        #         occur_p_c1[x]=occur_p_c1[x]+1
+        #     if classes[x][0] <= liste_dist[i][7] <= classes[x][1]:
+        #         occur_c4_c4[x]=occur_c4_c4[x]+1
+        #     if classes[x][0] <= liste_dist[i][8] <= classes[x][1]:
+        #         occur_c1_c1[x]=occur_c1_c1[x]+1
+        #nb_occurs.append([classes[x], occur_p_p[x], occur_p_c1[x], occur_p_c4[x], occur_c1_c1[x], occur_c4_c4[x]])
+    #df = pd.DataFrame(nb_occurs, columns=["classe", "P-P", "P-C1'", "P-C4'", "C1'-C1'", "C4'-C4'"])
+    # return df
+    # nb_occurs.append([classes, occur_p_p, occur_p_c1, occur_p_c4, occur_c1_c1, occur_c4_c4])
+    # print(nb_occurs)
+    # return nb_occurs
+                    
+
+    df = pd.DataFrame(liste_dist, columns=["res1", "resnum1", "res2", "resnum2", "P-P", "P-C4'", "P-C1'", "C4'-C4'", "C1'-C1'"])
+    df.to_csv(runDir + "/results/geometry/Pyle/distances/distances_pyle_" + name + ".csv")
+
+@trace_unhandled_exceptions
+def count_occur_pyle_dist(fpath):
+    
+    global idxQueue
+    thr_idx = idxQueue.get()
+    setproctitle(f"Worker {thr_idx+1} : Extract occurences of {fpath}")    
+
+    liste=os.listdir(fpath)
+    pbar = tqdm(total=len(liste), position=thr_idx, desc="Preparing ", leave=False)
+    df = pd.read_csv(os.path.abspath(fpath + liste.pop()))
+    occur_p_p=list(df["P-P"])
+    occur_p_c1=list(df["P-C1'"])
+    occur_p_c4=list(df["P-C4'"])
+    occur_c1_c1=list(df["C1'-C1'"])
+    occur_c4_c4=list(df["C4'-C4'"])
+    nb_occurs=[]
+    for f in range(len(liste)):
+        df = pd.read_csv(os.path.abspath(fpath + liste.pop()))
+        # print(liste[f])
+        for k in range(df.shape[0]):
+            occur_p_p[k]=occur_p_p[k]+df["P-P"][k]
+            occur_p_c1[k]=occur_p_c1[k]+df["P-C1'"][k]
+            occur_p_c4[k]=occur_p_c4[k]+df["P-C4'"][k]
+            occur_c1_c1[k]=occur_c1_c1[k]+df["C1'-C1'"][k]
+            occur_c4_c4[k]=occur_c4_c4[k]+df["C4'-C4'"][k]
+        pbar.update(1)
+    nb_occurs=[occur_p_p, occur_p_c1, occur_p_c4, occur_c1_c1, occur_c4_c4]
+    # return(list(df["classe"]), occur_p_p, occur_p_c1, occur_p_c4, occur_c1_c1, occur_c4_c4)
+    df = pd.DataFrame(nb_occurs, columns=list(df["classe"]))
+
+    df.to_csv(runDir + "/results/geometry/Pyle/classes_dist/occurences_dist.csv")
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+
+
+@trace_unhandled_exceptions
 def GMM_histo(data_ori, name_data, toric=False, hist=True, col=None, save=True) :
     """
     Plot Gaussian-Mixture-Model (with or without histograms)
@@ -2012,7 +2156,8 @@ def GMM_histo(data_ori, name_data, toric=False, hist=True, col=None, save=True) 
     else:
         D = obs.ravel()
         xmin = D.min()
-        xmax = min(10.0, D.max())
+        #xmax = min(10.0, D.max())
+        xmax = D.max()
         x = np.linspace(xmin,xmax,1000)
     colors=['red', 'blue', 'gold', 'cyan', 'magenta', 'white', 'black', 'green']
 
@@ -2372,7 +2517,7 @@ def gmm_wadley():
     plt.savefig("GMM_flat_angles_pyle_model.png")
     plt.close()
 
-    # Torsion anfles    
+    # Torsion angles    
     eta=[]
     theta=[]
     eta_prime=[]
@@ -2419,6 +2564,58 @@ def gmm_wadley():
     
     os.chdir(runDir)
     setproctitle("GMM (Pyle model) finished")   
+
+def gmm_pyle_type(ntpair, data):
+
+    setproctitle(f"GMM (Pyle {ntpair} )")
+    
+    os.makedirs(runDir + "/results/figures/GMM/Pyle/distances/", exist_ok=True)
+    os.chdir(runDir + "/results/figures/GMM/Pyle/distances/")
+
+    p_p=list(data["P-P"][~ np.isnan(data["P-P"])])
+    p_c4p=list(data["P-C4'"][~ np.isnan(data["P-C4'"])])
+    p_c1p=list(data["P-C1'"][~ np.isnan(data["P-C1'"])])
+    c4p_c4p=list(data["C4'-C4'"][~ np.isnan(data["C4'-C4'"])])
+    c1p_c1p=list(data["C1'-C1'"][~ np.isnan(data["C1'-C1'"])])
+    print(len(p_p))
+    # res2=list(data["resnum2"])
+    # res1=list(data["resnum1"])
+    # diff=[]
+    # for i in range(len(res1)):
+    #     diff.append(res2[i]-res1[i])
+    # print(diff[:100])
+    
+    GMM_histo(p_p, f"Distance P-P between {ntpair} tips for {str(len(p_p))} values", toric=False, hist=False, col="cyan")
+    GMM_histo(p_c4p, f"Distance P-C4' between {ntpair} tips", toric=False, hist=False, col="tomato")
+    GMM_histo(p_c1p, f"Distance P-C1' between {ntpair} tips", toric=False, hist=False, col="goldenrod")
+    GMM_histo(c4p_c4p, f"Distance C4'-C4' between {ntpair} tips", toric=False, hist=False, col="magenta")
+    GMM_histo(c1p_c1p, f"Distance C1'-C1' between {ntpair} tips", toric=False, hist=False, col="black")
+    # GMM_histo(diff, f"Gap between {ntpair} tips", toric=False, hist=False, col="tomato")
+    plt.xlabel("Distance (Angströms)")
+    
+    # plt.xlabel("Number of residues")
+    plt.ylabel("Distance (Angströms)")
+    plt.title(f"GMM of distances for {ntpair} ", fontsize=10)
+
+    # plt.savefig(f"Longueurs_Pyle_{ntpair}.png" )
+    plt.savefig(f"Distances_Pyle_{ntpair}.png" )
+    plt.close()
+    setproctitle(f"GMM (Pyle {ntpair} distances) finished")
+
+def gmm_pyle():
+
+    setproctitle("GMM (Pyle model)")
+
+    df = pd.read_csv(os.path.abspath(runDir + "/results/geometry/Pyle/distances/distances.csv"))
+
+    # dist = ["P-P", "P-C4'", "P-C1'", "C4'-C4'", "C1'-C1'"]
+    data=df
+    if len(data):
+        for b1 in ['A','C','G','U']:
+            for b2 in ['A','C','G','U']:
+                thisbases = data[(data.res1 == b1)&(data.res2 == b2)]
+                if len(thisbases):
+                    gmm_pyle_type(b1+b2, thisbases)
 
 @trace_unhandled_exceptions
 def gmm_hrna():
@@ -2669,7 +2866,11 @@ def merge_jsons():
             os.remove(f)
         except FileNotFoundError:
             pass
-   
+
+@trace_unhandled_exceptions
+def loop(f):
+    return pd.read_csv(f)
+
 @trace_unhandled_exceptions
 def concat_dataframes(fpath, outfilename):
     """
@@ -2682,14 +2883,23 @@ def concat_dataframes(fpath, outfilename):
 
     liste = os.listdir(fpath)
     pbar = tqdm(total=len(liste), position=thr_idx, desc="Preparing "+outfilename, leave=False)
-
-    df_tot = pd.read_csv(os.path.abspath(fpath + liste.pop()))
+    df_tot = pd.read_csv(os.path.abspath(fpath + liste.pop()), engine="python")
+    #df=Parallel(n_jobs=-1, verbose=20)(delayed(loop)(os.path.abspath(fpath+liste[f])) for f in range (len(liste)))
+    #except :
+        # print(liste[f])
+         
     pbar.update(1)
     for f in range(len(liste)):
-        df = pd.read_csv(os.path.abspath(fpath + liste.pop()))
+    #     try :
+        df = pd.read_csv(os.path.abspath(fpath + liste.pop()), engine='python')
+    #     except :
+    #         print(liste[f])
+    #         continue
         df_tot = pd.concat([df_tot, df], ignore_index=True)
         pbar.update(1)
-
+    #df = pd.concat(df, ignore_index=True)
+    #pbar.update(1)
+    #df.to_csv(fpath + outfilename)
     df_tot.to_csv(fpath + outfilename)
     idxQueue.put(thr_idx) # replace the thread index in the queue
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
@@ -2789,6 +2999,7 @@ if __name__ == "__main__":
         elif opt=='--wadley':
             DO_WADLEY_ANALYSIS = True
             os.makedirs(runDir+"/results/geometry/Pyle/distances/", exist_ok=True)
+            os.makedirs(runDir+"/results/geometry/Pyle/classes_dist/", exist_ok=True)
             os.makedirs(runDir+"/results/geometry/Pyle/angles/", exist_ok=True)
             os.makedirs(runDir+"/results/geometry/Pyle/pseudotorsions/", exist_ok=True)
             os.makedirs(runDir+"/results/figures/GMM/Pyle/distances/", exist_ok=True)
@@ -2853,9 +3064,9 @@ if __name__ == "__main__":
     joblist = []
 
     # Do eta/theta plots
-    if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
-        joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
-        joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
+    #if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
+    #    joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
+    #    joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
 
     # Do distance matrices for each family excl. LSU/SSU (will be processed later)
     if DO_AVG_DISTANCE_MATRIX:  
@@ -2881,21 +3092,24 @@ if __name__ == "__main__":
     
     
     # Do geometric measures on all chains
+    #print(liste_repres('/home/data/RNA/3D/latest_nr_list_4.0A.csv'))
     
-    # if n_unmapped_chains:
+    # print(measure_from_structure(os.listdir(path_to_3D_data + "rna_only")[0]))
+    if n_unmapped_chains:
     #     os.makedirs(runDir+"/results/geometry/all-atoms/distances/", exist_ok=True)
-    #     liste_struct = os.listdir(path_to_3D_data + "rna_only")
+    #    liste_struct = os.listdir(path_to_3D_data + "rna_only")
+        liste_struct=liste_repres('/home/data/RNA/3D/latest_nr_list_4.0A.csv')
     #     if '4zdo_1_E.cif' in liste_struct:
     #         liste_struct.remove('4zdo_1_E.cif') # weird cases to remove for now
     #     if '4zdp_1_E.cif' in liste_struct:
     #         liste_struct.remove('4zdp_1_E.cif')
-    #     for f in liste_struct:
-    #         if path.isfile(path_to_3D_data + "datapoints/" + f.split('.')[0]):
-    #             joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
+        for f in liste_struct:
+            if path.isfile(path_to_3D_data + "datapoints/" + f.split('.')[0]):
+                joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
     
     
-    # process_jobs(joblist)
-
+    process_jobs(joblist)
+    #count_occur_pyle_dist(runDir + '/results/geometry/Pyle/classes_dist/')
     # Now process the memory-heavy tasks family by family
     if DO_AVG_DISTANCE_MATRIX:
         for f in LSU_set:
@@ -2913,12 +3127,13 @@ if __name__ == "__main__":
     # per_chain_stats()   # per chain base frequencies en basepair types
     # seq_idty()          # identity matrices from pre-computed .npy matrices
     # stats_pairs()
-    
+    concat_dataframes(runDir + '/results/geometry/Pyle/distances/', 'distances.csv')
     if n_unmapped_chains:
         # general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
-        # joblist = []
+        joblist = []
+        # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/Pyle/distances/', 'distances.csv')))
         # joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')))
         # if DO_HIRE_RNA_MEASURES:
         #     joblist.append(Job(function=concat_dataframes, args=(runDir + '/results/geometry/HiRE-RNA/distances/', 'dist_atoms_hire_RNA.csv')))
@@ -2935,9 +3150,10 @@ if __name__ == "__main__":
         if DO_HIRE_RNA_MEASURES:
         #     joblist.append(Job(function=gmm_hrna, args=()))
             joblist.append(Job(function=gmm_hrna_basepairs, args=()))
-        if DO_WADLEY_ANALYSIS:
-            joblist.append(Job(function=gmm_wadley, args=()))
+        # if DO_WADLEY_ANALYSIS:
+        #    joblist.append(Job(function=gmm_wadley, args=()))
+            # joblist.append(Job(function=gmm_pyle, args=()))
         if len(joblist):
             process_jobs(joblist)
-        merge_jsons()
+        #merge_jsons()
 

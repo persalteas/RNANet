@@ -159,14 +159,14 @@ class SelectivePortionSelector(object):
 _select=Select()
 
 def save_mmcif(ioobj, out_file, select=_select, preserve_atom_numbering=False):
+    # reuse and modification of the source code of Biopython
+    # to have the 2 columns of numbering of residues numbered with the index_chain of DSSR
     if isinstance(out_file, str):
         fp = open(out_file, "w")
         close_file = True
     else:
         fp = out_file
         close_file = False
-    #fp = open(out_file, "w")
-    #close_file=True
     atom_dict = defaultdict(list)
 
     for model in ioobj.structure.get_list():
@@ -188,7 +188,7 @@ def save_mmcif(ioobj, out_file, select=_select, preserve_atom_numbering=False):
             chain_id = chain.get_id()
             if chain_id == " ":
                 chain_id = "."
-            # This is used to write label_seq_id and increments from 1,
+            # This is used to write label_seq_id,
             # remaining blank for hetero residues
             
             prev_residue_type = ""
@@ -402,8 +402,9 @@ class Chain:
                         resseq=int(resseq)
                         index_chain=nums.at[i, "index_chain"]
                         nt=nums.at[i, "nt_name"]
-                        
-                        if nt == 'A' or nt == 'G' or nt == 'C' or nt == 'U' or nt in ['DG', 'DU', 'DC', 'DA', 'DI', 'DT' ] or nt == 'N' or nt == 'I' :
+
+                        # particular case 6n5s_1_A, residue 201 in the original cif file (resname = G and HETATM = H_G)
+                        if nt == 'A' or (nt == 'G' and (self.chain_label != '6n5s_1_A' or resseq != 201)) or nt == 'C' or nt == 'U' or nt in ['DG', 'DU', 'DC', 'DA', 'DI', 'DT' ] or nt == 'N' or nt == 'I' :
                             res=chain[(' ', resseq, icode_res)]
                         else : #modified nucleotides (e.g. chain 5l4o_1_A)
                             het='H_' + nt
@@ -421,7 +422,15 @@ class Chain:
                         res_atoms=res.get_atoms()
                         new_residu_t=pdb.Residue.Residue(res_id, res_name, res.get_segid())
                         for atom in list(res.get_atoms()):
-                            if atom.get_name() in ['PA', 'O1A', 'O2A', 'O3A']:
+                            # rename the remaining phosphate group to P, OP1, OP2, OP3
+                            if atom.get_name() in ['PA', 'O1A', 'O2A', 'O3A'] and res_name != 'RIA': 
+
+                            # RIA is a residue made up of 2 riboses and 2 phosphates, 
+                            # so it has an O2A atom between the C2A and C1 'atoms, 
+                            # and it also has an OP2 atom attached to one of its phosphates 
+                            # (see chains 6fyx_1_1, 6zu9_1_1, 6fyy_1_1, 6gsm_1_1 , 3jaq_1_1 and 1yfg_1_A)
+                            # we do not modify the atom names of RIA residue
+
                                 if atom.get_name() == 'PA':
                                     atom_name = 'P'
                                 if atom.get_name() == 'O1A':
@@ -1511,11 +1520,7 @@ class Pipeline:
             if self.HOMOLOGY and not os.path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
                 # for the portions mapped to Rfam
                 os.makedirs(path_to_3D_data + "rna_mapped_to_Rfam")
-            '''
-            if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "rna_only"):
-                # extract chains of pure RNA
-                os.makedirs(path_to_3D_data + "rna_only")
-            '''
+
             if (not self.HOMOLOGY) and not os.path.isdir(path_to_3D_data + "rna_only"):
                 # extract chains of pure RNA
                 os.makedirs(path_to_3D_data + "rna_only")
