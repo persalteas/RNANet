@@ -1,4 +1,3 @@
-
 # Warnings and errors in RNANet
 
 Use Ctrl + F on this page to look for your error message in the list.
@@ -27,7 +26,7 @@ DSSR complains because the CIF structure does not seem to contain nucleotides. T
 
 * **Error downloading and/or extracting Rfam.cm !** : We cannot retrieve the Rfam covariance models file. RNANet tries to find it at ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz so, check that your network is not blocking the FTP protocol (port 21 is open on your network), and check that the adress has not changed. If so, contact us so that we update RNANet with the correct address.
 
-* **Something's wrong with the SQL database. Check mysql-rfam-public.ebi.ac.uk status and try again later. Not printing statistics.** : We cannot retrieve family statistics from Rfam public server. Check if you can connect to it by hand : `mysql -u rfamro -P 4497 -D Rfam -h mysql-rfam-public.ebi.ac.uk`. if not, check that the port 497 is opened on your network.
+* **Something's wrong with the SQL database. Check mysql-rfam-public.ebi.ac.uk status and try again later. Not printing statistics.** : We cannot retrieve family statistics from Rfam public server. Check if you can connect to it by hand : `mysql -u rfamro -P 4497 -D Rfam -h mysql-rfam-public.ebi.ac.uk`. if not, check that the port 4497 is opened on your network.
 
 * **Error downloading RFXXXXX.fa.gz: {custom-error}** : We cannot reach the Rfam FTP server to download homologous sequences. We look in ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/fasta_files/ so, check if you can access it from your network (check that port 21 is opened on your network). Check if the address has changed and notify us.
 
