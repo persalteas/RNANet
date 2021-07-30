@@ -7,6 +7,15 @@ In `cmalign` alignments, - means a nucleotide is missing compared to the covaria
 
 In the final filtered alignment that we provide for download, the same rule applies, but on top of that, some '.' are replaced by '-' when a gap in the 3D structure (a missing, unresolved nucleotide) is mapped to an insertion gap.
 
+* **What are the cmalign options for ?**
+
+From Infernal's user guide, we can quote that Infernal uses an HMM banding technique to accelerate alignment by default. It also takes care of 3' or 5' truncated sequences to be aligned correctly (and we have some).
+First, one can choose an algorithm, between `--optacc` (maximizing posterior probabilities, the default) and `--cyk` (maximizing likelihood).
+
+Then, the use of bands allows faster and more memory efficient computation, at the price of the guarantee of determining the optimal alignment. Bands can be disabled using the `--nonbanded` option. A best idea would be to control the threshold of probability mass to be considered negligible during HMM band calculation with the `--tau` parameter. Higher values of Tau yield greater speedups and lower memory usage, but a greater chance to miss the optimal alignment. In practice, the algorithm explores several Tau values (increasing it by a factor 2.0 from the original `--tau` value) until the DP matrix size falls below the threshold given by `--mxsize` (default 1028 Mb) or the value of `--maxtau` is reached (in this case, the program fails). One can disable this exploration with option `--fixedtau`. The default value of `--tau` is 1e-7, the default `--maxtau` is 0.05. Basically, you may decide on a value of `--mxsize` by dividing your available RAM by the number of cores used with cmalign. If necessary, you may use less cores than you have, using option `--cpu`.
+
+Finally, if using `--cyk --nonbanded --notrunc --noprob`, one can use the `--small` option to align using the divide-and-conquer CYK algorithm from Eddy 2002, requiring a very few memory but a lot of time. The major drawback of this is that it requires `--notrunc` and `--noprob`, so we give up on the correct alignment of truncated sequences, and the computation of posterior probabilities.
+
 * **Why are there some gap-only columns in the alignment ?**
 
 These columns are not completely gap-only, they contain at least one dash-gap '-'. This means an actual, physical nucleotide which should exist in the 3D structure should be located there. The previous and following nucleotides are **not** contiguous in space in 3D.
@@ -31,5 +40,5 @@ We first remove the nucleotides whose number is outside the family mapping (if a
 
 * **What are the versions of the dependencies you use ?**
 
-`cmalign` is v1.1.4, `sina` is v1.6.0, `x3dna-dssr` is v1.9.9, Biopython is v1.78.
+`cmalign` is v1.1.4, `sina` is v1.6.0, `x3dna-dssr` is v2.3.2-2021jun29, Biopython is v1.78.
     

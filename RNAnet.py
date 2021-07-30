@@ -31,7 +31,7 @@ import time
 import traceback
 import warnings
 from functools import partial, wraps
-from multiprocessing import Pool, Manager
+from multiprocessing import Pool, Manager, Value
 from time import sleep
 from tqdm import tqdm
 from setproctitle import setproctitle
@@ -45,6 +45,12 @@ from Bio.PDB.PDBIO import Select
 runDir = os.getcwd()
 
 def trace_unhandled_exceptions(func):
+    """
+    Captures exceptions even in parallel sections of the code and child processes,
+    and throws logs in red to stderr and to errors.txt.
+
+    Should be defined before the classes that use it.
+    """
     @wraps(func)
     def wrapped_func(*args, **kwargs):
         try:
@@ -60,27 +66,27 @@ def trace_unhandled_exceptions(func):
             print(s)
     return wrapped_func
 
-
 pd.set_option('display.max_rows', None)
 sqlite3.enable_callback_tracebacks(True)
 sqlite3.register_adapter(np.int64, lambda val: int(val))        # Tell Sqlite what to do with <class numpy.int64> objects ---> convert to int
 sqlite3.register_adapter(np.float64, lambda val: float(val))    # Tell Sqlite what to do with <class numpy.float64> objects ---> convert to float
 
-m = Manager()
-running_stats = m.list()
-running_stats.append(0)  # n_launched
-running_stats.append(0)  # n_finished
-running_stats.append(0)  # n_skipped
+# m = Manager()
+# running_stats = m.list()
+# running_stats.append(0)  # n_launched
+# running_stats.append(0)  # n_finished
+# running_stats.append(0)  # n_skipped
+n_launched = Value('i', 0)
+n_finished = Value('i', 0)
+n_skipped = Value('i', 0)
 path_to_3D_data = "tobedefinedbyoptions"
 path_to_seq_data = "tobedefinedbyoptions"
 python_executable = "python"+".".join(platform.python_version().split('.')[:2])  # Cuts python3.8.1 into python3.8 for example.
 validsymb = '\U00002705'
 warnsymb = '\U000026A0'
 errsymb = '\U0000274C'
-LSU_set = {"RF00002", "RF02540", "RF02541",
-           "RF02543", "RF02546"}   # From Rfam CLAN 00112
-SSU_set = {"RF00177", "RF02542",  "RF02545",
-           "RF01959", "RF01960"}  # From Rfam CLAN 00111
+LSU_set = {"RF00002", "RF02540", "RF02541", "RF02543", "RF02546"}   # From Rfam CLAN 00112
+SSU_set = {"RF00177", "RF02542",  "RF02545", "RF01959", "RF01960"}  # From Rfam CLAN 00111
 
 no_nts_set = set()
 weird_mappings = set()
@@ -103,17 +109,15 @@ class MutableFastaIterator(FastaIterator):
                     first_word = title.split(None, 1)[0]
                 except IndexError:
                     assert not title, repr(title)
-                    # Should we use SeqRecord default for no ID?
                     first_word = ""
-                yield SeqRecord(
-                    MutableSeq(sequence), id=first_word, name=first_word, description=title,
-                )
+                yield SeqRecord(MutableSeq(sequence), id=first_word, name=first_word, description=title)
 
 
 class SelectivePortionSelector(object):
     """Class passed to MMCIFIO to select some chain portions in an MMCIF file.
 
     Validates every chain, residue, nucleotide, to say if it is in the selection or not.
+    The primary use is to select the portion of a chain which is mapped to a family.
     """
 
     def __init__(self, model_id, chain_id, valid_resnums, khetatm):
@@ -154,123 +158,6 @@ class SelectivePortionSelector(object):
             return 0
         # Accept all atoms otherwise.
         return 1
-
-
-_select=Select()
-
-def save_mmcif(ioobj, out_file, select=_select, preserve_atom_numbering=False):
-    # reuse and modification of the source code of Biopython
-    # to have the 2 columns of numbering of residues numbered with the index_chain of DSSR
-    if isinstance(out_file, str):
-        fp = open(out_file, "w")
-        close_file = True
-    else:
-        fp = out_file
-        close_file = False
-    atom_dict = defaultdict(list)
-
-    for model in ioobj.structure.get_list():
-        if not select.accept_model(model):
-            continue
-        # mmCIF files with a single model have it specified as model 1
-        if model.serial_num == 0:
-            model_n = "1"
-        else:
-            model_n = str(model.serial_num)
-        # This is used to write label_entity_id and label_asym_id and
-        # increments from 1, changing with each molecule
-        entity_id = 0
-        if not preserve_atom_numbering:
-            atom_number = 1
-        for chain in model.get_list():
-            if not select.accept_chain(chain):
-                continue
-            chain_id = chain.get_id()
-            if chain_id == " ":
-                chain_id = "."
-            # This is used to write label_seq_id,
-            # remaining blank for hetero residues
-            
-            prev_residue_type = ""
-            prev_resname = ""
-            for residue in chain.get_unpacked_list():
-                if not select.accept_residue(residue):
-                    continue
-                hetfield, resseq, icode = residue.get_id()
-                if hetfield == " ":
-                    residue_type = "ATOM"
-                    label_seq_id = str(resseq)
-                    
-                else:
-                    residue_type = "HETATM"
-                    label_seq_id = "."
-                resseq = str(resseq)
-                if icode == " ":
-                    icode = "?"
-                resname = residue.get_resname()
-                # Check if the molecule changes within the chain
-                # This will always increment for the first residue in a
-                # chain due to the starting values above
-                if residue_type != prev_residue_type or (
-                    residue_type == "HETATM" and resname != prev_resname
-                ):
-                    entity_id += 1
-                prev_residue_type = residue_type
-                prev_resname = resname
-                label_asym_id = ioobj._get_label_asym_id(entity_id)
-                for atom in residue.get_unpacked_list():
-                    if select.accept_atom(atom):
-                        atom_dict["_atom_site.group_PDB"].append(residue_type)
-                        if preserve_atom_numbering:
-                            atom_number = atom.get_serial_number()
-                        atom_dict["_atom_site.id"].append(str(atom_number))
-                        if not preserve_atom_numbering:
-                            atom_number += 1
-                        element = atom.element.strip()
-                        if element == "":
-                            element = "?"
-                        atom_dict["_atom_site.type_symbol"].append(element)
-                        atom_dict["_atom_site.label_atom_id"].append(
-                            atom.get_name().strip()
-                        )
-                        altloc = atom.get_altloc()
-                        if altloc == " ":
-                            altloc = "."
-                        atom_dict["_atom_site.label_alt_id"].append(altloc)
-                        atom_dict["_atom_site.label_comp_id"].append(
-                            resname.strip()
-                        )
-                        atom_dict["_atom_site.label_asym_id"].append(label_asym_id)
-                        # The entity ID should be the same for similar chains
-                        # However this is non-trivial to calculate so we write "?"
-                        atom_dict["_atom_site.label_entity_id"].append("?")
-                        atom_dict["_atom_site.label_seq_id"].append(label_seq_id)
-                        atom_dict["_atom_site.pdbx_PDB_ins_code"].append(icode)
-                        coord = atom.get_coord()
-                        atom_dict["_atom_site.Cartn_x"].append("%.3f" % coord[0])
-                        atom_dict["_atom_site.Cartn_y"].append("%.3f" % coord[1])
-                        atom_dict["_atom_site.Cartn_z"].append("%.3f" % coord[2])
-                        atom_dict["_atom_site.occupancy"].append(
-                            str(atom.get_occupancy())
-                        )
-                        atom_dict["_atom_site.B_iso_or_equiv"].append(
-                            str(atom.get_bfactor())
-                        )
-                        atom_dict["_atom_site.auth_seq_id"].append(resseq)
-                        atom_dict["_atom_site.auth_asym_id"].append(chain_id)
-                        atom_dict["_atom_site.pdbx_PDB_model_num"].append(model_n)
-
-    # Data block name is the structure ID with special characters removed
-    structure_id = ioobj.structure.id
-    for c in ["#", "$", "'", '"', "[", "]", " ", "\t", "\n"]:
-        structure_id = structure_id.replace(c, "")
-    atom_dict["data_"] = structure_id
-
-    # Set the dictionary and write out using the generic dictionary method
-    ioobj.dic = atom_dict
-    ioobj._save_dict(fp)
-    if close_file:
-        fp.close()
 
 
 class Chain:
@@ -424,13 +311,11 @@ class Chain:
                         for atom in list(res.get_atoms()):
                             # rename the remaining phosphate group to P, OP1, OP2, OP3
                             if atom.get_name() in ['PA', 'O1A', 'O2A', 'O3A'] and res_name != 'RIA': 
-
-                            # RIA is a residue made up of 2 riboses and 2 phosphates, 
-                            # so it has an O2A atom between the C2A and C1 'atoms, 
-                            # and it also has an OP2 atom attached to one of its phosphates 
-                            # (see chains 6fyx_1_1, 6zu9_1_1, 6fyy_1_1, 6gsm_1_1 , 3jaq_1_1 and 1yfg_1_A)
-                            # we do not modify the atom names of RIA residue
-
+                                # RIA is a residue made up of 2 riboses and 2 phosphates, 
+                                # so it has an O2A atom between the C2A and C1 'atoms, 
+                                # and it also has an OP2 atom attached to one of its phosphates 
+                                # (see chains 6fyx_1_1, 6zu9_1_1, 6fyy_1_1, 6gsm_1_1 , 3jaq_1_1 and 1yfg_1_A)
+                                # we do not modify the atom names of RIA residue
                                 if atom.get_name() == 'PA':
                                     atom_name = 'P'
                                 if atom.get_name() == 'O1A':
@@ -440,7 +325,7 @@ class Chain:
                                 if atom.get_name() == 'O3A':
                                     atom_name = 'OP3'
                                 new_atom_t = pdb.Atom.Atom(atom_name, atom.get_coord(), atom.get_bfactor(), atom.get_occupancy(), atom.get_altloc(), atom_name, atom.get_serial_number())
-                            else :
+                            else:
                                 new_atom_t=atom.copy()
                             new_residu_t.add(new_atom_t)
                         new_chain_t.add(new_residu_t)
@@ -787,7 +672,8 @@ class Chain:
         return df
 
     def register_chain(self, df):
-        """Saves the extracted 3D data to the database.
+        """
+        Saves the extracted 3D data to the database.
         """
 
         setproctitle(f"RNANet.py {self.chain_label} register_chain()")
@@ -920,6 +806,10 @@ class Monitor:
 
 
 class Downloader:
+    """
+    An object with methods to download public data from the internet.
+    """
+
     def download_Rfam_PDB_mappings(self):
         """Query the Rfam public MySQL database for mappings between their RNA families and PDB structures.
 
@@ -1170,6 +1060,10 @@ class Mapping:
 
 
 class Pipeline:
+    """
+    The RNANet pipeline steps.
+    """
+
     def __init__(self):
         self.dl = Downloader()
         self.known_issues = []  # list of chain_labels to ignore
@@ -1189,6 +1083,7 @@ class Pipeline:
         self.REUSE_ALL = False
         self.REDUNDANT = False
         self.ALIGNOPTS = None
+        self.RRNAALIGNOPTS = "--mxsize 8192 --cpu 10 --maxtau 0.1"
         self.STATSOPTS = None
         self.USESINA = False
         self.SELECT_ONLY = None
@@ -1207,7 +1102,7 @@ class Pipeline:
 
         try:
             opts, _ = getopt.getopt(sys.argv[1:], "r:fhs", ["help", "resolution=", "3d-folder=", "seq-folder=", "keep-hetatm=", 
-                                                            "only=", "cmalign-opts=", "stats-opts=", "maxcores=", "sina", "from-scratch", 
+                                                            "only=", "cmalign-opts=", "cmalign-rrna-opts=", "stats-opts=", "maxcores=", "sina", "from-scratch", 
                                                             "full-inference", "no-homology", "redundant", "ignore-issues", "extract", 
                                                             "all", "no-logs", "archive", "update-homologous", "version"])
         except getopt.GetoptError as err:
@@ -1323,6 +1218,8 @@ class Pipeline:
                 self.REUSE_ALL = True
             elif opt == "cmalign-opts":
                 self.ALIGNOPTS = arg
+            elif opt == "cmalign-rrna-opts":
+                self.RRNAALIGNOPTS = arg
             elif opt == "stats-opts":
                 self.STATSOPTS = " ".split(arg)
             elif opt == "--all":
@@ -1382,7 +1279,7 @@ class Pipeline:
             # If self.FULLINFERENCE is False, the extended list is already filtered to remove
             # the chains which already are in the database.
             print("> Building list of structures...", flush=True)
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=ncores)
+            p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=ncores)
             try:
 
                 pbar = tqdm(full_structures_list, maxinterval=1.0, miniters=1,
@@ -1491,7 +1388,7 @@ class Pipeline:
         else:
             mmcif_list = sorted(set([c.pdb_id for c in self.update]))
         try:
-            p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores))
+            p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=int(coeff_ncores*ncores))
             pbar = tqdm(mmcif_list, maxinterval=1.0, miniters=1, desc="mmCIF files")
             for _ in p.imap_unordered(work_mmcif, mmcif_list, chunksize=1):
                 pbar.update(1)  # Everytime the iteration finishes, update the global progress bar
@@ -1634,7 +1531,11 @@ class Pipeline:
         joblist = []
         for f in self.fam_list:
             # the function already uses all CPUs so launch them one by one (how_many_in_parallel=1)
-            joblist.append(Job(function=work_realign, args=[self.USESINA, self.ALIGNOPTS, f], how_many_in_parallel=1, label=f))
+            if f in LSU_set or f in SSU_set:
+                opts = self.RRNAALIGNOPTS
+            else:
+                opts = self.ALIGNOPTS
+            joblist.append(Job(function=work_realign, args=[self.USESINA, opts, f], how_many_in_parallel=1, label=f))
 
         # Execute the jobs
         try:
@@ -1684,7 +1585,7 @@ class Pipeline:
 
         # Start a process pool to dispatch the RNA families,
         # over multiple CPUs (one family by CPU)
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
+        p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=nworkers)
 
         try:
             fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True)
@@ -1741,7 +1642,7 @@ class Pipeline:
             os.makedirs(path_to_3D_data + "datapoints/")
 
         # Save to by-chain CSV files
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=3)
+        p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=3)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True)
             for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
@@ -1867,6 +1768,7 @@ class Pipeline:
 
         conn.close()
 
+# ==================== General helper functions =====================
 
 def read_cpu_number():
     """This function reads the number of CPU cores available from /proc/cpuinfo.
@@ -1876,13 +1778,29 @@ def read_cpu_number():
     p = subprocess.run(['grep', '-Ec', '(Intel|AMD)', '/proc/cpuinfo'], stdout=subprocess.PIPE)
     return int(int(p.stdout.decode('utf-8')[:-1])/2)
 
-def init_worker(tqdm_lock=None):
+def init_with_tqdm(tqdm_lock=None):
+    """
+    This initiation method kills the children when signal is received,
+    and the children progress is followed using TQDM progress bars.
+    """
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     if tqdm_lock is not None:
         tqdm.set_lock(tqdm_lock)
 
+def init_no_tqdm(arg1, arg2, arg3):
+    """
+    This initiaiton method does not kill the children when signal is received,
+    they will complete and die even after the main process stops.
+    The children progress is followed using stdout text logs (notify(), warn(), etc)
+    """
+    global n_launched, n_finished, n_skipped
+	n_launched = arg1
+	n_finished = arg2
+	n_skipped = arg3
+
 def warn(message, error=False):
-    """Pretty-print warnings and error messages.
+    """
+    Pretty-print warnings and error messages.
     """
     # Cut if too long
     if len(message) > 66:
@@ -1900,20 +1818,133 @@ def warn(message, error=False):
         print(f"\t> \033[33mWARN: {message:64s}\033[0m\t{warnsymb}", flush=True)
 
 def notify(message, post=''):
+    """
+    Pretty-print successful finished tasks.
+    """
     if len(post):
         post = '(' + post + ')'
     print(f"\t> {message:70s}\t{validsymb}\t{post}", flush=True)
 
-def _mutable_SeqIO_to_alignment_iterator(handle):
-    records = list(MutableFastaIterator(handle))
-    if records:
-        yield MultipleSeqAlignment(records)
+# ========================= Biopython overloads =====================
 
-def parse(handle):
-    with open(handle, 'r') as fp:
-        yield from _mutable_SeqIO_to_alignment_iterator(fp)
+def save_mmcif(ioobj, out_file, select=Select(), preserve_atom_numbering=False):
+    """
+    MMCIF writer which renumbers residues according to the RNANet index_chain (coming from DSSR).
+    """
+
+    if isinstance(out_file, str):
+        fp = open(out_file, "w")
+        close_file = True
+    else:
+        fp = out_file
+        close_file = False
+    atom_dict = defaultdict(list)
+
+    # Iterate on models
+    for model in ioobj.structure.get_list():
+        if not select.accept_model(model):
+            continue
+
+        # mmCIF files with a single model have it specified as model 1
+        if model.serial_num == 0:
+            model_n = "1"
+        else:
+            model_n = str(model.serial_num)
+
+        # This is used to write label_entity_id and label_asym_id and
+        # increments from 1, changing with each molecule
+        entity_id = 0
+        if not preserve_atom_numbering:
+            atom_number = 1
+
+        # Iterate on chains
+        for chain in model.get_list():
+            if not select.accept_chain(chain):
+                continue
+            chain_id = chain.get_id()
+            if chain_id == " ":
+                chain_id = "."
+
+            # This is used to write label_seq_id, remaining blank for hetero residues
+            prev_residue_type = ""
+            prev_resname = ""
+
+            # Iterate on residues
+            for residue in chain.get_unpacked_list():
+                if not select.accept_residue(residue):
+                    continue
+                hetfield, resseq, icode = residue.get_id()
+                if hetfield == " ":
+                    residue_type = "ATOM"
+                    label_seq_id = str(resseq)
+                else:
+                    residue_type = "HETATM"
+                    label_seq_id = "."
+                resseq = str(resseq)
+                if icode == " ":
+                    icode = "?"
+                resname = residue.get_resname()
+
+                # Check if the molecule changes within the chain.
+                # This will always increment for the first residue in a
+                # chain due to the starting values above
+                if residue_type != prev_residue_type or (residue_type == "HETATM" and resname != prev_resname):
+                    entity_id += 1
+                prev_residue_type = residue_type
+                prev_resname = resname
+                label_asym_id = ioobj._get_label_asym_id(entity_id)
+
+                # Iterate on atoms
+                for atom in residue.get_unpacked_list():
+                    if select.accept_atom(atom):
+                        atom_dict["_atom_site.group_PDB"].append(residue_type)
+                        if preserve_atom_numbering:
+                            atom_number = atom.get_serial_number()
+                        atom_dict["_atom_site.id"].append(str(atom_number))
+                        if not preserve_atom_numbering:
+                            atom_number += 1
+                        element = atom.element.strip()
+                        if element == "":
+                            element = "?"
+                        atom_dict["_atom_site.type_symbol"].append(element)
+                        atom_dict["_atom_site.label_atom_id"].append(atom.get_name().strip())
+                        altloc = atom.get_altloc()
+                        if altloc == " ":
+                            altloc = "."
+                        atom_dict["_atom_site.label_alt_id"].append(altloc)
+                        atom_dict["_atom_site.label_comp_id"].append(resname.strip())
+                        atom_dict["_atom_site.label_asym_id"].append(label_asym_id)
+                        # The entity ID should be the same for similar chains
+                        # However this is non-trivial to calculate so we write "?"
+                        atom_dict["_atom_site.label_entity_id"].append("?")
+                        atom_dict["_atom_site.label_seq_id"].append(label_seq_id)
+                        atom_dict["_atom_site.pdbx_PDB_ins_code"].append(icode)
+                        coord = atom.get_coord()
+                        atom_dict["_atom_site.Cartn_x"].append("%.3f" % coord[0])
+                        atom_dict["_atom_site.Cartn_y"].append("%.3f" % coord[1])
+                        atom_dict["_atom_site.Cartn_z"].append("%.3f" % coord[2])
+                        atom_dict["_atom_site.occupancy"].append(str(atom.get_occupancy()))
+                        atom_dict["_atom_site.B_iso_or_equiv"].append(str(atom.get_bfactor())                        )
+                        atom_dict["_atom_site.auth_seq_id"].append(resseq)
+                        atom_dict["_atom_site.auth_asym_id"].append(chain_id)
+                        atom_dict["_atom_site.pdbx_PDB_model_num"].append(model_n)
+
+    # Data block name is the structure ID with special characters removed
+    structure_id = ioobj.structure.id
+    for c in ["#", "$", "'", '"', "[", "]", " ", "\t", "\n"]:
+        structure_id = structure_id.replace(c, "")
+    atom_dict["data_"] = structure_id
+
+    # Set the dictionary and write out using the generic dictionary method
+    ioobj.dic = atom_dict
+    ioobj._save_dict(fp)
+    if close_file:
+        fp.close()
 
 def read(handle):
+    """
+    A shortcut to parse alignment files with our custom class MutableFastaIterator.
+    """
     iterator = parse(handle)
     try:
         alignment = next(iterator)
@@ -1925,6 +1956,25 @@ def read(handle):
     except StopIteration:
         pass
     return alignment
+
+def parse(handle):
+    """
+    A shortcut to parse alignment files with our custom class MutableFastaIterator.
+    Called by function read().
+    """
+    with open(handle, 'r') as fp:
+        yield from _mutable_SeqIO_to_alignment_iterator(fp)
+
+def _mutable_SeqIO_to_alignment_iterator(handle):
+    """
+    A shortcut to parse alignment files with our custom class MutableFastaIterator.
+    Used by the parse() function.
+    """
+    records = list(MutableFastaIterator(handle))
+    if records:
+        yield MultipleSeqAlignment(records)
+
+# ========================== SQL related ============================
 
 def sql_define_tables(conn):
     conn.executescript(
@@ -2085,12 +2135,19 @@ def sql_execute(conn, sql, many=False, data=None, warn_every=10):
             time.sleep(0.2)
     warn("Tried to reach database 100 times and failed. Aborting.", error=True)
 
+# ======================= RNANet Jobs and tasks ======================
+
 @trace_unhandled_exceptions
 def execute_job(j, jobcount):
-    """Run a Job object.
     """
+    Run a Job object.
+    """
+
+    global n_launched, n_skipped, n_finished
+
     # increase the counter of running jobs
-    running_stats[0] += 1
+    with n_launched.get_lock():
+		n_launched.value += 1
 
     # Monitor this process
     m = -1
@@ -2098,7 +2155,7 @@ def execute_job(j, jobcount):
 
     if len(j.cmd_):  # The job is a system command
 
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.label}")
+        print(f"[{n_launched.value+n_skipped.value}/{jobcount}]\t{j.label}")
 
         # Add the command to logfile
         os.makedirs(runDir+"/logs", exist_ok=True)
@@ -2114,9 +2171,20 @@ def execute_job(j, jobcount):
 
             # run the command. subprocess.run will be a child of this process, and stays monitored.
             start_time = time.time()
-            r = subprocess.run(j.cmd_, timeout=j.timeout_,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            r = subprocess.run(j.cmd_, timeout=j.timeout_, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             end_time = time.time()
+            if r.returncode != 0:
+                if r.stderr is not None:
+                    print(r.stderr, flush=True)
+                print(f"[{n_launched.value+n_skipped.value}/{jobcount}]\tIssue faced with {j.label}, skipping it and adding it to known issues (if not known).")
+                with n_launched.get_lock():
+                    n_launched.value -= 1
+                with n_skipped.get_lock():
+                    n_skipped.value += 1
+                if j.label not in issues:
+                    issues.add(j.label)
+                    with open("known_issues.txt", "a") as iss:
+                        iss.write(j.label+"\n")
 
             # Stop the Monitor, then get its result
             monitor.keep_watching = False
@@ -2124,7 +2192,7 @@ def execute_job(j, jobcount):
 
     elif j.func_ is not None:
 
-        print(f"[{running_stats[0]+running_stats[2]}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if type(a) != list])})", flush=True)
+        print(f"[{n_launched.value+n_skipped.value}/{jobcount}]\t{j.func_.__name__}({', '.join([str(a) for a in j.args_ if type(a) != list])})", flush=True)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             # put the monitor in a different thread
@@ -2193,7 +2261,7 @@ def execute_joblist(fulljoblist):
 
             print("using", n, "processes:")
             # execute jobs of priority i that should be processed n by n:
-            p = Pool(processes=n, maxtasksperchild=1, initializer=init_worker)
+            p = Pool(processes=n, maxtasksperchild=1, initializer=init_no_tqdm, initargs=(n_launched, n_finished, n_skipped))
             try:
                 raw_results = p.map(partial(execute_job, jobcount=jobcount), bunch, chunksize=2)
                 p.close()
@@ -2207,7 +2275,11 @@ def execute_joblist(fulljoblist):
             for j, r in zip(bunch, raw_results):
                 j.comp_time = round(r[0], 2)  # seconds
                 j.max_mem = int(r[1]/1000000)  # MB
-                results.append((j.label, r[2], round(r[0], 2), int(r[1]/1000000)))
+                results.append((j.label, r[2], j.comp_time, j.max_mem))
+    
+    # Job is finished
+	with n_finished.get_lock():
+		n_finished.value += 1
 
     # throw back the money
     return results
@@ -2679,8 +2751,8 @@ def use_infernal(rfam_acc, alignopts):
 
     # Convert Stockholm to aligned FASTA
     subprocess.run(["esl-reformat", "-o", path_to_seq_data + f"realigned/{rfam_acc}++.afa", 
-                        "--informat", "stockholm", 
-                        "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
+                    "--informat", "stockholm", 
+                    "afa", path_to_seq_data + f"realigned/{rfam_acc}++.stk"])
     subprocess.run(["rm", "-f", "esltmp*"]) # We can use a joker here, because we are not running in parallel for this part.
 
 @trace_unhandled_exceptions
@@ -3036,6 +3108,8 @@ def work_save(c, homology=True):
     conn.close()
 
     df.to_csv(filename, float_format="%.2f", index=False)
+
+# =========================== Main function =============================
 
 if __name__ == "__main__":
 

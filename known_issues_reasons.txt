@@ -7,12 +7,6 @@ Could not find nucleotides of chain AA in annotation 6ydw.json. Either there is 
 2z9q_1_A_1-72
 DSSR warning 2z9q.json: no nucleotides found. Ignoring 2z9q_1_A_1-72.
 
-1ml5_1_b_5-121
-Could not find nucleotides of chain b in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-1ml5_1_a_1-2914
-Could not find nucleotides of chain a in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
 3ep2_1_Y_1-72
 DSSR warning 3ep2.json: no nucleotides found. Ignoring 3ep2_1_Y_1-72.
 
@@ -22,8 +16,11 @@ DSSR warning 3eq3.json: no nucleotides found. Ignoring 3eq3_1_Y_1-72.
 4v48_1_A6_1-73
 DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_A6_1-73.
 
-1ml5_1_A_2-1520
-Could not find nucleotides of chain A in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+1ml5_1_b_5-121
+Could not find nucleotides of chain b in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1ml5_1_a_1-2914
+Could not find nucleotides of chain a in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 1qzb_1_B_1-73
 DSSR warning 1qzb.json: no nucleotides found. Ignoring 1qzb_1_B_1-73.
@@ -33,6 +30,9 @@ DSSR warning 1qza.json: no nucleotides found. Ignoring 1qza_1_B_1-73.
 
 1ls2_1_B_1-73
 DSSR warning 1ls2.json: no nucleotides found. Ignoring 1ls2_1_B_1-73.
+
+1ml5_1_A_2-1520
+Could not find nucleotides of chain A in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 1gsg_1_T_1-72
 DSSR warning 1gsg.json: no nucleotides found. Ignoring 1gsg_1_T_1-72.
@@ -70,6 +70,12 @@ DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_A9_3-118.
 4v47_1_A9_3-118
 DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_A9_3-118.
 
+4v42_1_BA_1-2914
+Could not find nucleotides of chain BA in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4v42_1_BB_5-121
+Could not find nucleotides of chain BB in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 2ob7_1_A_10-319
 DSSR warning 2ob7.json: no nucleotides found. Ignoring 2ob7_1_A_10-319.
 
@@ -81,21 +87,6 @@ DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_Z_1-91.
 
 2ob7_1_D_1-130
 DSSR warning 2ob7.json: no nucleotides found. Ignoring 2ob7_1_D_1-130.
-
-4v42_1_BA_1-2914
-Could not find nucleotides of chain BA in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-4v42_1_BB_5-121
-Could not find nucleotides of chain BB in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-1r2x_1_C_1-58
-DSSR warning 1r2x.json: no nucleotides found. Ignoring 1r2x_1_C_1-58.
-
-1r2w_1_C_1-58
-DSSR warning 1r2w.json: no nucleotides found. Ignoring 1r2w_1_C_1-58.
-
-1eg0_1_L_1-56
-DSSR warning 1eg0.json: no nucleotides found. Ignoring 1eg0_1_L_1-56.
 
 3dg2_1_A_1-1542
 DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A_1-1542.
@@ -142,8 +133,14 @@ DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_B_1-2904.
 1eg0_1_O_1-73
 DSSR warning 1eg0.json: no nucleotides found. Ignoring 1eg0_1_O_1-73.
 
-1zc8_1_A_1-59
-DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_A_1-59.
+1r2x_1_C_1-58
+DSSR warning 1r2x.json: no nucleotides found. Ignoring 1r2x_1_C_1-58.
+
+1r2w_1_C_1-58
+DSSR warning 1r2w.json: no nucleotides found. Ignoring 1r2w_1_C_1-58.
+
+1eg0_1_L_1-56
+DSSR warning 1eg0.json: no nucleotides found. Ignoring 1eg0_1_L_1-56.
 
 1jgq_1_A_2-1520
 Could not find nucleotides of chain A in annotation 1jgq.json. Either there is a problem with 1jgq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -156,6 +153,9 @@ Could not find nucleotides of chain A in annotation 1jgo.json. Either there is a
 
 1jgp_1_A_2-1520
 Could not find nucleotides of chain A in annotation 1jgp.json. Either there is a problem with 1jgp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+1zc8_1_A_1-59
+DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_A_1-59.
 
 1mvr_1_D_1-59
 DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_D_1-59.
@@ -186,24 +186,6 @@ DSSR warning 3eq3.json: no nucleotides found. Ignoring 3eq3_1_B_1-50.
 
 3eq4_1_B_1-50
 DSSR warning 3eq4.json: no nucleotides found. Ignoring 3eq4_1_B_1-50.
-
-3pgw_1_R_1-164
-DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_R_1-164.
-
-3pgw_1_N_1-164
-DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_N_1-164.
-
-3cw1_1_x_1-138
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_x_1-138.
-
-3cw1_1_w_1-138
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_w_1-138.
-
-3cw1_1_V_1-138
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_V_1-138.
-
-3cw1_1_v_1-138
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_v_1-138.
 
 2iy3_1_B_9-105
 DSSR warning 2iy3.json: no nucleotides found. Ignoring 2iy3_1_B_9-105.
@@ -237,6 +219,24 @@ DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BZ_1-70.
 
 4v5z_1_B1_2-123
 DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_B1_2-123.
+
+3pgw_1_R_1-164
+DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_R_1-164.
+
+3pgw_1_N_1-164
+DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_N_1-164.
+
+3cw1_1_x_1-138
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_x_1-138.
+
+3cw1_1_w_1-138
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_w_1-138.
+
+3cw1_1_V_1-138
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_V_1-138.
+
+3cw1_1_v_1-138
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_v_1-138.
 
 1mvr_1_B_1-96
 DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_B_1-96.
@@ -889,8 +889,23 @@ Could not find nucleotides of chain X in annotation 4w2e.json. Either there is a
 6ucq_1_2X
 Could not find nucleotides of chain 2X in annotation 6ucq.json. Either there is a problem with 6ucq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+7n1p_1_DT
+Could not find nucleotides of chain DT in annotation 7n1p.json. Either there is a problem with 7n1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n2u_1_DT
+Could not find nucleotides of chain DT in annotation 7n2u.json. Either there is a problem with 7n2u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 6yss_1_W
 Could not find nucleotides of chain W in annotation 6yss.json. Either there is a problem with 6yss mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n30_1_DT
+Could not find nucleotides of chain DT in annotation 7n30.json. Either there is a problem with 7n30 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n31_1_DT
+Could not find nucleotides of chain DT in annotation 7n31.json. Either there is a problem with 7n31 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n2c_1_DT
+Could not find nucleotides of chain DT in annotation 7n2c.json. Either there is a problem with 7n2c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 5afi_1_Y
 Could not find nucleotides of chain Y in annotation 5afi.json. Either there is a problem with 5afi mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -1002,6 +1017,54 @@ Could not find nucleotides of chain X in annotation 4v4i.json. Either there is a
 
 4v42_1_BB
 Could not find nucleotides of chain BB in annotation 4v42.json. Either there is a problem with 4v42 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4jrc_1_B
+Nucleotides not inserted !
+
+4jrc_1_A
+Nucleotides not inserted !
+
+6lkq_1_S
+Could not find nucleotides of chain S in annotation 6lkq.json. Either there is a problem with 6lkq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5h5u_1_H
+Could not find nucleotides of chain H in annotation 5h5u.json. Either there is a problem with 5h5u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7d6z_1_F
+Could not find nucleotides of chain F in annotation 7d6z.json. Either there is a problem with 7d6z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lze_1_Y
+Could not find nucleotides of chain Y in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lze_1_V
+Could not find nucleotides of chain V in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5lze_1_X
+Could not find nucleotides of chain X in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3jcj_1_G
+Could not find nucleotides of chain G in annotation 3jcj.json. Either there is a problem with 3jcj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6o7k_1_G
+Could not find nucleotides of chain G in annotation 6o7k.json. Either there is a problem with 6o7k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3dg2_1_A
+DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A.
+
+3dg0_1_A
+DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_A.
+
+4v48_1_BA
+DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_BA.
+
+4v47_1_BA
+DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_BA.
+
+3dg4_1_A
+DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_A.
+
+3dg5_1_A
+DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_A.
 
 6d30_1_C
 Sequence is too short. (< 5 resolved nts)
@@ -1315,48 +1378,6 @@ Sequence is too short. (< 5 resolved nts)
 6n6g_1_D
 Sequence is too short. (< 5 resolved nts)
 
-6lkq_1_S
-Could not find nucleotides of chain S in annotation 6lkq.json. Either there is a problem with 6lkq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-5h5u_1_H
-Could not find nucleotides of chain H in annotation 5h5u.json. Either there is a problem with 5h5u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7d6z_1_F
-Could not find nucleotides of chain F in annotation 7d6z.json. Either there is a problem with 7d6z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-5lze_1_Y
-Could not find nucleotides of chain Y in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-5lze_1_V
-Could not find nucleotides of chain V in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-5lze_1_X
-Could not find nucleotides of chain X in annotation 5lze.json. Either there is a problem with 5lze mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-3jcj_1_G
-Could not find nucleotides of chain G in annotation 3jcj.json. Either there is a problem with 3jcj mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-6o7k_1_G
-Could not find nucleotides of chain G in annotation 6o7k.json. Either there is a problem with 6o7k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-3dg2_1_A
-DSSR warning 3dg2.json: no nucleotides found. Ignoring 3dg2_1_A.
-
-3dg0_1_A
-DSSR warning 3dg0.json: no nucleotides found. Ignoring 3dg0_1_A.
-
-4v48_1_BA
-DSSR warning 4v48.json: no nucleotides found. Ignoring 4v48_1_BA.
-
-4v47_1_BA
-DSSR warning 4v47.json: no nucleotides found. Ignoring 4v47_1_BA.
-
-3dg4_1_A
-DSSR warning 3dg4.json: no nucleotides found. Ignoring 3dg4_1_A.
-
-3dg5_1_A
-DSSR warning 3dg5.json: no nucleotides found. Ignoring 3dg5_1_A.
-
 4b3r_1_W
 Sequence is too short. (< 5 resolved nts)
 
@@ -1366,11 +1387,44 @@ Sequence is too short. (< 5 resolved nts)
 4b3s_1_W
 Sequence is too short. (< 5 resolved nts)
 
+7b5k_1_X
+Could not find nucleotides of chain X in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 5o2r_1_X
 Could not find nucleotides of chain X in annotation 5o2r.json. Either there is a problem with 5o2r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 5kcs_1_1X
 Could not find nucleotides of chain 1X in annotation 5kcs.json. Either there is a problem with 5kcs mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n1p_1_PT
+Could not find nucleotides of chain PT in annotation 7n1p.json. Either there is a problem with 7n1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n2u_1_PT
+Could not find nucleotides of chain PT in annotation 7n2u.json. Either there is a problem with 7n2u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n30_1_PT
+Could not find nucleotides of chain PT in annotation 7n30.json. Either there is a problem with 7n30 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n31_1_PT
+Could not find nucleotides of chain PT in annotation 7n31.json. Either there is a problem with 7n31 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7n2c_1_PT
+Could not find nucleotides of chain PT in annotation 7n2c.json. Either there is a problem with 7n2c mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6yl5_1_I
+Nucleotides not inserted !
+
+6yl5_1_E
+Nucleotides not inserted !
+
+6yl5_1_A
+Nucleotides not inserted !
+
+6yl5_1_K
+Nucleotides not inserted !
+
+6yl5_1_G
+Nucleotides not inserted !
 
 6zvk_1_E2
 Could not find nucleotides of chain E2 in annotation 6zvk.json. Either there is a problem with 6zvk mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -1582,6 +1636,9 @@ Could not find nucleotides of chain V in annotation 6olf.json. Either there is a
 3erc_1_G
 Sequence is too short. (< 5 resolved nts)
 
+4qjd_1_D
+Nucleotides not inserted !
+
 6of1_1_1W
 Could not find nucleotides of chain 1W in annotation 6of1.json. Either there is a problem with 6of1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -1675,7 +1732,13 @@ DSSR warning 2z9q.json: no nucleotides found. Ignoring 2z9q_1_A.
 4hot_1_X
 Sequence is too short. (< 5 resolved nts)
 
+5ns4_1_C
+Nucleotides not inserted !
+
 6d2z_1_C
+Sequence is too short. (< 5 resolved nts)
+
+7eh0_1_I
 Sequence is too short. (< 5 resolved nts)
 
 4tu0_1_F
@@ -1738,17 +1801,14 @@ Could not find nucleotides of chain NB in annotation 6i7o.json. Either there is 
 1ml5_1_A
 Could not find nucleotides of chain A in annotation 1ml5.json. Either there is a problem with 1ml5 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+7nsq_1_V
+Could not find nucleotides of chain V in annotation 7nsq.json. Either there is a problem with 7nsq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 6swa_1_Q
 Could not find nucleotides of chain Q in annotation 6swa.json. Either there is a problem with 6swa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6swa_1_R
 Could not find nucleotides of chain R in annotation 6swa.json. Either there is a problem with 6swa mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-3j6x_1_IR
-Could not find nucleotides of chain IR in annotation 3j6x.json. Either there is a problem with 3j6x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-3j6y_1_IR
-Could not find nucleotides of chain IR in annotation 3j6y.json. Either there is a problem with 3j6y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6ole_1_T
 Could not find nucleotides of chain T in annotation 6ole.json. Either there is a problem with 6ole mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -1768,6 +1828,15 @@ Could not find nucleotides of chain T in annotation 6olf.json. Either there is a
 6w6l_1_T
 Could not find nucleotides of chain T in annotation 6w6l.json. Either there is a problem with 6w6l mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+6tnu_1_M
+Could not find nucleotides of chain M in annotation 6tnu.json. Either there is a problem with 6tnu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+5mc6_1_M
+Could not find nucleotides of chain M in annotation 5mc6.json. Either there is a problem with 5mc6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7nrc_1_SM
+Could not find nucleotides of chain SM in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 6tb3_1_N
 Could not find nucleotides of chain N in annotation 6tb3.json. Either there is a problem with 6tb3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -1779,6 +1848,9 @@ Could not find nucleotides of chain SN in annotation 7b7d.json. Either there is 
 
 6tnu_1_N
 Could not find nucleotides of chain N in annotation 6tnu.json. Either there is a problem with 6tnu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7nrc_1_SN
+Could not find nucleotides of chain SN in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7nrd_1_SN
 Could not find nucleotides of chain SN in annotation 7nrd.json. Either there is a problem with 7nrd mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -1809,6 +1881,15 @@ DSSR warning 3eq4.json: no nucleotides found. Ignoring 3eq4_1_D.
 
 5o1y_1_B
 Sequence is too short. (< 5 resolved nts)
+
+4kzy_1_I
+Could not find nucleotides of chain I in annotation 4kzy.json. Either there is a problem with 4kzy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4kzz_1_I
+Could not find nucleotides of chain I in annotation 4kzz.json. Either there is a problem with 4kzz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4kzx_1_I
+Could not find nucleotides of chain I in annotation 4kzx.json. Either there is a problem with 4kzx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 3jcr_1_H
 DSSR warning 3jcr.json: no nucleotides found. Ignoring 3jcr_1_H.
@@ -2119,9 +2200,6 @@ Sequence is too short. (< 5 resolved nts)
 6uu1_1_333
 Sequence is too short. (< 5 resolved nts)
 
-1pn8_1_D
-DSSR warning 1pn8.json: no nucleotides found. Ignoring 1pn8_1_D.
-
 3er8_1_H
 Sequence is too short. (< 5 resolved nts)
 
@@ -2236,14 +2314,11 @@ Sequence is too short. (< 5 resolved nts)
 1xnq_1_W
 Sequence is too short. (< 5 resolved nts)
 
-1x18_1_C
-DSSR warning 1x18.json: no nucleotides found. Ignoring 1x18_1_C.
+7n2v_1_DT
+Could not find nucleotides of chain DT in annotation 7n2v.json. Either there is a problem with 7n2v mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-1x18_1_B
-DSSR warning 1x18.json: no nucleotides found. Ignoring 1x18_1_B.
-
-1x18_1_D
-DSSR warning 1x18.json: no nucleotides found. Ignoring 1x18_1_D.
+4peh_1_Z
+Sequence is too short. (< 5 resolved nts)
 
 1vq6_1_4
 Sequence is too short. (< 5 resolved nts)
@@ -2278,6 +2353,9 @@ Sequence is too short. (< 5 resolved nts)
 4xbf_1_D
 Sequence is too short. (< 5 resolved nts)
 
+5w1h_1_B
+Nucleotides not inserted !
+
 6n6d_1_D
 Sequence is too short. (< 5 resolved nts)
 
@@ -2295,6 +2373,102 @@ Sequence is too short. (< 5 resolved nts)
 
 6tz1_1_N
 Sequence is too short. (< 5 resolved nts)
+
+6q1h_1_D
+Sequence is too short. (< 5 resolved nts)
+
+6q1h_1_H
+Sequence is too short. (< 5 resolved nts)
+
+6p7p_1_F
+Sequence is too short. (< 5 resolved nts)
+
+6p7p_1_E
+Sequence is too short. (< 5 resolved nts)
+
+6p7p_1_D
+Sequence is too short. (< 5 resolved nts)
+
+6vm6_1_J
+Sequence is too short. (< 5 resolved nts)
+
+6vm6_1_G
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_K
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_H
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_G
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_L
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_I
+Sequence is too short. (< 5 resolved nts)
+
+6ywo_1_F
+Sequence is too short. (< 5 resolved nts)
+
+6wan_1_J
+Sequence is too short. (< 5 resolved nts)
+
+4oau_1_A
+Sequence is too short. (< 5 resolved nts)
+
+6ywo_1_E
+Sequence is too short. (< 5 resolved nts)
+
+6ywo_1_K
+Sequence is too short. (< 5 resolved nts)
+
+6vm6_1_I
+Sequence is too short. (< 5 resolved nts)
+
+6vm6_1_H
+Sequence is too short. (< 5 resolved nts)
+
+6ywo_1_I
+Sequence is too short. (< 5 resolved nts)
+
+2a1r_1_C
+Sequence is too short. (< 5 resolved nts)
+
+6m6v_1_F
+Sequence is too short. (< 5 resolved nts)
+
+6m6v_1_E
+Sequence is too short. (< 5 resolved nts)
+
+2a1r_1_D
+Sequence is too short. (< 5 resolved nts)
+
+3gpq_1_E
+Sequence is too short. (< 5 resolved nts)
+
+3gpq_1_F
+Sequence is too short. (< 5 resolved nts)
+
+6o79_1_C
+Sequence is too short. (< 5 resolved nts)
+
+6vm6_1_K
+Sequence is too short. (< 5 resolved nts)
+
+6m6v_1_G
+Sequence is too short. (< 5 resolved nts)
+
+6hyu_1_D
+Sequence is too short. (< 5 resolved nts)
+
+1laj_1_R
+Sequence is too short. (< 5 resolved nts)
+
+6ybv_1_K
+Could not find nucleotides of chain K in annotation 6ybv.json. Either there is a problem with 6ybv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6sce_1_B
 Sequence is too short. (< 5 resolved nts)
@@ -2423,12 +2597,15 @@ Sequence is too short. (< 5 resolved nts)
 Sequence is too short. (< 5 resolved nts)
 
 1y1y_1_P
-DSSR warning 1y1y.json: no nucleotides found. Ignoring 1y1y_1_P.
+Sequence is too short. (< 5 resolved nts)
 
 5zuu_1_I
 Sequence is too short. (< 5 resolved nts)
 
 5zuu_1_G
+Sequence is too short. (< 5 resolved nts)
+
+7am2_1_R1
 Sequence is too short. (< 5 resolved nts)
 
 4peh_1_W
@@ -2443,7 +2620,7 @@ Sequence is too short. (< 5 resolved nts)
 4peh_1_Y
 Sequence is too short. (< 5 resolved nts)
 
-4peh_1_Z
+7d8c_1_C
 Sequence is too short. (< 5 resolved nts)
 
 6mkn_1_W
@@ -2482,29 +2659,8 @@ Could not find nucleotides of chain Q in annotation 4eya.json. Either there is a
 4eya_1_R
 Could not find nucleotides of chain R in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-1qzc_1_B
-DSSR warning 1qzc.json: no nucleotides found. Ignoring 1qzc_1_B.
-
-1t1o_1_B
-DSSR warning 1t1o.json: no nucleotides found. Ignoring 1t1o_1_B.
-
 1mvr_1_C
 DSSR warning 1mvr.json: no nucleotides found. Ignoring 1mvr_1_C.
-
-1t1m_1_B
-DSSR warning 1t1m.json: no nucleotides found. Ignoring 1t1m_1_B.
-
-1t1o_1_C
-DSSR warning 1t1o.json: no nucleotides found. Ignoring 1t1o_1_C.
-
-1t1m_1_A
-DSSR warning 1t1m.json: no nucleotides found. Ignoring 1t1m_1_A.
-
-1t1o_1_A
-DSSR warning 1t1o.json: no nucleotides found. Ignoring 1t1o_1_A.
-
-2r1g_1_B
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_B.
 
 4ht9_1_E
 Sequence is too short. (< 5 resolved nts)
@@ -2536,20 +2692,14 @@ Could not find nucleotides of chain U in annotation 5uk4.json. Either there is a
 5f6c_1_E
 Sequence is too short. (< 5 resolved nts)
 
+7nwh_1_HH
+Could not find nucleotides of chain HH in annotation 7nwh.json. Either there is a problem with 7nwh mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 4rcj_1_B
 Sequence is too short. (< 5 resolved nts)
 
 1xnr_1_W
 Sequence is too short. (< 5 resolved nts)
-
-2agn_1_A
-DSSR warning 2agn.json: no nucleotides found. Ignoring 2agn_1_A.
-
-2agn_1_C
-DSSR warning 2agn.json: no nucleotides found. Ignoring 2agn_1_C.
-
-2agn_1_B
-DSSR warning 2agn.json: no nucleotides found. Ignoring 2agn_1_B.
 
 6e0o_1_C
 Sequence is too short. (< 5 resolved nts)
@@ -2602,11 +2752,8 @@ Sequence is too short. (< 5 resolved nts)
 4d61_1_J
 Could not find nucleotides of chain J in annotation 4d61.json. Either there is a problem with 4d61 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-1trj_1_B
-DSSR warning 1trj.json: no nucleotides found. Ignoring 1trj_1_B.
-
-1trj_1_C
-DSSR warning 1trj.json: no nucleotides found. Ignoring 1trj_1_C.
+7nwg_1_Q3
+Could not find nucleotides of chain Q3 in annotation 7nwg.json. Either there is a problem with 7nwg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 5tbw_1_SR
 Could not find nucleotides of chain SR in annotation 5tbw.json. Either there is a problem with 5tbw mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -2652,6 +2799,12 @@ Sequence is too short. (< 5 resolved nts)
 
 3jbu_1_V
 Could not find nucleotides of chain V in annotation 3jbu.json. Either there is a problem with 3jbu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+4ts2_1_Y
+Nucleotides not inserted !
+
+4ts0_1_Y
+Nucleotides not inserted !
 
 1h2c_1_R
 Sequence is too short. (< 5 resolved nts)
@@ -2731,6 +2884,9 @@ Could not find nucleotides of chain Z in annotation 5flx.json. Either there is a
 6eri_1_AX
 Could not find nucleotides of chain AX in annotation 6eri.json. Either there is a problem with 6eri mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+7k5l_1_R
+Sequence is too short. (< 5 resolved nts)
+
 7d80_1_Y
 Could not find nucleotides of chain Y in annotation 7d80.json. Either there is a problem with 7d80 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -2751,6 +2907,9 @@ DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_I.
 
 1zc8_1_H
 DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_H.
+
+6bfb_1_Y
+Nucleotides not inserted !
 
 1zc8_1_J
 DSSR warning 1zc8.json: no nucleotides found. Ignoring 1zc8_1_J.
@@ -2857,6 +3016,12 @@ Could not find nucleotides of chain BB in annotation 6z1p.json. Either there is 
 6z1p_1_BA
 Could not find nucleotides of chain BA in annotation 6z1p.json. Either there is a problem with 6z1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+3p22_1_C
+Nucleotides not inserted !
+
+3p22_1_G
+Nucleotides not inserted !
+
 2uxd_1_X
 Sequence is too short. (< 5 resolved nts)
 
@@ -2922,12 +3087,6 @@ Sequence is too short. (< 5 resolved nts)
 
 3ol8_1_P
 Sequence is too short. (< 5 resolved nts)
-
-1qzc_1_C
-DSSR warning 1qzc.json: no nucleotides found. Ignoring 1qzc_1_C.
-
-1qzc_1_A
-DSSR warning 1qzc.json: no nucleotides found. Ignoring 1qzc_1_A.
 
 6yrq_1_E
 Sequence is too short. (< 5 resolved nts)
@@ -3166,6 +3325,9 @@ Sequence is too short. (< 5 resolved nts)
 4wtk_1_P
 Sequence is too short. (< 5 resolved nts)
 
+6wlj_3_A
+Nucleotides not inserted !
+
 1vqn_1_4
 Sequence is too short. (< 5 resolved nts)
 
@@ -3214,23 +3376,8 @@ DSSR warning 3eq4.json: no nucleotides found. Ignoring 3eq4_1_B.
 4i67_1_B
 Sequence is too short. (< 5 resolved nts)
 
-3pgw_1_R
-DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_R.
-
-3pgw_1_N
-DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_N.
-
-3cw1_1_X
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_X.
-
-3cw1_1_W
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_W.
-
-3cw1_1_V
-DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_V.
-
-7b0y_1_A
-Could not find nucleotides of chain A in annotation 7b0y.json. Either there is a problem with 7b0y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+4jf2_1_A
+Nucleotides not inserted !
 
 6k32_1_T
 Could not find nucleotides of chain T in annotation 6k32.json. Either there is a problem with 6k32 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -3244,11 +3391,11 @@ Could not find nucleotides of chain A in annotation 5mmj.json. Either there is a
 5x8r_1_A
 Could not find nucleotides of chain A in annotation 5x8r.json. Either there is a problem with 5x8r mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-2agn_1_E
-DSSR warning 2agn.json: no nucleotides found. Ignoring 2agn_1_E.
+3fu2_1_B
+Nucleotides not inserted !
 
-2agn_1_D
-DSSR warning 2agn.json: no nucleotides found. Ignoring 2agn_1_D.
+3fu2_1_A
+Nucleotides not inserted !
 
 4v5z_1_BD
 DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BD.
@@ -3354,6 +3501,39 @@ Sequence is too short. (< 5 resolved nts)
 
 5dto_1_B
 Sequence is too short. (< 5 resolved nts)
+
+6yml_1_A
+Nucleotides not inserted !
+
+6ymm_1_A
+Nucleotides not inserted !
+
+6ymi_1_M
+Nucleotides not inserted !
+
+6ymi_1_F
+Nucleotides not inserted !
+
+6ymi_1_A
+Nucleotides not inserted !
+
+6ylb_1_F
+Nucleotides not inserted !
+
+6ymi_1_C
+Nucleotides not inserted !
+
+6ymj_1_C
+Nucleotides not inserted !
+
+6ylb_1_C
+Nucleotides not inserted !
+
+6ymj_1_I
+Nucleotides not inserted !
+
+6ymj_1_O
+Nucleotides not inserted !
 
 4cxh_1_X
 Could not find nucleotides of chain X in annotation 4cxh.json. Either there is a problem with 4cxh mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -3463,6 +3643,24 @@ Sequence is too short. (< 5 resolved nts)
 4v4f_1_B2
 Sequence is too short. (< 5 resolved nts)
 
+7m4y_1_V
+Could not find nucleotides of chain V in annotation 7m4y.json. Either there is a problem with 7m4y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7m4x_1_V
+Could not find nucleotides of chain V in annotation 7m4x.json. Either there is a problem with 7m4x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6v3a_1_V
+Could not find nucleotides of chain V in annotation 6v3a.json. Either there is a problem with 6v3a mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6v39_1_V
+Could not find nucleotides of chain V in annotation 6v39.json. Either there is a problem with 6v39 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6ck5_1_A
+Nucleotides not inserted !
+
+6ck5_1_B
+Nucleotides not inserted !
+
 5it9_1_I
 Could not find nucleotides of chain I in annotation 5it9.json. Either there is a problem with 5it9 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -3489,6 +3687,12 @@ DSSR warning 3jcr.json: no nucleotides found. Ignoring 3jcr_1_N.
 
 6gfw_1_R
 Sequence is too short. (< 5 resolved nts)
+
+3j6x_1_IR
+Could not find nucleotides of chain IR in annotation 3j6x.json. Either there is a problem with 3j6x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+3j6y_1_IR
+Could not find nucleotides of chain IR in annotation 3j6y.json. Either there is a problem with 3j6y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 2vaz_1_A
 DSSR warning 2vaz.json: no nucleotides found. Ignoring 2vaz_1_A.
@@ -3535,6 +3739,9 @@ Sequence is too short. (< 5 resolved nts)
 5uh9_1_I
 Sequence is too short. (< 5 resolved nts)
 
+4v5z_1_BS
+DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BS.
+
 2ftc_1_R
 DSSR warning 2ftc.json: no nucleotides found. Ignoring 2ftc_1_R.
 
@@ -3546,9 +3753,6 @@ Sequence is too short. (< 5 resolved nts)
 
 4udv_1_R
 Sequence is too short. (< 5 resolved nts)
-
-2r1g_1_E
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_E.
 
 5zsc_1_D
 Sequence is too short. (< 5 resolved nts)
@@ -3631,8 +3835,8 @@ Sequence is too short. (< 5 resolved nts)
 3m85_1_Y
 Sequence is too short. (< 5 resolved nts)
 
-1e8s_1_C
-DSSR warning 1e8s.json: no nucleotides found. Ignoring 1e8s_1_C.
+5u34_1_B
+Nucleotides not inserted !
 
 5wnp_1_B
 Could not find nucleotides of chain B in annotation 5wnp.json. Either there is a problem with 5wnp mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -3700,10 +3904,19 @@ Sequence is too short. (< 5 resolved nts)
 3u2e_1_C
 Sequence is too short. (< 5 resolved nts)
 
+7eh1_1_I
+Sequence is too short. (< 5 resolved nts)
+
 5uef_1_C
 Sequence is too short. (< 5 resolved nts)
 
 5uef_1_D
+Sequence is too short. (< 5 resolved nts)
+
+7eh2_1_R
+Sequence is too short. (< 5 resolved nts)
+
+7eh2_1_I
 Sequence is too short. (< 5 resolved nts)
 
 4x4u_1_H
@@ -3736,6 +3949,15 @@ Sequence is too short. (< 5 resolved nts)
 7a5g_1_J
 Could not find nucleotides of chain J in annotation 7a5g.json. Either there is a problem with 7a5g mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+1m5k_1_B
+Nucleotides not inserted !
+
+1m5o_1_E
+Nucleotides not inserted !
+
+1m5v_1_B
+Nucleotides not inserted !
+
 6gx6_1_B
 Sequence is too short. (< 5 resolved nts)
 
@@ -3753,9 +3975,6 @@ Sequence is too short. (< 5 resolved nts)
 
 1zn1_1_C
 DSSR warning 1zn1.json: no nucleotides found. Ignoring 1zn1_1_C.
-
-1zn0_1_C
-DSSR warning 1zn0.json: no nucleotides found. Ignoring 1zn0_1_C.
 
 1xpu_1_G
 Sequence is too short. (< 5 resolved nts)
@@ -3826,8 +4045,14 @@ Sequence is too short. (< 5 resolved nts)
 6gc5_1_G
 Sequence is too short. (< 5 resolved nts)
 
+4rne_1_C
+Nucleotides not inserted !
+
 1n1h_1_B
 Sequence is too short. (< 5 resolved nts)
+
+7n2v_1_PT
+Could not find nucleotides of chain PT in annotation 7n2v.json. Either there is a problem with 7n2v mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 4ohz_1_B
 Sequence is too short. (< 5 resolved nts)
@@ -3873,6 +4098,15 @@ Could not find nucleotides of chain X in annotation 5y88.json. Either there is a
 
 4v5z_1_BB
 DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BB.
+
+5y85_1_D
+Nucleotides not inserted !
+
+5y85_1_B
+Nucleotides not inserted !
+
+5y87_1_D
+Nucleotides not inserted !
 
 3j0o_1_H
 Could not find nucleotides of chain H in annotation 3j0o.json. Either there is a problem with 3j0o mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -4057,9 +4291,6 @@ Sequence is too short. (< 5 resolved nts)
 6a6l_1_D
 Sequence is too short. (< 5 resolved nts)
 
-4v5z_1_BS
-DSSR warning 4v5z.json: no nucleotides found. Ignoring 4v5z_1_BS.
-
 4v8t_1_1
 Could not find nucleotides of chain 1 in annotation 4v8t.json. Either there is a problem with 4v8t mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -4071,6 +4302,9 @@ Sequence is too short. (< 5 resolved nts)
 
 1uvi_1_E
 Sequence is too short. (< 5 resolved nts)
+
+3gs5_1_A
+Nucleotides not inserted !
 
 4m7d_1_P
 Sequence is too short. (< 5 resolved nts)
@@ -4132,11 +4366,11 @@ Could not find nucleotides of chain 2M in annotation 6ip6.json. Either there is 
 6qcs_1_M
 Sequence is too short. (< 5 resolved nts)
 
+7b5k_1_Z
+Could not find nucleotides of chain Z in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 486d_1_G
 Could not find nucleotides of chain G in annotation 486d.json. Either there is a problem with 486d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-2r1g_1_C
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_C.
 
 486d_1_F
 Could not find nucleotides of chain F in annotation 486d.json. Either there is a problem with 486d mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -4177,6 +4411,9 @@ Could not find nucleotides of chain L in annotation 4oq9.json. Either there is a
 6r9q_1_B
 Sequence is too short. (< 5 resolved nts)
 
+7m4u_1_A
+Could not find nucleotides of chain A in annotation 7m4u.json. Either there is a problem with 7m4u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
 6v3a_1_SN1
 Could not find nucleotides of chain SN1 in annotation 6v3a.json. Either there is a problem with 6v3a mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -4188,9 +4425,6 @@ Could not find nucleotides of chain SN1 in annotation 6v39.json. Either there is
 
 6v3e_1_SN1
 Could not find nucleotides of chain SN1 in annotation 6v3e.json. Either there is a problem with 6v3e mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-1pn7_1_C
-DSSR warning 1pn7.json: no nucleotides found. Ignoring 1pn7_1_C.
 
 1mj1_1_Q
 Could not find nucleotides of chain Q in annotation 1mj1.json. Either there is a problem with 1mj1 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -4315,12 +4549,6 @@ Sequence is too short. (< 5 resolved nts)
 6oy6_1_I
 Sequence is too short. (< 5 resolved nts)
 
-4bbl_1_Y
-DSSR warning 4bbl.json: no nucleotides found. Ignoring 4bbl_1_Y.
-
-4bbl_1_Z
-DSSR warning 4bbl.json: no nucleotides found. Ignoring 4bbl_1_Z.
-
 4qvd_1_H
 Sequence is too short. (< 5 resolved nts)
 
@@ -4330,14 +4558,53 @@ Sequence is too short. (< 5 resolved nts)
 3iy8_1_A
 DSSR warning 3iy8.json: no nucleotides found. Ignoring 3iy8_1_A.
 
-6tnu_1_M
-Could not find nucleotides of chain M in annotation 6tnu.json. Either there is a problem with 6tnu mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+7n06_1_G
+Sequence is too short. (< 5 resolved nts)
 
-5mc6_1_M
-Could not find nucleotides of chain M in annotation 5mc6.json. Either there is a problem with 5mc6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+7n06_1_H
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_I
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_J
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_K
+Sequence is too short. (< 5 resolved nts)
+
+7n06_1_L
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_G
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_H
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_I
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_J
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_K
+Sequence is too short. (< 5 resolved nts)
+
+7n33_1_L
+Sequence is too short. (< 5 resolved nts)
 
 5mc6_1_N
 Could not find nucleotides of chain N in annotation 5mc6.json. Either there is a problem with 5mc6 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+2qwy_1_C
+Nucleotides not inserted !
+
+2qwy_1_A
+Nucleotides not inserted !
+
+2qwy_1_B
+Nucleotides not inserted !
 
 4eya_1_O
 Could not find nucleotides of chain O in annotation 4eya.json. Either there is a problem with 4eya mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -4362,12 +4629,6 @@ Could not find nucleotides of chain U in annotation 6htq.json. Either there is a
 
 6uu6_1_333
 Sequence is too short. (< 5 resolved nts)
-
-6v3a_1_V
-Could not find nucleotides of chain V in annotation 6v3a.json. Either there is a problem with 6v3a mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-6v39_1_V
-Could not find nucleotides of chain V in annotation 6v39.json. Either there is a problem with 6v39 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 5a0v_1_F
 Sequence is too short. (< 5 resolved nts)
@@ -4495,6 +4756,9 @@ Could not find nucleotides of chain BV in annotation 6xa1.json. Either there is 
 6ha8_1_X
 Could not find nucleotides of chain X in annotation 6ha8.json. Either there is a problem with 6ha8 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+3bnp_1_B
+Nucleotides not inserted !
+
 1m8w_1_E
 Could not find nucleotides of chain E in annotation 1m8w.json. Either there is a problem with 1m8w mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -4564,6 +4828,21 @@ Sequence is too short. (< 5 resolved nts)
 4wti_1_P
 Sequence is too short. (< 5 resolved nts)
 
+6dlr_1_A
+Nucleotides not inserted !
+
+6dlt_1_A
+Nucleotides not inserted !
+
+6dls_1_A
+Nucleotides not inserted !
+
+6dlq_1_A
+Nucleotides not inserted !
+
+6dnr_1_A
+Nucleotides not inserted !
+
 5l3p_1_Y
 Could not find nucleotides of chain Y in annotation 5l3p.json. Either there is a problem with 5l3p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -4573,11 +4852,35 @@ Sequence is too short. (< 5 resolved nts)
 3rzo_1_R
 Sequence is too short. (< 5 resolved nts)
 
+5wlh_1_B
+Nucleotides not inserted !
+
 2f4v_1_Z
 Sequence is too short. (< 5 resolved nts)
 
+5ml7_1_B
+Nucleotides not inserted !
+
 1qln_1_R
 Sequence is too short. (< 5 resolved nts)
+
+3pgw_1_R
+DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_R.
+
+3pgw_1_N
+DSSR warning 3pgw.json: no nucleotides found. Ignoring 3pgw_1_N.
+
+3cw1_1_X
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_X.
+
+3cw1_1_W
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_W.
+
+3cw1_1_V
+DSSR warning 3cw1.json: no nucleotides found. Ignoring 3cw1_1_V.
+
+7b0y_1_A
+Could not find nucleotides of chain A in annotation 7b0y.json. Either there is a problem with 7b0y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6ogy_1_M
 Sequence is too short. (< 5 resolved nts)
@@ -4588,11 +4891,11 @@ Sequence is too short. (< 5 resolved nts)
 6uej_1_B
 Sequence is too short. (< 5 resolved nts)
 
+7kga_1_A
+Nucleotides not inserted !
+
 6ywy_1_BB
 Could not find nucleotides of chain BB in annotation 6ywy.json. Either there is a problem with 6ywy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-1x18_1_A
-DSSR warning 1x18.json: no nucleotides found. Ignoring 1x18_1_A.
 
 5ytx_1_B
 Sequence is too short. (< 5 resolved nts)
@@ -4720,23 +5023,11 @@ Could not find nucleotides of chain AA in annotation 5mrf.json. Either there is 
 7jhy_1_Z
 Could not find nucleotides of chain Z in annotation 7jhy.json. Either there is a problem with 7jhy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-2r1g_1_A
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_A.
-
-2r1g_1_D
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_D.
-
-2r1g_1_F
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_F.
-
 3eq4_1_Y
 DSSR warning 3eq4.json: no nucleotides found. Ignoring 3eq4_1_Y.
 
 4wkr_1_C
 Sequence is too short. (< 5 resolved nts)
-
-2r1g_1_X
-DSSR warning 2r1g.json: no nucleotides found. Ignoring 2r1g_1_X.
 
 4v99_1_EC
 Could not find nucleotides of chain EC in annotation 4v99.json. Either there is a problem with 4v99 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -4927,8 +5218,35 @@ Sequence is too short. (< 5 resolved nts)
 4ejt_1_G
 Sequence is too short. (< 5 resolved nts)
 
+1et4_1_A
+Nucleotides not inserted !
+
+1et4_1_C
+Nucleotides not inserted !
+
+1et4_1_B
+Nucleotides not inserted !
+
+1et4_1_D
+Nucleotides not inserted !
+
+1et4_1_E
+Nucleotides not inserted !
+
+1ddy_1_C
+Nucleotides not inserted !
+
+1ddy_1_A
+Nucleotides not inserted !
+
+1ddy_1_E
+Nucleotides not inserted !
+
 6lkq_1_W
 Could not find nucleotides of chain W in annotation 6lkq.json. Either there is a problem with 6lkq mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+6r47_1_A
+Nucleotides not inserted !
 
 3qsu_1_P
 Sequence is too short. (< 5 resolved nts)
@@ -4944,102 +5262,6 @@ Sequence is too short. (< 5 resolved nts)
 
 4qvc_1_G
 Sequence is too short. (< 5 resolved nts)
-
-6q1h_1_D
-Sequence is too short. (< 5 resolved nts)
-
-6q1h_1_H
-Sequence is too short. (< 5 resolved nts)
-
-6p7p_1_F
-Sequence is too short. (< 5 resolved nts)
-
-6p7p_1_E
-Sequence is too short. (< 5 resolved nts)
-
-6p7p_1_D
-Sequence is too short. (< 5 resolved nts)
-
-6vm6_1_J
-Sequence is too short. (< 5 resolved nts)
-
-6vm6_1_G
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_K
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_H
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_G
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_L
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_I
-Sequence is too short. (< 5 resolved nts)
-
-6ywo_1_F
-Sequence is too short. (< 5 resolved nts)
-
-6wan_1_J
-Sequence is too short. (< 5 resolved nts)
-
-4oau_1_A
-Sequence is too short. (< 5 resolved nts)
-
-6ywo_1_E
-Sequence is too short. (< 5 resolved nts)
-
-6ywo_1_K
-Sequence is too short. (< 5 resolved nts)
-
-6vm6_1_I
-Sequence is too short. (< 5 resolved nts)
-
-6vm6_1_H
-Sequence is too short. (< 5 resolved nts)
-
-6ywo_1_I
-Sequence is too short. (< 5 resolved nts)
-
-2a1r_1_C
-Sequence is too short. (< 5 resolved nts)
-
-6m6v_1_F
-Sequence is too short. (< 5 resolved nts)
-
-6m6v_1_E
-Sequence is too short. (< 5 resolved nts)
-
-2a1r_1_D
-Sequence is too short. (< 5 resolved nts)
-
-3gpq_1_E
-Sequence is too short. (< 5 resolved nts)
-
-3gpq_1_F
-Sequence is too short. (< 5 resolved nts)
-
-6o79_1_C
-Sequence is too short. (< 5 resolved nts)
-
-6vm6_1_K
-Sequence is too short. (< 5 resolved nts)
-
-6m6v_1_G
-Sequence is too short. (< 5 resolved nts)
-
-6hyu_1_D
-Sequence is too short. (< 5 resolved nts)
-
-1laj_1_R
-Sequence is too short. (< 5 resolved nts)
-
-6ybv_1_K
-Could not find nucleotides of chain K in annotation 6ybv.json. Either there is a problem with 6ybv mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6mpf_1_W
 Sequence is too short. (< 5 resolved nts)
@@ -5065,6 +5287,9 @@ Could not find nucleotides of chain V in annotation 6ftj.json. Either there is a
 6ftg_1_V
 Could not find nucleotides of chain V in annotation 6ftg.json. Either there is a problem with 6ftg mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
+3npn_1_A
+Nucleotides not inserted !
+
 4g0a_1_G
 Sequence is too short. (< 5 resolved nts)
 
@@ -5079,15 +5304,6 @@ Sequence is too short. (< 5 resolved nts)
 
 5hkc_1_C
 Sequence is too short. (< 5 resolved nts)
-
-4kzy_1_I
-Could not find nucleotides of chain I in annotation 4kzy.json. Either there is a problem with 4kzy mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-4kzz_1_I
-Could not find nucleotides of chain I in annotation 4kzz.json. Either there is a problem with 4kzz mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-4kzx_1_I
-Could not find nucleotides of chain I in annotation 4kzx.json. Either there is a problem with 4kzx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 1rmv_1_B
 Sequence is too short. (< 5 resolved nts)
@@ -5132,71 +5348,5 @@ Sequence is too short. (< 5 resolved nts)
 Sequence is too short. (< 5 resolved nts)
 
 5hjz_1_C
-Sequence is too short. (< 5 resolved nts)
-
-7nrc_1_SM
-Could not find nucleotides of chain SM in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7nrc_1_SN
-Could not find nucleotides of chain SN in annotation 7nrc.json. Either there is a problem with 7nrc mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7am2_1_R1
-Sequence is too short. (< 5 resolved nts)
-
-7k5l_1_R
-Sequence is too short. (< 5 resolved nts)
-
-7b5k_1_X
-Could not find nucleotides of chain X in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7d8c_1_C
-Sequence is too short. (< 5 resolved nts)
-
-7m4y_1_V
-Could not find nucleotides of chain V in annotation 7m4y.json. Either there is a problem with 7m4y mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7m4x_1_V
-Could not find nucleotides of chain V in annotation 7m4x.json. Either there is a problem with 7m4x mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7b5k_1_Z
-Could not find nucleotides of chain Z in annotation 7b5k.json. Either there is a problem with 7b5k mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7m4u_1_A
-Could not find nucleotides of chain A in annotation 7m4u.json. Either there is a problem with 7m4u mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7n06_1_G
-Sequence is too short. (< 5 resolved nts)
-
-7n06_1_H
-Sequence is too short. (< 5 resolved nts)
-
-7n06_1_I
-Sequence is too short. (< 5 resolved nts)
-
-7n06_1_J
-Sequence is too short. (< 5 resolved nts)
-
-7n06_1_K
-Sequence is too short. (< 5 resolved nts)
-
-7n06_1_L
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_G
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_H
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_I
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_J
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_K
-Sequence is too short. (< 5 resolved nts)
-
-7n33_1_L
 Sequence is too short. (< 5 resolved nts)
 
