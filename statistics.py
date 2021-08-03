@@ -26,7 +26,7 @@ from os import path
 from tqdm import tqdm
 from collections import Counter
 from setproctitle import setproctitle
-from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_worker, trace_unhandled_exceptions
+from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_with_tqdm, trace_unhandled_exceptions
 from geometric_stats import *
 
 np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
@@ -948,7 +948,11 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
             nb_gap += 1
             coordinates_with_gaps.append(np.nan)
         else:
-            coordinates_with_gaps.append(coordinates[i - nb_gap])
+            try:
+                coordinates_with_gaps.append(coordinates[i - nb_gap])
+            except IndexError as e:
+                warn(f"{filename} : {s.seq} at position {i}, we get {e}.", error=True)
+                exit(0)
     
     # Build the pairwise distances
     d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float32)
@@ -1055,7 +1059,7 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     else:
         # We split the work for one family on multiple workers.
         
-        p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
+        p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=nworkers)
         try:
             fam_pbar = tqdm(total=len(align), desc=f"{f} {label} pair distances", position=0, unit="chain", leave=True)
             # Apply work_pssm_remap to each RNA family
@@ -1147,8 +1151,11 @@ def nt_3d_centers(cif_file, consider_all_atoms):
     Some chains have no C1' (e.g. 4v7f-3), therefore, an empty result is returned.
     """
     result  =[]
-    structure = MMCIFParser().get_structure(cif_file, cif_file)
-    
+    try:
+        structure = MMCIFParser().get_structure(cif_file, cif_file)
+    except Exception as e:
+        warn(f"{cif_file} : {e}", error=True)
+        return result
     for model in structure:
         for chain in model:
             for residue in chain:
@@ -1203,7 +1210,7 @@ def process_jobs(joblist):
     Starts a Pool to run the Job() objects in joblist.
     """
     tmp_nworkers = min(len(joblist), nworkers)
-    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=tmp_nworkers)
+    p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=tmp_nworkers)
     pbar = tqdm(total=len(joblist), desc="Stat jobs", position=0, unit="job", leave=True)
 
     try:
@@ -1345,31 +1352,31 @@ if __name__ == "__main__":
     # Define the tasks
     joblist = []
 
-    # # Do eta/theta plots
-    # if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
-    #    joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
-    #    joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
+    # Do eta/theta plots
+    if n_unmapped_chains and DO_WADLEY_ANALYSIS:    
+       joblist.append(Job(function=reproduce_wadley_results, args=(1, False, (1,4), res_thr)))
+       joblist.append(Job(function=reproduce_wadley_results, args=(4, False, (1,4), res_thr)))
 
-    # # Do distance matrices for each family excl. LSU/SSU (will be processed later)
-    # if DO_AVG_DISTANCE_MATRIX:  
-    #     extracted_chains = []
-    #     for file in os.listdir(path_to_3D_data + "rna_mapped_to_Rfam"):
-    #         if os.path.isfile(os.path.join(path_to_3D_data + "rna_mapped_to_Rfam", file)):
-    #             e1 = file.split('_')[0]
-    #             e2 = file.split('_')[1]
-    #             e3 = file.split('_')[2]
-    #             extracted_chains.append(e1 + '[' + e2 + ']' + '-' + e3)
-    #     for f in [ x for x in famlist if (x not in LSU_set and x not in SSU_set) ]:    # Process the rRNAs later only 3 by 3
-    #         joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
-    #         joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
+    # Do distance matrices for each family excl. LSU/SSU (will be processed later)
+    if DO_AVG_DISTANCE_MATRIX:  
+        extracted_chains = []
+        for file in os.listdir(path_to_3D_data + "rna_mapped_to_Rfam"):
+            if os.path.isfile(os.path.join(path_to_3D_data + "rna_mapped_to_Rfam", file)):
+                e1 = file.split('_')[0]
+                e2 = file.split('_')[1]
+                e3 = file.split('_')[2]
+                extracted_chains.append(e1 + '[' + e2 + ']' + '-' + e3)
+        for f in [ x for x in famlist if (x not in LSU_set and x not in SSU_set) ]:    # Process the rRNAs later only 3 by 3
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
 
-    # # Do general family statistics
-    # joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
-    # joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
-    # for f in famlist:
-    #     joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
-    #     if f not in ignored:
-    #         joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
+    # Do general family statistics
+    joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
+    joblist.append(Job(function=stats_freq)) # updates the database (nucleotide frequencies in families)
+    for f in famlist:
+        joblist.append(Job(function=parallel_stats_pairs, args=(f,))) # updates the database (intra-chain basepair types within a family)
+        if f not in ignored:
+            joblist.append(Job(function=to_id_matrix, args=(f,))) # updates the database (identity matrices of families)
     
     
     # Do geometric measures
@@ -1382,7 +1389,7 @@ if __name__ == "__main__":
                 joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
     
     
-    # process_jobs(joblist)
+    process_jobs(joblist)
 
     # Now process the memory-heavy tasks family by family
     if DO_AVG_DISTANCE_MATRIX:
@@ -1398,11 +1405,11 @@ if __name__ == "__main__":
     
     # finish the work after the parallel portions
     
-    # per_chain_stats()   # per chain base frequencies and basepair types
-    # seq_idty()          # identity matrices from pre-computed .npy matrices
-    # stats_pairs()
+    per_chain_stats()   # per chain base frequencies and basepair types
+    seq_idty()          # identity matrices from pre-computed .npy matrices
+    stats_pairs()
     if n_unmapped_chains:
-        # general_stats()
+        general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
         concat_dataframes(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')

@@ -71,11 +71,6 @@ sqlite3.enable_callback_tracebacks(True)
 sqlite3.register_adapter(np.int64, lambda val: int(val))        # Tell Sqlite what to do with <class numpy.int64> objects ---> convert to int
 sqlite3.register_adapter(np.float64, lambda val: float(val))    # Tell Sqlite what to do with <class numpy.float64> objects ---> convert to float
 
-# m = Manager()
-# running_stats = m.list()
-# running_stats.append(0)  # n_launched
-# running_stats.append(0)  # n_finished
-# running_stats.append(0)  # n_skipped
 n_launched = Value('i', 0)
 n_finished = Value('i', 0)
 n_skipped = Value('i', 0)
@@ -635,12 +630,24 @@ class Chain:
                 if nt2 in res_ids:
                     interacts[nt2_idx] += 1
                     if paired[nt2_idx] == "":
-                        pair_type_LW[nt2_idx] = lw_pair[0] + lw_pair[2] + lw_pair[1]
-                        pair_type_DSSR[nt2_idx] = dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+                        if lw_pair != "--":
+                            pair_type_LW[nt2_idx] = lw_pair[0] + lw_pair[2] + lw_pair[1]
+                        else:
+                            pair_type_LW[nt2_idx] = "--"
+                        if dssr_pair != "--":
+                            pair_type_DSSR[nt2_idx] = dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+                        else:
+                            pair_type_DSSR[nt2_idx] = "--"
                         paired[nt2_idx] = str(nt1_idx + 1)
                     else:
-                        pair_type_LW[nt2_idx] += ',' + lw_pair[0] + lw_pair[2] + lw_pair[1]
-                        pair_type_DSSR[nt2_idx] += ',' + dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+                        if lw_pair != "--":
+                            pair_type_LW[nt2_idx] += ',' + lw_pair[0] + lw_pair[2] + lw_pair[1]
+                        else:
+                            pair_type_LW[nt2_idx] += ",--"
+                        if dssr_pair != "--":
+                            pair_type_DSSR[nt2_idx] += ',' + dssr_pair[0] + dssr_pair[3] + dssr_pair[2] + dssr_pair[1]
+                        else:
+                            pair_type_DSSR[nt2_idx] += ",--"
                         paired[nt2_idx] += ',' + str(nt1_idx + 1)
         
         # transform nt_id to shorter values
@@ -1083,7 +1090,7 @@ class Pipeline:
         self.REUSE_ALL = False
         self.REDUNDANT = False
         self.ALIGNOPTS = None
-        self.RRNAALIGNOPTS = "--mxsize 8192 --cpu 10 --maxtau 0.1"
+        self.RRNAALIGNOPTS = ["--mxsize", "8192", "--cpu", "10", "--maxtau", "0.1"]
         self.STATSOPTS = None
         self.USESINA = False
         self.SELECT_ONLY = None
@@ -1151,6 +1158,7 @@ class Pipeline:
                       "\n\t\t\t\t need of RAM. Should be a number between 1 and your number of CPUs. Note that portions"
                       "\n\t\t\t\t of the pipeline already limit themselves to 50% or 70% of that number by default.")
                 print("--cmalign-opts=…\t\tA string of additional options to pass to cmalign aligner, e.g. \"--nonbanded --mxsize 2048\"")
+                print("--cmalign-rrna-opts=…\tLike cmalign-opts, but applied for rRNA (large families, memory-heavy jobs).")
                 print("--archive\t\t\tCreate tar.gz archives of the datapoints text files and the alignments,"
                       "\n\t\t\t\t and update the link to the latest archive. ")
                 print("--no-logs\t\t\tDo not save per-chain logs of the numbering modifications.")
@@ -1219,7 +1227,7 @@ class Pipeline:
             elif opt == "cmalign-opts":
                 self.ALIGNOPTS = arg
             elif opt == "cmalign-rrna-opts":
-                self.RRNAALIGNOPTS = arg
+                self.RRNAALIGNOPTS = " ".split(arg)
             elif opt == "stats-opts":
                 self.STATSOPTS = " ".split(arg)
             elif opt == "--all":
@@ -1436,8 +1444,9 @@ class Pipeline:
                                    args=[c, self.EXTRACT_CHAINS, self.KEEP_HETATM, retry, self.SAVELOGS]))
         try:
             results = execute_joblist(joblist)
-        except:
-            print("Exiting", flush=True)
+        except Exception as e:
+            warn(str(e), error=True)
+            print("Exiting", str(e), flush=True)
             exit(1)
 
         # If there were newly discovered problems, add this chain to the known issues
@@ -1550,7 +1559,7 @@ class Pipeline:
             align = AlignIO.read(path_to_seq_data + "realigned/" + r[0] + "++.afa", "fasta")
             nb_3d_chains = len([1 for r in align if '[' in r.id])
             if r[0] in SSU_set:  # SSU v138.1 is used
-                nb_homologs = 2224740 	    # source: https://www.arb-silva.de/documentation/release-1381/
+                nb_homologs = 2224740         # source: https://www.arb-silva.de/documentation/release-1381/
                 nb_total_homol = nb_homologs + nb_3d_chains
             elif r[0] in LSU_set:  # LSU v138.1 is used
                 nb_homologs = 227331        # source: https://www.arb-silva.de/documentation/release-1381/
@@ -1794,9 +1803,9 @@ def init_no_tqdm(arg1, arg2, arg3):
     The children progress is followed using stdout text logs (notify(), warn(), etc)
     """
     global n_launched, n_finished, n_skipped
-	n_launched = arg1
-	n_finished = arg2
-	n_skipped = arg3
+    n_launched = arg1
+    n_finished = arg2
+    n_skipped = arg3
 
 def warn(message, error=False):
     """
@@ -2147,7 +2156,7 @@ def execute_job(j, jobcount):
 
     # increase the counter of running jobs
     with n_launched.get_lock():
-		n_launched.value += 1
+        n_launched.value += 1
 
     # Monitor this process
     m = -1
@@ -2208,7 +2217,8 @@ def execute_job(j, jobcount):
             m = assistant_future.result()
 
     # increase the counter of finished jobs
-    running_stats[1] += 1
+    with n_finished.get_lock():
+        n_finished.value += 1
 
     # return time and memory statistics, plus the job results
     t = end_time - start_time
@@ -2223,9 +2233,12 @@ def execute_joblist(fulljoblist):
     """
 
     # Reset counters
-    running_stats[0] = 0       # started
-    running_stats[1] = 0       # finished
-    running_stats[2] = 0       # failed
+    with n_launched.get_lock():
+        n_launched.value = 0
+    with n_skipped.get_lock():
+        n_skipped.value = 0
+    with n_finished.get_lock():
+        n_finished.value = 0
 
     # Sort jobs in a tree structure, first by priority, then by CPU numbers
     jobs = {}
@@ -2276,10 +2289,6 @@ def execute_joblist(fulljoblist):
                 j.comp_time = round(r[0], 2)  # seconds
                 j.max_mem = int(r[1]/1000000)  # MB
                 results.append((j.label, r[2], j.comp_time, j.max_mem))
-    
-    # Job is finished
-	with n_finished.get_lock():
-		n_finished.value += 1
 
     # throw back the money
     return results
@@ -2672,13 +2681,17 @@ def use_infernal(rfam_acc, alignopts):
         with open(path_to_seq_data + f"realigned/{rfam_acc}_new.log", 'w') as o:
             p1 = subprocess.run(["cmalign", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
                                 "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
-                                "-o", path_to_seq_data + f"realigned/{rfam_acc}_new.stk",
+                                "-o", new_ali_path,
                                 path_to_seq_data + f"realigned/{rfam_acc}.cm",
                                 path_to_seq_data + f"realigned/{rfam_acc}_new.fa"],
                                 stdout=o, stderr=subprocess.PIPE)
-            if "--mxsize" in p1.stderr.decode("utf-8"):
-                # not enough available RAM to allocate the DP matrix
-                warn(f"Not enough RAM to allocate cmalign DP matrix for family {rfam_acc}. Use --sina or --cmalign-opts.", error=True)
+            align_errors = p1.stderr.decode("utf-8")
+            if len(align_errors):
+                if "--mxsize" in align_errors:
+                    # not enough available RAM to allocate the DP matrix
+                    warn(f"Not enough RAM to allocate cmalign DP matrix for family {rfam_acc}. Use --sina or --cmalign-opts.", error=True)
+                else:
+                    warn(align_errors, error=True)
         notify("Aligned new sequences together")
 
         # Detect doublons and remove them
@@ -2710,8 +2723,8 @@ def use_infernal(rfam_acc, alignopts):
             os.remove(path_to_seq_data + "realigned/toremove.txt")
 
         # And we merge the two alignments
-        p2 = subprocess.run(["cmalign", "--merge" "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
-                            "--rna", path_to_seq_data + f"realigned/{rfam_acc}.cm", existing_ali_path, new_ali_path],
+        p2 = subprocess.run(["esl-alimerge", "-o", path_to_seq_data + f"realigned/{rfam_acc}_merged.stk",
+                            "--rna", existing_ali_path, new_ali_path],
                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         alignErrors = p1.stderr.decode('utf-8')
         mergeErrors = p2.stderr.decode('utf-8')
@@ -2730,7 +2743,7 @@ def use_infernal(rfam_acc, alignopts):
         
         cmd = ["cmalign"]
         if alignopts is not None:
-            cmd += " ".split(alignopts)
+            cmd += alignopts
         cmd += ['-o', path_to_seq_data + f"realigned/{rfam_acc}++.stk",
                 "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
                 "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
@@ -3166,8 +3179,6 @@ if __name__ == "__main__":
         for c in pp.loaded_chains:
             work_save(c, homology=False)
         print("Completed.")
-        exit(0)
-    
 
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)

@@ -35,11 +35,11 @@ nohup bash -c 'time docker run --rm -v /path/to/3D/data/folder:/3D -v /path/to/s
 # Method 2 : Classical command line installation (Linux only)
 
 You need to install the dependencies:
-- DSSR, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/).  Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
-- Infernal, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `cmfetch`, `cmbuild`, `esl-alimanip`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
-- SINA, follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
+- DSSR 1.9.9 or newer, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/).  Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
+- Infernal 1.1.4 or newer, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `cmfetch`, `cmbuild`, `esl-alimanip`, `esl-alimerge`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
+- SINA (if you plan to use it), follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
 - Sqlite 3, available under the name *sqlite* in every distro's package manager,
-- Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*)
+- Python >= 3.8, (Unfortunately, python3.6 is no longer supported, because of changes in the multiprocessing and Threading packages. Untested with Python 3.7.\*). 
 - The following Python packages: `python3.8 -m pip install biopython matplotlib pandas psutil pymysql requests scipy setproctitle sqlalchemy tqdm`. 
 
 Then, run it from the command line, preferably using nohup if your shell will be interrupted:

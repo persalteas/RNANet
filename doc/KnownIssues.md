@@ -19,3 +19,6 @@
 * Use and save Infernal alignment bounds and truncation information
 * Save if a chain is a representative in BGSU list
 * Annotate unstructured regions (on a nucleotide basis)
+
+## Technical to-do list
+* `cmalign --merge` is now deprecated, we use `esl-alimerge` instead. But, esl is a single-core process. We should run the merges of alignements of different families in parallel to save some time [TODO]. 

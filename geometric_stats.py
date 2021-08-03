@@ -10,16 +10,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import Bio, json, os, random, setproctitle, sqlite3
+import Bio, json, os, random, sqlite3
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.vectors import Vector, calc_angle, calc_dihedral
 from multiprocessing import Pool, Value
 from pandas.core.common import SettingWithCopyWarning
+from setproctitle import setproctitle
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
+from RNAnet import trace_unhandled_exceptions
 
-# number of modes in the parameter distribution, used to know how many laws to use in the GMM. if you do not want to trust this data,
-# you can use the --rescan-nmodes option. GMMs will be trained between 1 and 8 modes and the best model will be kept.
+# This dic stores the number laws to use in the GMM to estimate each parameter's distribution.
+# If you do not want to trust this data, you can use the --rescan-nmodes option.
+# GMMs will be trained between 1 and 8 modes and the best model will be kept.
 modes_data = {  
     # bonded distances, all-atom, common to all. Some are also used for HiRE-RNA.
     "C1'-C2'":3, "C2'-C3'":2, "C2'-O2'":2, "C3'-O3'":2, "C4'-C3'":2, "C4'-O4'":2, "C5'-C4'":2, "O3'-P":3, "O4'-C1'":3, "O5'-C5'":3, "P-O5'":3, "P-OP1":2, "P-OP2":2,
@@ -730,7 +733,7 @@ def measures_aa(name, s, thr_idx):
             l_pyrimidines.append([c1p_n1, n1_c6, c6_c5, c5_c4, c4_n3, n3_c2, c2_o2, c2_n1, c4_n4, c4_o4])
             pbar.update(1)
 
-    df_comm = pd.DataFrame(l_common, columns=["Residu", "O3'-P", "P-OP1", "P-OP2", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-O4'", "C4'-C3'", "O4'-C1'", "C1'-C2'", "C2'-O2'", "C2'-C3'", "C3'-O3'"])
+    df_comm = pd.DataFrame(l_common, columns=["Residue", "O3'-P", "P-OP1", "P-OP2", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-O4'", "C4'-C3'", "O4'-C1'", "C1'-C2'", "C2'-O2'", "C2'-C3'", "C3'-O3'"])
     df_pur = pd.DataFrame(l_purines, columns=["C1'-N9", "N9-C8", "C8-N7", "N7-C5", "C5-C6", "C6-O6", "C6-N6", "C6-N1", "N1-C2", "C2-N2", "C2-N3", "N3-C4", "C4-N9", "C4-C5" ])
     df_pyr = pd.DataFrame(l_pyrimidines, columns=["C1'-N1", "N1-C6", "C6-C5", "C5-C4", "C4-N3", "N3-C2", "C2-O2", "C2-N1", "C4-N4", "C4-O4"])
     df = pd.concat([df_comm, df_pur, df_pyr], axis = 1)
@@ -785,9 +788,9 @@ def measures_pyle(name, s, thr_idx):
             l_dist.append([res.get_resname(), c1p_psuiv, p_c1p, c4p_psuiv, p_c4p])
             l_angl.append([res.get_resname(), p_c1p_psuiv, c1p_psuiv_c1psuiv])
 
-    df = pd.DataFrame(l_dist, columns=["Residu", "C1'-P", "P-C1'", "C4'-P", "P-C4'"])
+    df = pd.DataFrame(l_dist, columns=["Residue", "C1'-P", "P-C1'", "C4'-P", "P-C4'"])
     df.to_csv(runDir + "/results/geometry/Pyle/distances/distances_pyle_" + name + ".csv")
-    df = pd.DataFrame(l_angl, columns=["Residu", "P-C1'-P°", "C1'-P°-C1'°"])
+    df = pd.DataFrame(l_angl, columns=["Residue", "P-C1'-P°", "C1'-P°-C1'°"])
     df.to_csv(runDir + "/results/geometry/Pyle/angles/flat_angles_pyle_"+name+".csv")
 
 @trace_unhandled_exceptions
@@ -798,11 +801,11 @@ def measures_hrna(name, s, thr_idx):
     
     # do not recompute something already computed
     if (os.path.isfile(runDir + '/results/geometry/HiRE-RNA/distances/distances_HiRERNA '+name+'.csv') and 
-       os.path.isfile(runDir + '/results/geometry/HiRE-RNA/angles/angles_HiRERNA '+name+'.csv') and 
-       os.path.isfile(runDir + '/results/geometry/HiRE-RNA/torsions/torsions_HiRERNA '+name+'.csv')):
+        os.path.isfile(runDir + '/results/geometry/HiRE-RNA/angles/angles_HiRERNA '+name+'.csv') and 
+        os.path.isfile(runDir + '/results/geometry/HiRE-RNA/torsions/torsions_HiRERNA '+name+'.csv')):
         return
 
-    l_dist=[]
+    l_dist = []
     l_angl = []
     l_tors = []
     last_c4p = []
@@ -845,8 +848,8 @@ def measures_hrna(name, s, thr_idx):
         c1_c4_psuiv_o5suiv = np.nan
 
         if res.get_resname() not in ['ATP', 'CCC', 'A3P', 'A23', 'GDP', 'RIA', "2BA"] : # several phosphate groups, ignore
-            atom_p = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
-            atom_o5p= [ atom.get_coord() for atom in res if "O5'" in atom.get_fullname() ]
+            atom_p   = [ atom.get_coord() for atom in res if atom.get_name() ==  "P"]
+            atom_o5p = [ atom.get_coord() for atom in res if "O5'" in atom.get_fullname() ]
             atom_c5p = [ atom.get_coord() for atom in res if "C5'" in atom.get_fullname() ]
             atom_c4p = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ]
             atom_c1p = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
@@ -854,26 +857,26 @@ def measures_hrna(name, s, thr_idx):
             atom_b2 = pos_b2(res) # position b2 to be calculated only for those with 2 cycles
 
             # Distances. If one of the atoms is empty, the euclidian distance returns NaN.
-            last_c4p_p = get_euclidian_distance(last_c4p, atom_p)
-            p_o5p = get_euclidian_distance(atom_p, atom_o5p)
-            o5p_c5p = get_euclidian_distance(atom_o5p, atom_c5p)
-            c5p_c4p = get_euclidian_distance(atom_c5p, atom_c4p)
-            c4p_c1p = get_euclidian_distance(atom_c4p, atom_c1p)
-            c1p_b1 = get_euclidian_distance(atom_c1p, atom_b1)
-            b1_b2 = get_euclidian_distance(atom_b1, atom_b2)
+            last_c4p_p  = get_euclidian_distance(last_c4p, atom_p)
+            p_o5p       = get_euclidian_distance(atom_p, atom_o5p)
+            o5p_c5p     = get_euclidian_distance(atom_o5p, atom_c5p)
+            c5p_c4p     = get_euclidian_distance(atom_c5p, atom_c4p)
+            c4p_c1p     = get_euclidian_distance(atom_c4p, atom_c1p)
+            c1p_b1      = get_euclidian_distance(atom_c1p, atom_b1)
+            b1_b2       = get_euclidian_distance(atom_b1, atom_b2)
 
             # flat angles. Same.
-            lastc4p_p_o5p = get_flat_angle(last_c4p, atom_p, atom_o5p)
-            lastc1p_lastc4p_p = get_flat_angle(last_c1p, last_c4p, atom_p)
-            lastc5p_lastc4p_p = get_flat_angle(last_c5p, last_c4p, atom_p)
-            p_o5p_c5p = get_flat_angle(atom_p, atom_o5p, atom_c5p)
-            o5p_c5p_c4p = get_flat_angle(atom_o5p, atom_c5p, atom_c4p)
-            c5p_c4p_c1p = get_flat_angle(atom_c5p, atom_c4p, atom_c1p)
-            c4p_c1p_b1 = get_flat_angle(atom_c4p, atom_c1p, atom_b1)
-            c1p_b1_b2 = get_flat_angle(atom_c1p, atom_b1, atom_b2)
+            lastc4p_p_o5p       = get_flat_angle(last_c4p, atom_p, atom_o5p)
+            lastc1p_lastc4p_p   = get_flat_angle(last_c1p, last_c4p, atom_p)
+            lastc5p_lastc4p_p   = get_flat_angle(last_c5p, last_c4p, atom_p)
+            p_o5p_c5p           = get_flat_angle(atom_p, atom_o5p, atom_c5p)
+            o5p_c5p_c4p         = get_flat_angle(atom_o5p, atom_c5p, atom_c4p)
+            c5p_c4p_c1p         = get_flat_angle(atom_c5p, atom_c4p, atom_c1p)
+            c4p_c1p_b1          = get_flat_angle(atom_c4p, atom_c1p, atom_b1)
+            c1p_b1_b2           = get_flat_angle(atom_c1p, atom_b1, atom_b2)
 
             # torsions. Idem.
-            p_o5_c5_c4 = get_torsion_angle(atom_p, atom_o5p, atom_c5p, atom_c4p)
+            p_o5_c5_c4  = get_torsion_angle(atom_p, atom_o5p, atom_c5p, atom_c4p)
             o5_c5_c4_c1 = get_torsion_angle(atom_o5p, atom_c5p, atom_c4p, atom_c1p)
             c5_c4_c1_b1 = get_torsion_angle(atom_c5p, atom_c4p, atom_c1p, atom_b1)
             c4_c1_b1_b2 = get_torsion_angle(atom_c4p, atom_c1p, atom_b1, atom_b2)
@@ -889,11 +892,11 @@ def measures_hrna(name, s, thr_idx):
             l_dist.append([res.get_resname(), last_c4p_p, p_o5p, o5p_c5p, c5p_c4p, c4p_c1p, c1p_b1, b1_b2])
             l_angl.append([res.get_resname(), lastc4p_p_o5p, lastc1p_lastc4p_p, lastc5p_lastc4p_p, p_o5p_c5p, o5p_c5p_c4p, c5p_c4p_c1p, c4p_c1p_b1, c1p_b1_b2])
             l_tors.append([res.get_resname(), p_o5_c5_c4, o5_c5_c4_c1, c5_c4_c1_b1, c4_c1_b1_b2, o5_c5_c4_psuiv, c5_c4_psuiv_o5suiv, c4_psuiv_o5suiv_c5suiv, c1_c4_psuiv_o5suiv])
-    df = pd.DataFrame(l_dist, columns=["Residu", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
+    df = pd.DataFrame(l_dist, columns=["Residue", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/distances/distances_HiRERNA '+name+'.csv')
-    df = pd.DataFrame(l_angl, columns=["Residu", "C4'-P-O5'", "C1'-C4'-P", "C5'-C4'-P", "P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2"])
+    df = pd.DataFrame(l_angl, columns=["Residue", "C4'-P-O5'", "C1'-C4'-P", "C5'-C4'-P", "P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/angles/angles_HiRERNA ' + name + ".csv")
-    df=pd.DataFrame(l_tors, columns=["Residu", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
+    df=pd.DataFrame(l_tors, columns=["Residue", "P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "O5'-C5'-C4'-P°", "C5'-C4'-P°-O5'°", "C4'-P°-O5'°-C5'°", "C1'-C4'-P°-O5'°"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/torsions/torsions_HiRERNA '+name+'.csv')
 
 @trace_unhandled_exceptions
@@ -904,19 +907,19 @@ def measures_hrna_basepairs(name, s, thr_idx):
 
     setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measures_hrna_basepairs({name})")
     
-    l=[]
+    l = []
     chain = next(s[0].get_chains())
             
     # do not recompute something already computed
     if os.path.isfile(runDir + "/results/geometry/HiRE-RNA/basepairs/basepairs_"+name+".csv"):
         return
 
-    df=pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + name))
+    df = pd.read_csv(os.path.abspath(path_to_3D_data +"datapoints/" + name))
 
-    if df['index_chain'][0] == 1: # ignore files with numbering errors : TODO : remove when we get DSSR Pro, there should not be numbering errors anymore
-        l = measures_hrna_basepairs_chain(name, chain, df, thr_idx)
+    # if df['index_chain'][0] == 1: # ignore files with numbering errors : TODO : remove when we get DSSR Pro, there should not be numbering errors anymore
+    l = measures_hrna_basepairs_chain(name, chain, df, thr_idx)
     df_calc = pd.DataFrame(l, columns=["type_LW", "nt1_idx", "nt1_res", "nt2_idx", "nt2_res", "Distance", 
-                                        "211_angle", "112_angle", "dB1", "dB2", "alpha1", "alpha2", "3211_torsion", "1123_torsion"])
+                                       "211_angle", "112_angle", "dB1", "dB2", "alpha1", "alpha2", "3211_torsion", "1123_torsion"])
     df_calc.to_csv(runDir + "/results/geometry/HiRE-RNA/basepairs/"+'basepairs_' + name + '.csv', float_format="%.3f")
 
 @trace_unhandled_exceptions
@@ -997,6 +1000,7 @@ def basepair_measures(res, pair):
     """
     Measurement of the flat angles describing a basepair in the HiRE-RNA model
     """
+
     if res.get_resname()=='C' or res.get_resname()=='U' :
         atom_c4_res = [ atom.get_coord() for atom in res if "C4'" in atom.get_fullname() ] 
         atom_c1p_res = [ atom.get_coord() for atom in res if "C1'" in atom.get_fullname() ]
@@ -1050,11 +1054,7 @@ def basepair_measures(res, pair):
         warnings.simplefilter('ignore', RuntimeWarning)
         b = res_12.angle(rho)*(180/np.pi)   # equal to the previous implementation
         c = pair_12.angle(-rho)*(180/np.pi) #
-    # a = calc_angle(a1_res, a2_res, a3_res)*(180/np.pi)    # not required
-    # b = calc_angle(a2_res, a1_res, a1_pair)*(180/np.pi)
-    # c = calc_angle(a1_res, a1_pair, a2_pair)*(180/np.pi)
-    # d = calc_angle(a3_pair, a2_pair, a1_pair)*(180/np.pi)   # not required
-
+    
     # Compute plane vectors
     n1 = (res_32**res_12).normalized() # ** between vectors, is the cross product
     n2 = (pair_32**pair_12).normalized()
@@ -1129,7 +1129,7 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
             if gmm.lower_bound_== max(maxlogv) : # takes the maximum
                 nb_components = n_comp
                 # if there is convergence, keep the first maximum found
-                if abs(gmm.lower_bound_-log_max) < 0.02 : #threshold=0.02
+                if abs(gmm.lower_bound_-log_max) < 0.02 : # threshold=0.02
                     nb_components = nb_log_max
                     break
             log_max = max(maxlogv)
@@ -1267,51 +1267,50 @@ def gmm_aa_dists(scan):
 
     df = pd.read_csv(os.path.abspath(runDir + "/results/geometry/all-atoms/distances/dist_atoms.csv"))
 
-    last_o3p_p = list(df["O3'-P"][~ np.isnan(df["O3'-P"])])
-    # op3_p = list(df["OP3-P"][~ np.isnan(df["OP3-P"])])
-    p_op1 = list(df["P-OP1"][~ np.isnan(df["P-OP1"])])
-    p_op2 = list(df["P-OP2"][~ np.isnan(df["P-OP2"])])
-    p_o5p = list(df["P-O5'"][~ np.isnan(df["P-O5'"])])
-    o5p_c5p = list(df["O5'-C5'"][~ np.isnan(df["O5'-C5'"])])
-    c5p_c4p = list(df["C5'-C4'"][~ np.isnan(df["C5'-C4'"])])
-    c4p_o4p = list(df["C4'-O4'"][~ np.isnan(df["C4'-O4'"])])
-    o4p_c1p = list(df["O4'-C1'"][~ np.isnan(df["O4'-C1'"])])
-    c1p_c2p = list(df["C1'-C2'"][~ np.isnan(df["C1'-C2'"])])
-    c2p_o2p = list(df["C2'-O2'"][~ np.isnan(df["C2'-O2'"])])
-    c2p_c3p = list(df["C2'-C3'"][~ np.isnan(df["C2'-C3'"])])
-    c3p_o3p = list(df["C3'-O3'"][~ np.isnan(df["C3'-O3'"])])
-    c4p_c3p = list(df["C4'-C3'"][~ np.isnan(df["C4'-C3'"])])
+    last_o3p_p  = df["O3'-P"][~ np.isnan(df["O3'-P"])].values.tolist()
+    p_op1       = df["P-OP1"][~ np.isnan(df["P-OP1"])].values.tolist()
+    p_op2       = df["P-OP2"][~ np.isnan(df["P-OP2"])].values.tolist()
+    p_o5p       = df["P-O5'"][~ np.isnan(df["P-O5'"])].values.tolist()
+    o5p_c5p     = df["O5'-C5'"][~ np.isnan(df["O5'-C5'"])].values.tolist()
+    c5p_c4p     = df["C5'-C4'"][~ np.isnan(df["C5'-C4'"])].values.tolist()
+    c4p_o4p     = df["C4'-O4'"][~ np.isnan(df["C4'-O4'"])].values.tolist()
+    o4p_c1p     = df["O4'-C1'"][~ np.isnan(df["O4'-C1'"])].values.tolist()
+    c1p_c2p     = df["C1'-C2'"][~ np.isnan(df["C1'-C2'"])].values.tolist()
+    c2p_o2p     = df["C2'-O2'"][~ np.isnan(df["C2'-O2'"])].values.tolist()
+    c2p_c3p     = df["C2'-C3'"][~ np.isnan(df["C2'-C3'"])].values.tolist()
+    c3p_o3p     = df["C3'-O3'"][~ np.isnan(df["C3'-O3'"])].values.tolist()
+    c4p_c3p     = df["C4'-C3'"][~ np.isnan(df["C4'-C3'"])].values.tolist()
     
     #if res = A ou G
-    c1p_n9 = list(df["C1'-N9"][~ np.isnan(df["C1'-N9"])])
-    n9_c8 = list(df["N9-C8"][~ np.isnan(df["N9-C8"])])
-    c8_n7 = list(df["C8-N7"][~ np.isnan(df["C8-N7"])])
-    n7_c5 = list(df["N7-C5"][~ np.isnan(df["N7-C5"])])
-    c5_c6 = list(df["C5-C6"][~ np.isnan(df["C5-C6"])])
-    c6_n1 = list(df["C6-N1"][~ np.isnan(df["C6-N1"])])
-    n1_c2 = list(df["N1-C2"][~ np.isnan(df["N1-C2"])])
-    c2_n3 = list(df["C2-N3"][~ np.isnan(df["C2-N3"])])
-    n3_c4 = list(df["N3-C4"][~ np.isnan(df["N3-C4"])])
-    c4_n9 = list(df["C4-N9"][~ np.isnan(df["C4-N9"])])
-    c4_c5 = list(df["C4-C5"][~ np.isnan(df["C4-C5"])])
+    c1p_n9 = df["C1'-N9"][~ np.isnan(df["C1'-N9"])].values.tolist()
+    n9_c8 = df["N9-C8"][~ np.isnan(df["N9-C8"])].values.tolist()
+    c8_n7 = df["C8-N7"][~ np.isnan(df["C8-N7"])].values.tolist()
+    n7_c5 = df["N7-C5"][~ np.isnan(df["N7-C5"])].values.tolist()
+    c5_c6 = df["C5-C6"][~ np.isnan(df["C5-C6"])].values.tolist()
+    c6_n1 = df["C6-N1"][~ np.isnan(df["C6-N1"])].values.tolist()
+    n1_c2 = df["N1-C2"][~ np.isnan(df["N1-C2"])].values.tolist()
+    c2_n3 = df["C2-N3"][~ np.isnan(df["C2-N3"])].values.tolist()
+    n3_c4 = df["N3-C4"][~ np.isnan(df["N3-C4"])].values.tolist()
+    c4_n9 = df["C4-N9"][~ np.isnan(df["C4-N9"])].values.tolist()
+    c4_c5 = df["C4-C5"][~ np.isnan(df["C4-C5"])].values.tolist()
     #if res = G
-    c6_o6 = list(df["C6-O6"][~ np.isnan(df["C6-O6"])])
-    c2_n2 = list(df["C2-N2"][~ np.isnan(df["C2-N2"])])
+    c6_o6 = df["C6-O6"][~ np.isnan(df["C6-O6"])].values.tolist()
+    c2_n2 = df["C2-N2"][~ np.isnan(df["C2-N2"])].values.tolist()
     #if res = A
-    c6_n6 = list(df["C6-N6"][~ np.isnan(df["C6-N6"])])
+    c6_n6 = df["C6-N6"][~ np.isnan(df["C6-N6"])].values.tolist()
     #if res = C ou U
-    c1p_n1 = list(df["C1'-N1"][~ np.isnan(df["C1'-N1"])])
-    n1_c6 = list(df["N1-C6"][~ np.isnan(df["N1-C6"])])
-    c6_c5 = list(df["C6-C5"][~ np.isnan(df["C6-C5"])])
-    c5_c4 = list(df["C5-C4"][~ np.isnan(df["C5-C4"])])
-    c4_n3 = list(df["C4-N3"][~ np.isnan(df["C4-N3"])])
-    n3_c2 = list(df["N3-C2"][~ np.isnan(df["N3-C2"])])
-    c2_n1 = list(df["C2-N1"][~ np.isnan(df["C2-N1"])])
-    c2_o2 = list(df["C2-O2"][~ np.isnan(df["C2-O2"])])
+    c1p_n1 = df["C1'-N1"][~ np.isnan(df["C1'-N1"])].values.tolist()
+    n1_c6 = df["N1-C6"][~ np.isnan(df["N1-C6"])].values.tolist()
+    c6_c5 = df["C6-C5"][~ np.isnan(df["C6-C5"])].values.tolist()
+    c5_c4 = df["C5-C4"][~ np.isnan(df["C5-C4"])].values.tolist()
+    c4_n3 = df["C4-N3"][~ np.isnan(df["C4-N3"])].values.tolist()
+    n3_c2 = df["N3-C2"][~ np.isnan(df["N3-C2"])].values.tolist()
+    c2_n1 = df["C2-N1"][~ np.isnan(df["C2-N1"])].values.tolist()
+    c2_o2 = df["C2-O2"][~ np.isnan(df["C2-O2"])].values.tolist()
     #if res =C
-    c4_n4 = list(df["C4-N4"][~ np.isnan(df["C4-N4"])])
+    c4_n4 = df["C4-N4"][~ np.isnan(df["C4-N4"])].values.tolist()
     #if res=U
-    c4_o4 = list(df["C4-O4"][~ np.isnan(df["C4-O4"])])
+    c4_o4 = df["C4-O4"][~ np.isnan(df["C4-O4"])].values.tolist()
 
     os.makedirs(runDir+"/results/figures/GMM/all-atoms/distances/commun/", exist_ok=True)
     os.chdir(runDir+"/results/figures/GMM/all-atoms/distances/commun/")
@@ -1495,10 +1494,10 @@ def gmm_pyle(scan):
     # Distances
     df = pd.read_csv(os.path.abspath(runDir + "/results/geometry/Pyle/distances/distances_pyle.csv"))  
 
-    p_c1p = list(df["C1'-P"][~ np.isnan(df["C1'-P"])])
-    c1p_p = list(df["P-C1'"][~ np.isnan(df["P-C1'"])])
-    p_c4p = list(df["C4'-P"][~ np.isnan(df["C4'-P"])])
-    c4p_p = list(df["P-C4'"][~ np.isnan(df["P-C4'"])])
+    p_c1p = df["C1'-P"][~ np.isnan(df["C1'-P"])].values.tolist()
+    c1p_p = df["P-C1'"][~ np.isnan(df["P-C1'"])].values.tolist()
+    p_c4p = df["C4'-P"][~ np.isnan(df["C4'-P"])].values.tolist()
+    c4p_p = df["P-C4'"][~ np.isnan(df["P-C4'"])].values.tolist()
 
     os.makedirs(runDir + "/results/figures/GMM/Pyle/distances/", exist_ok=True)
     os.chdir(runDir + "/results/figures/GMM/Pyle/distances/")
