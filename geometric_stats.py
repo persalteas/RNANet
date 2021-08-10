@@ -10,7 +10,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import Bio, json, os, random, sqlite3
+import scipy.stats as st
+import Bio, glob, json, os, random, sqlite3, warnings
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.vectors import Vector, calc_angle, calc_dihedral
 from multiprocessing import Pool, Value
@@ -18,7 +19,9 @@ from pandas.core.common import SettingWithCopyWarning
 from setproctitle import setproctitle
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
-from RNAnet import trace_unhandled_exceptions
+from RNAnet import init_with_tqdm, trace_unhandled_exceptions, warn, notify
+
+runDir = os.getcwd()
 
 # This dic stores the number laws to use in the GMM to estimate each parameter's distribution.
 # If you do not want to trust this data, you can use the --rescan-nmodes option.
@@ -49,369 +52,346 @@ modes_data = {
     "C4'-P":3, "C4'-C1'":3, "C1'-B1":3, "B1-B2":2,
 
     # HiRE-RNA, angles
-    "P-O5'-C5'":2, "O5'-C5'-C4'":1, "C5'-C4'-P":2, "C5'-C4'-C1'":2, "C4'-P-O5'":2, "C4'-CA'-B1":2, "C1'-C4'-P":2, "C1'-B1-B2":2,
+    "P-O5'-C5'":2, "O5'-C5'-C4'":1, "C5'-C4'-P":2, "C5'-C4'-C1'":2, "C4'-P-O5'":2, "C4'-C1'-B1":2, "C1'-C4'-P":2, "C1'-B1-B2":2,
 
     # HiRE-RNA, torsions
     "P-O5'-C5'-C4'":1, "O5'-C5'-C4'-P°":3, "O5'-C5'-C4'-C1'":3, "C5'-C4'-P°-O5'°":3, "C5'-C4'-C1'-B1":2, "C4'-P°-O5'°-C5'°":3, "C4'-C1'-B1-B2":3, "C1'-C4'-P°-O5'°":3,
 
     # HiRE-RNA, basepairs
-    "cWW_AA_C1'-B1-B1pair":1, "cWW_AA_B1-B1pair-C1'pair":1, "cWW_AA_C4'-C1'-B1-B1pair":2, "cWW_AA_B1-B1pair-C1'pair-C4'pair":3, "cWW_AA_alpha_1":1, "cWW_AA_alpha_2":3, "cWW AA dB1":3, "cWW AA dB2":3, 
-    "tWW_AA_C1'-B1-B1pair":1, "tWW_AA_B1-B1pair-C1'pair":1, "tWW_AA_C4'-C1'-B1-B1pair":1, "tWW_AA_B1-B1pair-C1'pair-C4'pair":3, "tWW_AA_alpha_1":2, "tWW_AA_alpha_2":1, "tWW AA dB1":1, "tWW AA dB2":2, 
-    "cWH_AA_C1'-B1-B1pair":2, "cWH_AA_B1-B1pair-C1'pair":2, "cWH_AA_C4'-C1'-B1-B1pair":2, "cWH_AA_B1-B1pair-C1'pair-C4'pair":2, "cWH_AA_alpha_1":1, "cWH_AA_alpha_2":2, "cWH AA dB1":3, "cWH AA dB2":2, 
-    "tWH_AA_C1'-B1-B1pair":1, "tWH_AA_B1-B1pair-C1'pair":3, "tWH_AA_C4'-C1'-B1-B1pair":2, "tWH_AA_B1-B1pair-C1'pair-C4'pair":1, "tWH_AA_alpha_1":1, "tWH_AA_alpha_2":3, "tWH AA dB1":2, "tWH AA dB2":1, 
-    "cHW_AA_C1'-B1-B1pair":2, "cHW_AA_B1-B1pair-C1'pair":2, "cHW_AA_C4'-C1'-B1-B1pair":3, "cHW_AA_B1-B1pair-C1'pair-C4'pair":2, "cHW_AA_alpha_1":2, "cHW_AA_alpha_2":2, "cHW AA dB1":3, "cHW AA dB2":2, 
-    "tHW_AA_C1'-B1-B1pair":2, "tHW_AA_B1-B1pair-C1'pair":2, "tHW_AA_C4'-C1'-B1-B1pair":2, "tHW_AA_B1-B1pair-C1'pair-C4'pair":2, "tHW_AA_alpha_1":2, "tHW_AA_alpha_2":1, "tHW AA dB1":2, "tHW AA dB2":1, 
-    "cWS_AA_C1'-B1-B1pair":2, "cWS_AA_B1-B1pair-C1'pair":2, "cWS_AA_C4'-C1'-B1-B1pair":2, "cWS_AA_B1-B1pair-C1'pair-C4'pair":1, "cWS_AA_alpha_1":2, "cWS_AA_alpha_2":2, "cWS AA dB1":2, "cWS AA dB2":1, 
-    "tWS_AA_C1'-B1-B1pair":2, "tWS_AA_B1-B1pair-C1'pair":2, "tWS_AA_C4'-C1'-B1-B1pair":3, "tWS_AA_B1-B1pair-C1'pair-C4'pair":1, "tWS_AA_alpha_1":2, "tWS_AA_alpha_2":2, "tWS AA dB1":2, "tWS AA dB2":3, 
-    "cSW_AA_C1'-B1-B1pair":3, "cSW_AA_B1-B1pair-C1'pair":2, "cSW_AA_C4'-C1'-B1-B1pair":1, "cSW_AA_B1-B1pair-C1'pair-C4'pair":2, "cSW_AA_alpha_1":2, "cSW_AA_alpha_2":2, "cSW AA dB1":1, "cSW AA dB2":1, 
-    "tSW_AA_C1'-B1-B1pair":3, "tSW_AA_B1-B1pair-C1'pair":3, "tSW_AA_C4'-C1'-B1-B1pair":2, "tSW_AA_B1-B1pair-C1'pair-C4'pair":2, "tSW_AA_alpha_1":2, "tSW_AA_alpha_2":2, "tSW AA dB1":2, "tSW AA dB2":2, 
-    "cHH_AA_C1'-B1-B1pair":2, "cHH_AA_B1-B1pair-C1'pair":3, "cHH_AA_C4'-C1'-B1-B1pair":3, "cHH_AA_B1-B1pair-C1'pair-C4'pair":3, "cHH_AA_alpha_1":2, "cHH_AA_alpha_2":3, "cHH AA dB1":3, "cHH AA dB2":1, 
-    "tHH_AA_C1'-B1-B1pair":2, "tHH_AA_B1-B1pair-C1'pair":2, "tHH_AA_C4'-C1'-B1-B1pair":3, "tHH_AA_B1-B1pair-C1'pair-C4'pair":1, "tHH_AA_alpha_1":2, "tHH_AA_alpha_2":2, "tHH AA dB1":2, "tHH AA dB2":2, 
-    "cSH_AA_C1'-B1-B1pair":2, "cSH_AA_B1-B1pair-C1'pair":1, "cSH_AA_C4'-C1'-B1-B1pair":3, "cSH_AA_B1-B1pair-C1'pair-C4'pair":1, "cSH_AA_alpha_1":2, "cSH_AA_alpha_2":2, "cSH AA dB1":4, "cSH AA dB2":1, 
-    "tSH_AA_C1'-B1-B1pair":1, "tSH_AA_B1-B1pair-C1'pair":2, "tSH_AA_C4'-C1'-B1-B1pair":2, "tSH_AA_B1-B1pair-C1'pair-C4'pair":2, "tSH_AA_alpha_1":2, "tSH_AA_alpha_2":3, "tSH AA dB1":2, "tSH AA dB2":2, 
-    "cHS_AA_C1'-B1-B1pair":2, "cHS_AA_B1-B1pair-C1'pair":2, "cHS_AA_C4'-C1'-B1-B1pair":1, "cHS_AA_B1-B1pair-C1'pair-C4'pair":1, "cHS_AA_alpha_1":2, "cHS_AA_alpha_2":2, "cHS AA dB1":1, "cHS AA dB2":4, 
-    "tHS_AA_C1'-B1-B1pair":2, "tHS_AA_B1-B1pair-C1'pair":2, "tHS_AA_C4'-C1'-B1-B1pair":1, "tHS_AA_B1-B1pair-C1'pair-C4'pair":1, "tHS_AA_alpha_1":2, "tHS_AA_alpha_2":1, "tHS AA dB1":2, "tHS AA dB2":1, 
-    "cSS_AA_C1'-B1-B1pair":3, "cSS_AA_B1-B1pair-C1'pair":3, "cSS_AA_C4'-C1'-B1-B1pair":2, "cSS_AA_B1-B1pair-C1'pair-C4'pair":2, "cSS_AA_alpha_1":3, "cSS_AA_alpha_2":3, "cSS AA dB1":3, "cSS AA dB2":5, 
-    "tSS_AA_C1'-B1-B1pair":1, "tSS_AA_B1-B1pair-C1'pair":1, "tSS_AA_C4'-C1'-B1-B1pair":2, "tSS_AA_B1-B1pair-C1'pair-C4'pair":1, "tSS_AA_alpha_1":3, "tSS_AA_alpha_2":1, "tSS AA dB1":4, "tSS AA dB2":2, 
-    "cWW_AC_C1'-B1-B1pair":1, "cWW_AC_B1-B1pair-C1'pair":2, "cWW_AC_C4'-C1'-B1-B1pair":2, "cWW_AC_B1-B1pair-C1'pair-C4'pair":2, "cWW_AC_alpha_1":1, "cWW_AC_alpha_2":2, "cWW AC dB1":3, "cWW AC dB2":3, 
-    "tWW_AC_C1'-B1-B1pair":3, "tWW_AC_B1-B1pair-C1'pair":2, "tWW_AC_C4'-C1'-B1-B1pair":2, "tWW_AC_B1-B1pair-C1'pair-C4'pair":3, "tWW_AC_alpha_1":3, "tWW_AC_alpha_2":2, "tWW AC dB1":4, "tWW AC dB2":3, 
-    "cWH_AC_C1'-B1-B1pair":2, "cWH_AC_B1-B1pair-C1'pair":2, "cWH_AC_C4'-C1'-B1-B1pair":1, "cWH_AC_B1-B1pair-C1'pair-C4'pair":2, "cWH_AC_alpha_1":2, "cWH_AC_alpha_2":2, "cWH AC dB1":4, "cWH AC dB2":4, 
-    "tWH_AC_C1'-B1-B1pair":1, "tWH_AC_B1-B1pair-C1'pair":2, "tWH_AC_C4'-C1'-B1-B1pair":2, "tWH_AC_B1-B1pair-C1'pair-C4'pair":3, "tWH_AC_alpha_1":2, "tWH_AC_alpha_2":2, "tWH AC dB1":3, "tWH AC dB2":3, 
-    "cHW_AC_C1'-B1-B1pair":2, "cHW_AC_B1-B1pair-C1'pair":2, "cHW_AC_C4'-C1'-B1-B1pair":3, "cHW_AC_B1-B1pair-C1'pair-C4'pair":2, "cHW_AC_alpha_1":2, "cHW_AC_alpha_2":3, "cHW AC dB1":2, "cHW AC dB2":5, 
-    "tHW_AC_C1'-B1-B1pair":2, "tHW_AC_B1-B1pair-C1'pair":3, "tHW_AC_C4'-C1'-B1-B1pair":3, "tHW_AC_B1-B1pair-C1'pair-C4'pair":1, "tHW_AC_alpha_1":2, "tHW_AC_alpha_2":2, "tHW AC dB1":3, "tHW AC dB2":3, 
-    "cWS_AC_C1'-B1-B1pair":2, "cWS_AC_B1-B1pair-C1'pair":1, "cWS_AC_C4'-C1'-B1-B1pair":2, "cWS_AC_B1-B1pair-C1'pair-C4'pair":1, "cWS_AC_alpha_1":2, "cWS_AC_alpha_2":1, "cWS AC dB1":1, "cWS AC dB2":1, 
-    "tWS_AC_C1'-B1-B1pair":2, "tWS_AC_B1-B1pair-C1'pair":1, "tWS_AC_C4'-C1'-B1-B1pair":2, "tWS_AC_B1-B1pair-C1'pair-C4'pair":2, "tWS_AC_alpha_1":3, "tWS_AC_alpha_2":1, "tWS AC dB1":3, "tWS AC dB2":2, 
-    "cSW_AC_C1'-B1-B1pair":2, "cSW_AC_B1-B1pair-C1'pair":2, "cSW_AC_C4'-C1'-B1-B1pair":2, "cSW_AC_B1-B1pair-C1'pair-C4'pair":2, "cSW_AC_alpha_1":3, "cSW_AC_alpha_2":2, "cSW AC dB1":2, "cSW AC dB2":3, 
-    "tSW_AC_C1'-B1-B1pair":1, "tSW_AC_B1-B1pair-C1'pair":2, "tSW_AC_C4'-C1'-B1-B1pair":1, "tSW_AC_B1-B1pair-C1'pair-C4'pair":2, "tSW_AC_alpha_1":1, "tSW_AC_alpha_2":2, "tSW AC dB1":2, "tSW AC dB2":3, 
-    "cHH_AC_C1'-B1-B1pair":2, "cHH_AC_B1-B1pair-C1'pair":2, "cHH_AC_C4'-C1'-B1-B1pair":1, "cHH_AC_B1-B1pair-C1'pair-C4'pair":1, "cHH_AC_alpha_1":3, "cHH_AC_alpha_2":3, "cHH AC dB1":3, "cHH AC dB2":4, 
-    "tHH_AC_C1'-B1-B1pair":1, "tHH_AC_B1-B1pair-C1'pair":2, "tHH_AC_C4'-C1'-B1-B1pair":2, "tHH_AC_B1-B1pair-C1'pair-C4'pair":3, "tHH_AC_alpha_1":2, "tHH_AC_alpha_2":2, "tHH AC dB1":4, "tHH AC dB2":3, 
-    "cSH_AC_C1'-B1-B1pair":1, "cSH_AC_B1-B1pair-C1'pair":3, "cSH_AC_C4'-C1'-B1-B1pair":1, "cSH_AC_B1-B1pair-C1'pair-C4'pair":2, "cSH_AC_alpha_1":1, "cSH_AC_alpha_2":1, "cSH AC dB1":2, "cSH AC dB2":6, 
-    "tSH_AC_C1'-B1-B1pair":3, "tSH_AC_B1-B1pair-C1'pair":2, "tSH_AC_C4'-C1'-B1-B1pair":1, "tSH_AC_B1-B1pair-C1'pair-C4'pair":2, "tSH_AC_alpha_1":2, "tSH_AC_alpha_2":3, "tSH AC dB1":1, "tSH AC dB2":2, 
-    "cHS_AC_C1'-B1-B1pair":1, "cHS_AC_B1-B1pair-C1'pair":1, "cHS_AC_C4'-C1'-B1-B1pair":2, "cHS_AC_B1-B1pair-C1'pair-C4'pair":1, "cHS_AC_alpha_1":1, "cHS_AC_alpha_2":1, "cHS AC dB1":3, "cHS AC dB2":2, 
-    "tHS_AC_C1'-B1-B1pair":1, "tHS_AC_B1-B1pair-C1'pair":2, "tHS_AC_C4'-C1'-B1-B1pair":2, "tHS_AC_B1-B1pair-C1'pair-C4'pair":2, "tHS_AC_alpha_1":1, "tHS_AC_alpha_2":1, "tHS AC dB1":1, "tHS AC dB2":1, 
-    "cSS_AC_C1'-B1-B1pair":2, "cSS_AC_B1-B1pair-C1'pair":2, "cSS_AC_C4'-C1'-B1-B1pair":1, "cSS_AC_B1-B1pair-C1'pair-C4'pair":1, "cSS_AC_alpha_1":2, "cSS_AC_alpha_2":1, "cSS AC dB1":1, "cSS AC dB2":5, 
-    "tSS_AC_C1'-B1-B1pair":2, "tSS_AC_B1-B1pair-C1'pair":2, "tSS_AC_C4'-C1'-B1-B1pair":1, "tSS_AC_B1-B1pair-C1'pair-C4'pair":2, "tSS_AC_alpha_1":2, "tSS_AC_alpha_2":2, "tSS AC dB1":3, "tSS AC dB2":5, 
-    "cWW_AG_C1'-B1-B1pair":1, "cWW_AG_B1-B1pair-C1'pair":1, "cWW_AG_C4'-C1'-B1-B1pair":2, "cWW_AG_B1-B1pair-C1'pair-C4'pair":2, "cWW_AG_alpha_1":1, "cWW_AG_alpha_2":1, "cWW AG dB1":1, "cWW AG dB2":1, 
-    "tWW_AG_C1'-B1-B1pair":1, "tWW_AG_B1-B1pair-C1'pair":1, "tWW_AG_C4'-C1'-B1-B1pair":2, "tWW_AG_B1-B1pair-C1'pair-C4'pair":2, "tWW_AG_alpha_1":1, "tWW_AG_alpha_2":2, "tWW AG dB1":2, "tWW AG dB2":3, 
-    "cWH_AG_C1'-B1-B1pair":1, "cWH_AG_B1-B1pair-C1'pair":1, "cWH_AG_C4'-C1'-B1-B1pair":2, "cWH_AG_B1-B1pair-C1'pair-C4'pair":1, "cWH_AG_alpha_1":3, "cWH_AG_alpha_2":1, "cWH AG dB1":2, "cWH AG dB2":1, 
-    "tWH_AG_C1'-B1-B1pair":1, "tWH_AG_B1-B1pair-C1'pair":1, "tWH_AG_C4'-C1'-B1-B1pair":2, "tWH_AG_B1-B1pair-C1'pair-C4'pair":2, "tWH_AG_alpha_1":1, "tWH_AG_alpha_2":1, "tWH AG dB1":2, "tWH AG dB2":1, 
-    "cHW_AG_C1'-B1-B1pair":2, "cHW_AG_B1-B1pair-C1'pair":1, "cHW_AG_C4'-C1'-B1-B1pair":1, "cHW_AG_B1-B1pair-C1'pair-C4'pair":1, "cHW_AG_alpha_1":1, "cHW_AG_alpha_2":2, "cHW AG dB1":2, "cHW AG dB2":2, 
-    "tHW_AG_C1'-B1-B1pair":2, "tHW_AG_B1-B1pair-C1'pair":2, "tHW_AG_C4'-C1'-B1-B1pair":1, "tHW_AG_B1-B1pair-C1'pair-C4'pair":2, "tHW_AG_alpha_1":2, "tHW_AG_alpha_2":2, "tHW AG dB1":2, "tHW AG dB2":2, 
-    "cWS_AG_C1'-B1-B1pair":3, "cWS_AG_B1-B1pair-C1'pair":1, "cWS_AG_C4'-C1'-B1-B1pair":1, "cWS_AG_B1-B1pair-C1'pair-C4'pair":1, "cWS_AG_alpha_1":2, "cWS_AG_alpha_2":2, "cWS AG dB1":2, "cWS AG dB2":1, 
-    "tWS_AG_C1'-B1-B1pair":1, "tWS_AG_B1-B1pair-C1'pair":2, "tWS_AG_C4'-C1'-B1-B1pair":2, "tWS_AG_B1-B1pair-C1'pair-C4'pair":1, "tWS_AG_alpha_1":2, "tWS_AG_alpha_2":2, "tWS AG dB1":1, "tWS AG dB2":3, 
-    "cSW_AG_C1'-B1-B1pair":1, "cSW_AG_B1-B1pair-C1'pair":2, "cSW_AG_C4'-C1'-B1-B1pair":1, "cSW_AG_B1-B1pair-C1'pair-C4'pair":2, "cSW_AG_alpha_1":1, "cSW_AG_alpha_2":2, "cSW AG dB1":3, "cSW AG dB2":1, 
-    "tSW_AG_C1'-B1-B1pair":3, "tSW_AG_B1-B1pair-C1'pair":2, "tSW_AG_C4'-C1'-B1-B1pair":2, "tSW_AG_B1-B1pair-C1'pair-C4'pair":2, "tSW_AG_alpha_1":2, "tSW_AG_alpha_2":2, "tSW AG dB1":3, "tSW AG dB2":3, 
-    "cHH_AG_C1'-B1-B1pair":2, "cHH_AG_B1-B1pair-C1'pair":4, "cHH_AG_C4'-C1'-B1-B1pair":3, "cHH_AG_B1-B1pair-C1'pair-C4'pair":2, "cHH_AG_alpha_1":2, "cHH_AG_alpha_2":3, "cHH AG dB1":1, "cHH AG dB2":2, 
-    "tHH_AG_C1'-B1-B1pair":3, "tHH_AG_B1-B1pair-C1'pair":3, "tHH_AG_C4'-C1'-B1-B1pair":3, "tHH_AG_B1-B1pair-C1'pair-C4'pair":2, "tHH_AG_alpha_1":3, "tHH_AG_alpha_2":3, "tHH AG dB1":1, "tHH AG dB2":2, 
-    "cSH_AG_C1'-B1-B1pair":2, "cSH_AG_B1-B1pair-C1'pair":2, "cSH_AG_C4'-C1'-B1-B1pair":2, "cSH_AG_B1-B1pair-C1'pair-C4'pair":2, "cSH_AG_alpha_1":3, "cSH_AG_alpha_2":1, "cSH AG dB1":1, "cSH AG dB2":3, 
-    "tSH_AG_C1'-B1-B1pair":2, "tSH_AG_B1-B1pair-C1'pair":2, "tSH_AG_C4'-C1'-B1-B1pair":2, "tSH_AG_B1-B1pair-C1'pair-C4'pair":3, "tSH_AG_alpha_1":2, "tSH_AG_alpha_2":4, "tSH AG dB1":3, "tSH AG dB2":2, 
-    "cHS_AG_C1'-B1-B1pair":3, "cHS_AG_B1-B1pair-C1'pair":1, "cHS_AG_C4'-C1'-B1-B1pair":3, "cHS_AG_B1-B1pair-C1'pair-C4'pair":1, "cHS_AG_alpha_1":2, "cHS_AG_alpha_2":3, "cHS AG dB1":1, "cHS AG dB2":2, 
-    "tHS_AG_C1'-B1-B1pair":1, "tHS_AG_B1-B1pair-C1'pair":2, "tHS_AG_C4'-C1'-B1-B1pair":2, "tHS_AG_B1-B1pair-C1'pair-C4'pair":2, "tHS_AG_alpha_1":1, "tHS_AG_alpha_2":2, "tHS AG dB1":2, "tHS AG dB2":1, 
-    "cSS_AG_C1'-B1-B1pair":2, "cSS_AG_B1-B1pair-C1'pair":2, "cSS_AG_C4'-C1'-B1-B1pair":2, "cSS_AG_B1-B1pair-C1'pair-C4'pair":1, "cSS_AG_alpha_1":2, "cSS_AG_alpha_2":1, "cSS AG dB1":2, "cSS AG dB2":4, 
-    "tSS_AG_C1'-B1-B1pair":3, "tSS_AG_B1-B1pair-C1'pair":1, "tSS_AG_C4'-C1'-B1-B1pair":2, "tSS_AG_B1-B1pair-C1'pair-C4'pair":1, "tSS_AG_alpha_1":2, "tSS_AG_alpha_2":1, "tSS AG dB1":2, "tSS AG dB2":4, 
-    "cWW_AU_C1'-B1-B1pair":1, "cWW_AU_B1-B1pair-C1'pair":2, "cWW_AU_C4'-C1'-B1-B1pair":3, "cWW_AU_B1-B1pair-C1'pair-C4'pair":2, "cWW_AU_alpha_1":3, "cWW_AU_alpha_2":1, "cWW AU dB1":4, "cWW AU dB2":2, 
-    "tWW_AU_C1'-B1-B1pair":3, "tWW_AU_B1-B1pair-C1'pair":3, "tWW_AU_C4'-C1'-B1-B1pair":2, "tWW_AU_B1-B1pair-C1'pair-C4'pair":2, "tWW_AU_alpha_1":3, "tWW_AU_alpha_2":2, "tWW AU dB1":3, "tWW AU dB2":2, 
-    "cWH_AU_C1'-B1-B1pair":2, "cWH_AU_B1-B1pair-C1'pair":2, "cWH_AU_C4'-C1'-B1-B1pair":2, "cWH_AU_B1-B1pair-C1'pair-C4'pair":2, "cWH_AU_alpha_1":1, "cWH_AU_alpha_2":3, "cWH AU dB1":3, "cWH AU dB2":3, 
-    "tWH_AU_C1'-B1-B1pair":1, "tWH_AU_B1-B1pair-C1'pair":3, "tWH_AU_C4'-C1'-B1-B1pair":2, "tWH_AU_B1-B1pair-C1'pair-C4'pair":2, "tWH_AU_alpha_1":2, "tWH_AU_alpha_2":2, "tWH AU dB1":1, "tWH AU dB2":3, 
-    "cHW_AU_C1'-B1-B1pair":3, "cHW_AU_B1-B1pair-C1'pair":3, "cHW_AU_C4'-C1'-B1-B1pair":1, "cHW_AU_B1-B1pair-C1'pair-C4'pair":2, "cHW_AU_alpha_1":1, "cHW_AU_alpha_2":2, "cHW AU dB1":2, "cHW AU dB2":2, 
-    "tHW_AU_C1'-B1-B1pair":2, "tHW_AU_B1-B1pair-C1'pair":2, "tHW_AU_C4'-C1'-B1-B1pair":1, "tHW_AU_B1-B1pair-C1'pair-C4'pair":2, "tHW_AU_alpha_1":2, "tHW_AU_alpha_2":1, "tHW AU dB1":1, "tHW AU dB2":4, 
-    "cWS_AU_C1'-B1-B1pair":1, "cWS_AU_B1-B1pair-C1'pair":1, "cWS_AU_C4'-C1'-B1-B1pair":2, "cWS_AU_B1-B1pair-C1'pair-C4'pair":1, "cWS_AU_alpha_1":2, "cWS_AU_alpha_2":2, "cWS AU dB1":2, "cWS AU dB2":5, 
-    "tWS_AU_C1'-B1-B1pair":2, "tWS_AU_B1-B1pair-C1'pair":2, "tWS_AU_C4'-C1'-B1-B1pair":2, "tWS_AU_B1-B1pair-C1'pair-C4'pair":1, "tWS_AU_alpha_1":2, "tWS_AU_alpha_2":2, "tWS AU dB1":3, "tWS AU dB2":4, 
-    "cSW_AU_C1'-B1-B1pair":3, "cSW_AU_B1-B1pair-C1'pair":2, "cSW_AU_C4'-C1'-B1-B1pair":2, "cSW_AU_B1-B1pair-C1'pair-C4'pair":2, "cSW_AU_alpha_1":3, "cSW_AU_alpha_2":2, "cSW AU dB1":2, "cSW AU dB2":3, 
-    "tSW_AU_C1'-B1-B1pair":2, "tSW_AU_B1-B1pair-C1'pair":3, "tSW_AU_C4'-C1'-B1-B1pair":3, "tSW_AU_B1-B1pair-C1'pair-C4'pair":2, "tSW_AU_alpha_1":2, "tSW_AU_alpha_2":1, "tSW AU dB1":3, "tSW AU dB2":4, 
-    "cHH_AU_C1'-B1-B1pair":2, "cHH_AU_B1-B1pair-C1'pair":1, "cHH_AU_C4'-C1'-B1-B1pair":1, "cHH_AU_B1-B1pair-C1'pair-C4'pair":1, "cHH_AU_alpha_1":2, "cHH_AU_alpha_2":2, "cHH AU dB1":1, "cHH AU dB2":2, 
-    "tHH_AU_C1'-B1-B1pair":3, "tHH_AU_B1-B1pair-C1'pair":3, "tHH_AU_C4'-C1'-B1-B1pair":3, "tHH_AU_B1-B1pair-C1'pair-C4'pair":2, "tHH_AU_alpha_1":3, "tHH_AU_alpha_2":3, "tHH AU dB1":1, "tHH AU dB2":3, 
-    "cSH_AU_C1'-B1-B1pair":1, "cSH_AU_B1-B1pair-C1'pair":3, "cSH_AU_C4'-C1'-B1-B1pair":3, "cSH_AU_B1-B1pair-C1'pair-C4'pair":2, "cSH_AU_alpha_1":2, "cSH_AU_alpha_2":1, "cSH AU dB1":4, "cSH AU dB2":4, 
-    "tSH_AU_C1'-B1-B1pair":3, "tSH_AU_B1-B1pair-C1'pair":1, "tSH_AU_C4'-C1'-B1-B1pair":1, "tSH_AU_B1-B1pair-C1'pair-C4'pair":2, "tSH_AU_alpha_1":3, "tSH_AU_alpha_2":3, "tSH AU dB1":3, "tSH AU dB2":4, 
-    "cHS_AU_C1'-B1-B1pair":3, "cHS_AU_B1-B1pair-C1'pair":1, "cHS_AU_C4'-C1'-B1-B1pair":2, "cHS_AU_B1-B1pair-C1'pair-C4'pair":1, "cHS_AU_alpha_1":2, "cHS_AU_alpha_2":2, "cHS AU dB1":1, "cHS AU dB2":3, 
-    "tHS_AU_C1'-B1-B1pair":2, "tHS_AU_B1-B1pair-C1'pair":2, "tHS_AU_C4'-C1'-B1-B1pair":2, "tHS_AU_B1-B1pair-C1'pair-C4'pair":3, "tHS_AU_alpha_1":3, "tHS_AU_alpha_2":2, "tHS AU dB1":3, "tHS AU dB2":3, 
-    "cSS_AU_C1'-B1-B1pair":2, "cSS_AU_B1-B1pair-C1'pair":2, "cSS_AU_C4'-C1'-B1-B1pair":1, "cSS_AU_B1-B1pair-C1'pair-C4'pair":1, "cSS_AU_alpha_1":3, "cSS_AU_alpha_2":2, "cSS AU dB1":1, "cSS AU dB2":4, 
-    "tSS_AU_C1'-B1-B1pair":2, "tSS_AU_B1-B1pair-C1'pair":1, "tSS_AU_C4'-C1'-B1-B1pair":3, "tSS_AU_B1-B1pair-C1'pair-C4'pair":2, "tSS_AU_alpha_1":2, "tSS_AU_alpha_2":3, "tSS AU dB1":3, "tSS AU dB2":8, 
-    "cWW_CA_C1'-B1-B1pair":2, "cWW_CA_B1-B1pair-C1'pair":1, "cWW_CA_C4'-C1'-B1-B1pair":1, "cWW_CA_B1-B1pair-C1'pair-C4'pair":2, "cWW_CA_alpha_1":1, "cWW_CA_alpha_2":2, "cWW CA dB1":1, "cWW CA dB2":1, 
-    "tWW_CA_C1'-B1-B1pair":2, "tWW_CA_B1-B1pair-C1'pair":2, "tWW_CA_C4'-C1'-B1-B1pair":3, "tWW_CA_B1-B1pair-C1'pair-C4'pair":2, "tWW_CA_alpha_1":2, "tWW_CA_alpha_2":1, "tWW CA dB1":4, "tWW CA dB2":2, 
-    "cWH_CA_C1'-B1-B1pair":3, "cWH_CA_B1-B1pair-C1'pair":2, "cWH_CA_C4'-C1'-B1-B1pair":1, "cWH_CA_B1-B1pair-C1'pair-C4'pair":3, "cWH_CA_alpha_1":3, "cWH_CA_alpha_2":2, "cWH CA dB1":5, "cWH CA dB2":2, 
-    "tWH_CA_C1'-B1-B1pair":1, "tWH_CA_B1-B1pair-C1'pair":1, "tWH_CA_C4'-C1'-B1-B1pair":1, "tWH_CA_B1-B1pair-C1'pair-C4'pair":2, "tWH_CA_alpha_1":3, "tWH_CA_alpha_2":1, "tWH CA dB1":3, "tWH CA dB2":2, 
-    "cHW_CA_C1'-B1-B1pair":2, "cHW_CA_B1-B1pair-C1'pair":2, "cHW_CA_C4'-C1'-B1-B1pair":2, "cHW_CA_B1-B1pair-C1'pair-C4'pair":2, "cHW_CA_alpha_1":2, "cHW_CA_alpha_2":2, "cHW CA dB1":4, "cHW CA dB2":2, 
-    "tHW_CA_C1'-B1-B1pair":2, "tHW_CA_B1-B1pair-C1'pair":2, "tHW_CA_C4'-C1'-B1-B1pair":2, "tHW_CA_B1-B1pair-C1'pair-C4'pair":2, "tHW_CA_alpha_1":2, "tHW_CA_alpha_2":2, "tHW CA dB1":6, "tHW CA dB2":2, 
-    "cWS_CA_C1'-B1-B1pair":2, "cWS_CA_B1-B1pair-C1'pair":2, "cWS_CA_C4'-C1'-B1-B1pair":2, "cWS_CA_B1-B1pair-C1'pair-C4'pair":1, "cWS_CA_alpha_1":2, "cWS_CA_alpha_2":2, "cWS CA dB1":4, "cWS CA dB2":2, 
-    "tWS_CA_C1'-B1-B1pair":3, "tWS_CA_B1-B1pair-C1'pair":1, "tWS_CA_C4'-C1'-B1-B1pair":3, "tWS_CA_B1-B1pair-C1'pair-C4'pair":2, "tWS_CA_alpha_1":3, "tWS_CA_alpha_2":1, "tWS CA dB1":1, "tWS CA dB2":1, 
-    "cSW_CA_C1'-B1-B1pair":1, "cSW_CA_B1-B1pair-C1'pair":1, "cSW_CA_C4'-C1'-B1-B1pair":1, "cSW_CA_B1-B1pair-C1'pair-C4'pair":2, "cSW_CA_alpha_1":1, "cSW_CA_alpha_2":3, "cSW CA dB1":1, "cSW CA dB2":1, 
-    "tSW_CA_C1'-B1-B1pair":2, "tSW_CA_B1-B1pair-C1'pair":2, "tSW_CA_C4'-C1'-B1-B1pair":1, "tSW_CA_B1-B1pair-C1'pair-C4'pair":1, "tSW_CA_alpha_1":2, "tSW_CA_alpha_2":3, "tSW CA dB1":3, "tSW CA dB2":1, 
-    "cHH_CA_C1'-B1-B1pair":2, "cHH_CA_B1-B1pair-C1'pair":1, "cHH_CA_C4'-C1'-B1-B1pair":3, "cHH_CA_B1-B1pair-C1'pair-C4'pair":1, "cHH_CA_alpha_1":1, "cHH_CA_alpha_2":1, "cHH CA dB1":1, "cHH CA dB2":2, 
-    "tHH_CA_C1'-B1-B1pair":2, "tHH_CA_B1-B1pair-C1'pair":2, "tHH_CA_C4'-C1'-B1-B1pair":3, "tHH_CA_B1-B1pair-C1'pair-C4'pair":3, "tHH_CA_alpha_1":2, "tHH_CA_alpha_2":1, "tHH CA dB1":3, "tHH CA dB2":5, 
-    "cSH_CA_C1'-B1-B1pair":1, "cSH_CA_B1-B1pair-C1'pair":3, "cSH_CA_C4'-C1'-B1-B1pair":1, "cSH_CA_B1-B1pair-C1'pair-C4'pair":1, "cSH_CA_alpha_1":1, "cSH_CA_alpha_2":1, "cSH CA dB1":2, "cSH CA dB2":3, 
-    "tSH_CA_C1'-B1-B1pair":1, "tSH_CA_B1-B1pair-C1'pair":2, "tSH_CA_C4'-C1'-B1-B1pair":2, "tSH_CA_B1-B1pair-C1'pair-C4'pair":1, "tSH_CA_alpha_1":3, "tSH_CA_alpha_2":2, "tSH CA dB1":6, "tSH CA dB2":4, 
-    "cHS_CA_C1'-B1-B1pair":2, "cHS_CA_B1-B1pair-C1'pair":2, "cHS_CA_C4'-C1'-B1-B1pair":1, "cHS_CA_B1-B1pair-C1'pair-C4'pair":1, "cHS_CA_alpha_1":1, "cHS_CA_alpha_2":2, "cHS CA dB1":2, "cHS CA dB2":2, 
-    "tHS_CA_C1'-B1-B1pair":2, "tHS_CA_B1-B1pair-C1'pair":1, "tHS_CA_C4'-C1'-B1-B1pair":2, "tHS_CA_B1-B1pair-C1'pair-C4'pair":2, "tHS_CA_alpha_1":3, "tHS_CA_alpha_2":3, "tHS CA dB1":2, "tHS CA dB2":1, 
-    "cSS_CA_C1'-B1-B1pair":2, "cSS_CA_B1-B1pair-C1'pair":2, "cSS_CA_C4'-C1'-B1-B1pair":1, "cSS_CA_B1-B1pair-C1'pair-C4'pair":1, "cSS_CA_alpha_1":3, "cSS_CA_alpha_2":3, "cSS CA dB1":3, "cSS CA dB2":1, 
-    "tSS_CA_C1'-B1-B1pair":2, "tSS_CA_B1-B1pair-C1'pair":2, "tSS_CA_C4'-C1'-B1-B1pair":2, "tSS_CA_B1-B1pair-C1'pair-C4'pair":1, "tSS_CA_alpha_1":2, "tSS_CA_alpha_2":2, "tSS CA dB1":4, "tSS CA dB2":2, 
-    "cWW_CC_C1'-B1-B1pair":1, "cWW_CC_B1-B1pair-C1'pair":1, "cWW_CC_C4'-C1'-B1-B1pair":2, "cWW_CC_B1-B1pair-C1'pair-C4'pair":2, "cWW_CC_alpha_1":1, "cWW_CC_alpha_2":2, "cWW CC dB1":2, "cWW CC dB2":2, 
-    "tWW_CC_C1'-B1-B1pair":3, "tWW_CC_B1-B1pair-C1'pair":3, "tWW_CC_C4'-C1'-B1-B1pair":3, "tWW_CC_B1-B1pair-C1'pair-C4'pair":3, "tWW_CC_alpha_1":2, "tWW_CC_alpha_2":2, "tWW CC dB1":6, "tWW CC dB2":3, 
-    "cWH_CC_C1'-B1-B1pair":2, "cWH_CC_B1-B1pair-C1'pair":2, "cWH_CC_C4'-C1'-B1-B1pair":1, "cWH_CC_B1-B1pair-C1'pair-C4'pair":1, "cWH_CC_alpha_1":1, "cWH_CC_alpha_2":3, "cWH CC dB1":3, "cWH CC dB2":2, 
-    "tWH_CC_C1'-B1-B1pair":1, "tWH_CC_B1-B1pair-C1'pair":3, "tWH_CC_C4'-C1'-B1-B1pair":2, "tWH_CC_B1-B1pair-C1'pair-C4'pair":1, "tWH_CC_alpha_1":3, "tWH_CC_alpha_2":1, "tWH CC dB1":3, "tWH CC dB2":3, 
-    "cHW_CC_C1'-B1-B1pair":3, "cHW_CC_B1-B1pair-C1'pair":2, "cHW_CC_C4'-C1'-B1-B1pair":1, "cHW_CC_B1-B1pair-C1'pair-C4'pair":1, "cHW_CC_alpha_1":2, "cHW_CC_alpha_2":2, "cHW CC dB1":2, "cHW CC dB2":3, 
-    "tHW_CC_C1'-B1-B1pair":1, "tHW_CC_B1-B1pair-C1'pair":3, "tHW_CC_C4'-C1'-B1-B1pair":3, "tHW_CC_B1-B1pair-C1'pair-C4'pair":1, "tHW_CC_alpha_1":2, "tHW_CC_alpha_2":2, "tHW CC dB1":3, "tHW CC dB2":3, 
-    "cWS_CC_C1'-B1-B1pair":2, "cWS_CC_B1-B1pair-C1'pair":2, "cWS_CC_C4'-C1'-B1-B1pair":1, "cWS_CC_B1-B1pair-C1'pair-C4'pair":1, "cWS_CC_alpha_1":2, "cWS_CC_alpha_2":3, "cWS CC dB1":2, "cWS CC dB2":1, 
-    "tWS_CC_C1'-B1-B1pair":2, "tWS_CC_B1-B1pair-C1'pair":2, "tWS_CC_C4'-C1'-B1-B1pair":2, "tWS_CC_B1-B1pair-C1'pair-C4'pair":1, "tWS_CC_alpha_1":2, "tWS_CC_alpha_2":2, "tWS CC dB1":2, "tWS CC dB2":2, 
-    "cSW_CC_C1'-B1-B1pair":2, "cSW_CC_B1-B1pair-C1'pair":2, "cSW_CC_C4'-C1'-B1-B1pair":2, "cSW_CC_B1-B1pair-C1'pair-C4'pair":1, "cSW_CC_alpha_1":3, "cSW_CC_alpha_2":2, "cSW CC dB1":2, "cSW CC dB2":2, 
-    "tSW_CC_C1'-B1-B1pair":1, "tSW_CC_B1-B1pair-C1'pair":2, "tSW_CC_C4'-C1'-B1-B1pair":1, "tSW_CC_B1-B1pair-C1'pair-C4'pair":2, "tSW_CC_alpha_1":1, "tSW_CC_alpha_2":2, "tSW CC dB1":3, "tSW CC dB2":2, 
-    "cHH_CC_C1'-B1-B1pair":1, "cHH_CC_B1-B1pair-C1'pair":1, "cHH_CC_C4'-C1'-B1-B1pair":1, "cHH_CC_B1-B1pair-C1'pair-C4'pair":1, "cHH_CC_alpha_1":2, "cHH_CC_alpha_2":1, "cHH CC dB1":7, "cHH CC dB2":7, 
-    "tHH_CC_C1'-B1-B1pair":3, "tHH_CC_B1-B1pair-C1'pair":2, "tHH_CC_C4'-C1'-B1-B1pair":3, "tHH_CC_B1-B1pair-C1'pair-C4'pair":2, "tHH_CC_alpha_1":1, "tHH_CC_alpha_2":3, "tHH CC dB1":5, "tHH CC dB2":5, 
-    "cSH_CC_C1'-B1-B1pair":2, "cSH_CC_B1-B1pair-C1'pair":2, "cSH_CC_C4'-C1'-B1-B1pair":1, "cSH_CC_B1-B1pair-C1'pair-C4'pair":2, "cSH_CC_alpha_1":3, "cSH_CC_alpha_2":2, "cSH CC dB1":5, "cSH CC dB2":2, 
-    "tSH_CC_C1'-B1-B1pair":2, "tSH_CC_B1-B1pair-C1'pair":1, "tSH_CC_C4'-C1'-B1-B1pair":2, "tSH_CC_B1-B1pair-C1'pair-C4'pair":2, "tSH_CC_alpha_1":3, "tSH_CC_alpha_2":1, "tSH CC dB1":4, "tSH CC dB2":2, 
-    "cHS_CC_C1'-B1-B1pair":2, "cHS_CC_B1-B1pair-C1'pair":2, "cHS_CC_C4'-C1'-B1-B1pair":2, "cHS_CC_B1-B1pair-C1'pair-C4'pair":2, "cHS_CC_alpha_1":3, "cHS_CC_alpha_2":2, "cHS CC dB1":2, "cHS CC dB2":2, 
-    "tHS_CC_C1'-B1-B1pair":3, "tHS_CC_B1-B1pair-C1'pair":1, "tHS_CC_C4'-C1'-B1-B1pair":2, "tHS_CC_B1-B1pair-C1'pair-C4'pair":3, "tHS_CC_alpha_1":1, "tHS_CC_alpha_2":2, "tHS CC dB1":4, "tHS CC dB2":4, 
-    "cSS_CC_C1'-B1-B1pair":2, "cSS_CC_B1-B1pair-C1'pair":2, "cSS_CC_C4'-C1'-B1-B1pair":2, "cSS_CC_B1-B1pair-C1'pair-C4'pair":1, "cSS_CC_alpha_1":1, "cSS_CC_alpha_2":3, "cSS CC dB1":1, "cSS CC dB2":3, 
-    "tSS_CC_C1'-B1-B1pair":2, "tSS_CC_B1-B1pair-C1'pair":2, "tSS_CC_C4'-C1'-B1-B1pair":3, "tSS_CC_B1-B1pair-C1'pair-C4'pair":2, "tSS_CC_alpha_1":3, "tSS_CC_alpha_2":2, "tSS CC dB1":2, "tSS CC dB2":1, 
-    "cWW_CG_C1'-B1-B1pair":2, "cWW_CG_B1-B1pair-C1'pair":1, "cWW_CG_C4'-C1'-B1-B1pair":2, "cWW_CG_B1-B1pair-C1'pair-C4'pair":2, "cWW_CG_alpha_1":2, "cWW_CG_alpha_2":3, "cWW CG dB1":2, "cWW CG dB2":2, 
-    "tWW_CG_C1'-B1-B1pair":1, "tWW_CG_B1-B1pair-C1'pair":2, "tWW_CG_C4'-C1'-B1-B1pair":1, "tWW_CG_B1-B1pair-C1'pair-C4'pair":2, "tWW_CG_alpha_1":2, "tWW_CG_alpha_2":1, "tWW CG dB1":1, "tWW CG dB2":4, 
-    "cWH_CG_C1'-B1-B1pair":1, "cWH_CG_B1-B1pair-C1'pair":1, "cWH_CG_C4'-C1'-B1-B1pair":2, "cWH_CG_B1-B1pair-C1'pair-C4'pair":1, "cWH_CG_alpha_1":2, "cWH_CG_alpha_2":1, "cWH CG dB1":4, "cWH CG dB2":2, 
-    "tWH_CG_C1'-B1-B1pair":2, "tWH_CG_B1-B1pair-C1'pair":1, "tWH_CG_C4'-C1'-B1-B1pair":1, "tWH_CG_B1-B1pair-C1'pair-C4'pair":3, "tWH_CG_alpha_1":2, "tWH_CG_alpha_2":1, "tWH CG dB1":3, "tWH CG dB2":2, 
-    "cHW_CG_C1'-B1-B1pair":2, "cHW_CG_B1-B1pair-C1'pair":2, "cHW_CG_C4'-C1'-B1-B1pair":1, "cHW_CG_B1-B1pair-C1'pair-C4'pair":2, "cHW_CG_alpha_1":1, "cHW_CG_alpha_2":2, "cHW CG dB1":2, "cHW CG dB2":2, 
-    "tHW_CG_C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair":2, "tHW_CG_C4'-C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair-C4'pair":2, "tHW_CG_alpha_1":3, "tHW_CG_alpha_2":2, "tHW CG dB1":4, "tHW CG dB2":3, 
-    "cWS_CG_C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair":1, "cWS_CG_C4'-C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair-C4'pair":1, "cWS_CG_alpha_1":1, "cWS_CG_alpha_2":2, "cWS CG dB1":2, "cWS CG dB2":3, 
-    "tWS_CG_C1'-B1-B1pair":3, "tWS_CG_B1-B1pair-C1'pair":1, "tWS_CG_C4'-C1'-B1-B1pair":1, "tWS_CG_B1-B1pair-C1'pair-C4'pair":1, "tWS_CG_alpha_1":2, "tWS_CG_alpha_2":1, "tWS CG dB1":2, "tWS CG dB2":4, 
-    "cSW_CG_C1'-B1-B1pair":1, "cSW_CG_B1-B1pair-C1'pair":2, "cSW_CG_C4'-C1'-B1-B1pair":1, "cSW_CG_B1-B1pair-C1'pair-C4'pair":3, "cSW_CG_alpha_1":1, "cSW_CG_alpha_2":2, "cSW CG dB1":1, "cSW CG dB2":3, 
-    "tSW_CG_C1'-B1-B1pair":1, "tSW_CG_B1-B1pair-C1'pair":2, "tSW_CG_C4'-C1'-B1-B1pair":3, "tSW_CG_B1-B1pair-C1'pair-C4'pair":2, "tSW_CG_alpha_1":1, "tSW_CG_alpha_2":2, "tSW CG dB1":7, "tSW CG dB2":2, 
-    "cHH_CG_C1'-B1-B1pair":1, "cHH_CG_B1-B1pair-C1'pair":2, "cHH_CG_C4'-C1'-B1-B1pair":3, "cHH_CG_B1-B1pair-C1'pair-C4'pair":2, "cHH_CG_alpha_1":1, "cHH_CG_alpha_2":2, "cHH CG dB1":4, "cHH CG dB2":1, 
-    "tHH_CG_C1'-B1-B1pair":2, "tHH_CG_B1-B1pair-C1'pair":2, "tHH_CG_C4'-C1'-B1-B1pair":3, "tHH_CG_B1-B1pair-C1'pair-C4'pair":1, "tHH_CG_alpha_1":2, "tHH_CG_alpha_2":3, "tHH CG dB1":3, "tHH CG dB2":4, 
-    "cSH_CG_C1'-B1-B1pair":1, "cSH_CG_B1-B1pair-C1'pair":2, "cSH_CG_C4'-C1'-B1-B1pair":2, "cSH_CG_B1-B1pair-C1'pair-C4'pair":1, "cSH_CG_alpha_1":1, "cSH_CG_alpha_2":2, "cSH CG dB1":6, "cSH CG dB2":4, 
-    "tSH_CG_C1'-B1-B1pair":1, "tSH_CG_B1-B1pair-C1'pair":2, "tSH_CG_C4'-C1'-B1-B1pair":2, "tSH_CG_B1-B1pair-C1'pair-C4'pair":1, "tSH_CG_alpha_1":1, "tSH_CG_alpha_2":3, "tSH CG dB1":2, "tSH CG dB2":3, 
-    "cHS_CG_C1'-B1-B1pair":2, "cHS_CG_B1-B1pair-C1'pair":2, "cHS_CG_C4'-C1'-B1-B1pair":3, "cHS_CG_B1-B1pair-C1'pair-C4'pair":2, "cHS_CG_alpha_1":2, "cHS_CG_alpha_2":3, "cHS CG dB1":5, "cHS CG dB2":2, 
-    "tHS_CG_C1'-B1-B1pair":1, "tHS_CG_B1-B1pair-C1'pair":2, "tHS_CG_C4'-C1'-B1-B1pair":3, "tHS_CG_B1-B1pair-C1'pair-C4'pair":1, "tHS_CG_alpha_1":1, "tHS_CG_alpha_2":1, "tHS CG dB1":3, "tHS CG dB2":2, 
-    "cSS_CG_C1'-B1-B1pair":2, "cSS_CG_B1-B1pair-C1'pair":1, "cSS_CG_C4'-C1'-B1-B1pair":1, "cSS_CG_B1-B1pair-C1'pair-C4'pair":1, "cSS_CG_alpha_1":1, "cSS_CG_alpha_2":2, "cSS CG dB1":3, "cSS CG dB2":3, 
-    "tSS_CG_C1'-B1-B1pair":2, "tSS_CG_B1-B1pair-C1'pair":2, "tSS_CG_C4'-C1'-B1-B1pair":1, "tSS_CG_B1-B1pair-C1'pair-C4'pair":2, "tSS_CG_alpha_1":1, "tSS_CG_alpha_2":2, "tSS CG dB1":1, "tSS CG dB2":2, 
-    "cWW_CU_C1'-B1-B1pair":1, "cWW_CU_B1-B1pair-C1'pair":1, "cWW_CU_C4'-C1'-B1-B1pair":1, "cWW_CU_B1-B1pair-C1'pair-C4'pair":1, "cWW_CU_alpha_1":1, "cWW_CU_alpha_2":1, "cWW CU dB1":1, "cWW CU dB2":1, 
-    "tWW_CU_C1'-B1-B1pair":2, "tWW_CU_B1-B1pair-C1'pair":2, "tWW_CU_C4'-C1'-B1-B1pair":2, "tWW_CU_B1-B1pair-C1'pair-C4'pair":2, "tWW_CU_alpha_1":1, "tWW_CU_alpha_2":2, "tWW CU dB1":2, "tWW CU dB2":1, 
-    "cWH_CU_C1'-B1-B1pair":2, "cWH_CU_B1-B1pair-C1'pair":2, "cWH_CU_C4'-C1'-B1-B1pair":2, "cWH_CU_B1-B1pair-C1'pair-C4'pair":2, "cWH_CU_alpha_1":3, "cWH_CU_alpha_2":2, "cWH CU dB1":3, "cWH CU dB2":1, 
-    "tWH_CU_C1'-B1-B1pair":2, "tWH_CU_B1-B1pair-C1'pair":2, "tWH_CU_C4'-C1'-B1-B1pair":3, "tWH_CU_B1-B1pair-C1'pair-C4'pair":2, "tWH_CU_alpha_1":3, "tWH_CU_alpha_2":3, "tWH CU dB1":5, "tWH CU dB2":2, 
-    "cHW_CU_C1'-B1-B1pair":2, "cHW_CU_B1-B1pair-C1'pair":2, "cHW_CU_C4'-C1'-B1-B1pair":1, "cHW_CU_B1-B1pair-C1'pair-C4'pair":3, "cHW_CU_alpha_1":2, "cHW_CU_alpha_2":2, "cHW CU dB1":1, "cHW CU dB2":3, 
-    "tHW_CU_C1'-B1-B1pair":1, "tHW_CU_B1-B1pair-C1'pair":1, "tHW_CU_C4'-C1'-B1-B1pair":3, "tHW_CU_B1-B1pair-C1'pair-C4'pair":1, "tHW_CU_alpha_1":1, "tHW_CU_alpha_2":2, "tHW CU dB1":3, "tHW CU dB2":3, 
-    "cWS_CU_C1'-B1-B1pair":1, "cWS_CU_B1-B1pair-C1'pair":2, "cWS_CU_C4'-C1'-B1-B1pair":2, "cWS_CU_B1-B1pair-C1'pair-C4'pair":2, "cWS_CU_alpha_1":3, "cWS_CU_alpha_2":2, "cWS CU dB1":4, "cWS CU dB2":2, 
-    "tWS_CU_C1'-B1-B1pair":3, "tWS_CU_B1-B1pair-C1'pair":1, "tWS_CU_C4'-C1'-B1-B1pair":1, "tWS_CU_B1-B1pair-C1'pair-C4'pair":2, "tWS_CU_alpha_1":2, "tWS_CU_alpha_2":1, "tWS CU dB1":3, "tWS CU dB2":5, 
-    "cSW_CU_C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair":2, "cSW_CU_C4'-C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair-C4'pair":3, "cSW_CU_alpha_1":3, "cSW_CU_alpha_2":3, "cSW CU dB1":2, "cSW CU dB2":4, 
-    "tSW_CU_C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair":2, "tSW_CU_C4'-C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair-C4'pair":2, "tSW_CU_alpha_1":2, "tSW_CU_alpha_2":2, "tSW CU dB1":2, "tSW CU dB2":2, 
-    "cHH_CU_C1'-B1-B1pair":2, "cHH_CU_B1-B1pair-C1'pair":1, "cHH_CU_C4'-C1'-B1-B1pair":2, "cHH_CU_B1-B1pair-C1'pair-C4'pair":3, "cHH_CU_alpha_1":1, "cHH_CU_alpha_2":1, "cHH CU dB1":2, "cHH CU dB2":4, 
-    "tHH_CU_C1'-B1-B1pair":3, "tHH_CU_B1-B1pair-C1'pair":2, "tHH_CU_C4'-C1'-B1-B1pair":2, "tHH_CU_B1-B1pair-C1'pair-C4'pair":1, "tHH_CU_alpha_1":2, "tHH_CU_alpha_2":2, "tHH CU dB1":2, "tHH CU dB2":2, 
-    "cSH_CU_C1'-B1-B1pair":2, "cSH_CU_B1-B1pair-C1'pair":2, "cSH_CU_C4'-C1'-B1-B1pair":2, "cSH_CU_B1-B1pair-C1'pair-C4'pair":1, "cSH_CU_alpha_1":1, "cSH_CU_alpha_2":1, "cSH CU dB1":4, "cSH CU dB2":2, 
-    "tSH_CU_C1'-B1-B1pair":2, "tSH_CU_B1-B1pair-C1'pair":3, "tSH_CU_C4'-C1'-B1-B1pair":2, "tSH_CU_B1-B1pair-C1'pair-C4'pair":2, "tSH_CU_alpha_1":3, "tSH_CU_alpha_2":3, "tSH CU dB1":4, "tSH CU dB2":2, 
-    "cHS_CU_C1'-B1-B1pair":1, "cHS_CU_B1-B1pair-C1'pair":2, "cHS_CU_C4'-C1'-B1-B1pair":2, "cHS_CU_B1-B1pair-C1'pair-C4'pair":2, "cHS_CU_alpha_1":1, "cHS_CU_alpha_2":2, "cHS CU dB1":2, "cHS CU dB2":4, 
-    "tHS_CU_C1'-B1-B1pair":2, "tHS_CU_B1-B1pair-C1'pair":1, "tHS_CU_C4'-C1'-B1-B1pair":2, "tHS_CU_B1-B1pair-C1'pair-C4'pair":2, "tHS_CU_alpha_1":2, "tHS_CU_alpha_2":2, "tHS CU dB1":3, "tHS CU dB2":4, 
-    "cSS_CU_C1'-B1-B1pair":2, "cSS_CU_B1-B1pair-C1'pair":2, "cSS_CU_C4'-C1'-B1-B1pair":1, "cSS_CU_B1-B1pair-C1'pair-C4'pair":1, "cSS_CU_alpha_1":2, "cSS_CU_alpha_2":3, "cSS CU dB1":6, "cSS CU dB2":1, 
-    "tSS_CU_C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair":3, "tSS_CU_C4'-C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair-C4'pair":2, "tSS_CU_alpha_1":3, "tSS_CU_alpha_2":3, "tSS CU dB1":7, "tSS CU dB2":2, 
-    "cWW_GA_C1'-B1-B1pair":1, "cWW_GA_B1-B1pair-C1'pair":1, "cWW_GA_C4'-C1'-B1-B1pair":2, "cWW_GA_B1-B1pair-C1'pair-C4'pair":2, "cWW_GA_alpha_1":1, "cWW_GA_alpha_2":1, "cWW GA dB1":2, "cWW GA dB2":1, 
-    "tWW_GA_C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair":1, "tWW_GA_C4'-C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair-C4'pair":2, "tWW_GA_alpha_1":1, "tWW_GA_alpha_2":2, "tWW GA dB1":1, "tWW GA dB2":2, 
-    "cWH_GA_C1'-B1-B1pair":1, "cWH_GA_B1-B1pair-C1'pair":1, "cWH_GA_C4'-C1'-B1-B1pair":3, "cWH_GA_B1-B1pair-C1'pair-C4'pair":2, "cWH_GA_alpha_1":2, "cWH_GA_alpha_2":1, "cWH GA dB1":2, "cWH GA dB2":2, 
-    "tWH_GA_C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair":2, "tWH_GA_C4'-C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair-C4'pair":1, "tWH_GA_alpha_1":2, "tWH_GA_alpha_2":2, "tWH GA dB1":1, "tWH GA dB2":6, 
-    "cHW_GA_C1'-B1-B1pair":2, "cHW_GA_B1-B1pair-C1'pair":2, "cHW_GA_C4'-C1'-B1-B1pair":1, "cHW_GA_B1-B1pair-C1'pair-C4'pair":2, "cHW_GA_alpha_1":1, "cHW_GA_alpha_2":2, "cHW GA dB1":1, "cHW GA dB2":4, 
-    "tHW_GA_C1'-B1-B1pair":2, "tHW_GA_B1-B1pair-C1'pair":1, "tHW_GA_C4'-C1'-B1-B1pair":2, "tHW_GA_B1-B1pair-C1'pair-C4'pair":2, "tHW_GA_alpha_1":1, "tHW_GA_alpha_2":1, "tHW GA dB1":3, "tHW GA dB2":1, 
-    "cWS_GA_C1'-B1-B1pair":3, "cWS_GA_B1-B1pair-C1'pair":2, "cWS_GA_C4'-C1'-B1-B1pair":2, "cWS_GA_B1-B1pair-C1'pair-C4'pair":1, "cWS_GA_alpha_1":2, "cWS_GA_alpha_2":3, "cWS GA dB1":3, "cWS GA dB2":4, 
-    "tWS_GA_C1'-B1-B1pair":3, "tWS_GA_B1-B1pair-C1'pair":2, "tWS_GA_C4'-C1'-B1-B1pair":1, "tWS_GA_B1-B1pair-C1'pair-C4'pair":1, "tWS_GA_alpha_1":1, "tWS_GA_alpha_2":2, "tWS GA dB1":2, "tWS GA dB2":5, 
-    "cSW_GA_C1'-B1-B1pair":1, "cSW_GA_B1-B1pair-C1'pair":1, "cSW_GA_C4'-C1'-B1-B1pair":1, "cSW_GA_B1-B1pair-C1'pair-C4'pair":1, "cSW_GA_alpha_1":1, "cSW_GA_alpha_2":2, "cSW GA dB1":1, "cSW GA dB2":2, 
-    "tSW_GA_C1'-B1-B1pair":1, "tSW_GA_B1-B1pair-C1'pair":2, "tSW_GA_C4'-C1'-B1-B1pair":1, "tSW_GA_B1-B1pair-C1'pair-C4'pair":2, "tSW_GA_alpha_1":1, "tSW_GA_alpha_2":3, "tSW GA dB1":2, "tSW GA dB2":2, 
-    "cHH_GA_C1'-B1-B1pair":2, "cHH_GA_B1-B1pair-C1'pair":2, "cHH_GA_C4'-C1'-B1-B1pair":2, "cHH_GA_B1-B1pair-C1'pair-C4'pair":2, "cHH_GA_alpha_1":2, "cHH_GA_alpha_2":3, "cHH GA dB1":2, "cHH GA dB2":3, 
-    "tHH_GA_C1'-B1-B1pair":3, "tHH_GA_B1-B1pair-C1'pair":2, "tHH_GA_C4'-C1'-B1-B1pair":2, "tHH_GA_B1-B1pair-C1'pair-C4'pair":2, "tHH_GA_alpha_1":1, "tHH_GA_alpha_2":2, "tHH GA dB1":3, "tHH GA dB2":2, 
-    "cSH_GA_C1'-B1-B1pair":2, "cSH_GA_B1-B1pair-C1'pair":2, "cSH_GA_C4'-C1'-B1-B1pair":2, "cSH_GA_B1-B1pair-C1'pair-C4'pair":2, "cSH_GA_alpha_1":1, "cSH_GA_alpha_2":2, "cSH GA dB1":2, "cSH GA dB2":1, 
-    "tSH_GA_C1'-B1-B1pair":1, "tSH_GA_B1-B1pair-C1'pair":1, "tSH_GA_C4'-C1'-B1-B1pair":2, "tSH_GA_B1-B1pair-C1'pair-C4'pair":2, "tSH_GA_alpha_1":2, "tSH_GA_alpha_2":2, "tSH GA dB1":2, "tSH GA dB2":7, 
-    "cHS_GA_C1'-B1-B1pair":3, "cHS_GA_B1-B1pair-C1'pair":3, "cHS_GA_C4'-C1'-B1-B1pair":3, "cHS_GA_B1-B1pair-C1'pair-C4'pair":2, "cHS_GA_alpha_1":2, "cHS_GA_alpha_2":2, "cHS GA dB1":3, "cHS GA dB2":4, 
-    "tHS_GA_C1'-B1-B1pair":3, "tHS_GA_B1-B1pair-C1'pair":1, "tHS_GA_C4'-C1'-B1-B1pair":3, "tHS_GA_B1-B1pair-C1'pair-C4'pair":2, "tHS_GA_alpha_1":2, "tHS_GA_alpha_2":1, "tHS GA dB1":1, "tHS GA dB2":2, 
-    "cSS_GA_C1'-B1-B1pair":3, "cSS_GA_B1-B1pair-C1'pair":2, "cSS_GA_C4'-C1'-B1-B1pair":1, "cSS_GA_B1-B1pair-C1'pair-C4'pair":1, "cSS_GA_alpha_1":2, "cSS_GA_alpha_2":1, "cSS GA dB1":1, "cSS GA dB2":1, 
-    "tSS_GA_C1'-B1-B1pair":1, "tSS_GA_B1-B1pair-C1'pair":1, "tSS_GA_C4'-C1'-B1-B1pair":1, "tSS_GA_B1-B1pair-C1'pair-C4'pair":1, "tSS_GA_alpha_1":1, "tSS_GA_alpha_2":2, "tSS GA dB1":5, "tSS GA dB2":2, 
-    "cWW_GC_C1'-B1-B1pair":1, "cWW_GC_B1-B1pair-C1'pair":2, "cWW_GC_C4'-C1'-B1-B1pair":2, "cWW_GC_B1-B1pair-C1'pair-C4'pair":2, "cWW_GC_alpha_1":2, "cWW_GC_alpha_2":1, "cWW GC dB1":2, "cWW GC dB2":3, 
-    "tWW_GC_C1'-B1-B1pair":1, "tWW_GC_B1-B1pair-C1'pair":2, "tWW_GC_C4'-C1'-B1-B1pair":1, "tWW_GC_B1-B1pair-C1'pair-C4'pair":2, "tWW_GC_alpha_1":1, "tWW_GC_alpha_2":2, "tWW GC dB1":3, "tWW GC dB2":4, 
-    "cWH_GC_C1'-B1-B1pair":2, "cWH_GC_B1-B1pair-C1'pair":2, "cWH_GC_C4'-C1'-B1-B1pair":2, "cWH_GC_B1-B1pair-C1'pair-C4'pair":1, "cWH_GC_alpha_1":2, "cWH_GC_alpha_2":2, "cWH GC dB1":2, "cWH GC dB2":3, 
-    "tWH_GC_C1'-B1-B1pair":1, "tWH_GC_B1-B1pair-C1'pair":1, "tWH_GC_C4'-C1'-B1-B1pair":2, "tWH_GC_B1-B1pair-C1'pair-C4'pair":2, "tWH_GC_alpha_1":3, "tWH_GC_alpha_2":3, "tWH GC dB1":2, "tWH GC dB2":2, 
-    "cHW_GC_C1'-B1-B1pair":1, "cHW_GC_B1-B1pair-C1'pair":1, "cHW_GC_C4'-C1'-B1-B1pair":1, "cHW_GC_B1-B1pair-C1'pair-C4'pair":1, "cHW_GC_alpha_1":1, "cHW_GC_alpha_2":1, "cHW GC dB1":3, "cHW GC dB2":4, 
-    "tHW_GC_C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair":2, "tHW_GC_C4'-C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair-C4'pair":1, "tHW_GC_alpha_1":2, "tHW_GC_alpha_2":2, "tHW GC dB1":2, "tHW GC dB2":4, 
-    "cWS_GC_C1'-B1-B1pair":1, "cWS_GC_B1-B1pair-C1'pair":1, "cWS_GC_C4'-C1'-B1-B1pair":1, "cWS_GC_B1-B1pair-C1'pair-C4'pair":1, "cWS_GC_alpha_1":2, "cWS_GC_alpha_2":1, "cWS GC dB1":2, "cWS GC dB2":1, 
-    "tWS_GC_C1'-B1-B1pair":1, "tWS_GC_B1-B1pair-C1'pair":1, "tWS_GC_C4'-C1'-B1-B1pair":3, "tWS_GC_B1-B1pair-C1'pair-C4'pair":1, "tWS_GC_alpha_1":1, "tWS_GC_alpha_2":1, "tWS GC dB1":4, "tWS GC dB2":5, 
-    "cSW_GC_C1'-B1-B1pair":2, "cSW_GC_B1-B1pair-C1'pair":3, "cSW_GC_C4'-C1'-B1-B1pair":1, "cSW_GC_B1-B1pair-C1'pair-C4'pair":1, "cSW_GC_alpha_1":3, "cSW_GC_alpha_2":2, "cSW GC dB1":3, "cSW GC dB2":2, 
-    "tSW_GC_C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair":3, "tSW_GC_C4'-C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair-C4'pair":2, "tSW_GC_alpha_1":2, "tSW_GC_alpha_2":2, "tSW GC dB1":4, "tSW GC dB2":2, 
-    "cHH_GC_C1'-B1-B1pair":3, "cHH_GC_B1-B1pair-C1'pair":1, "cHH_GC_C4'-C1'-B1-B1pair":2, "cHH_GC_B1-B1pair-C1'pair-C4'pair":1, "cHH_GC_alpha_1":2, "cHH_GC_alpha_2":2, "cHH GC dB1":3, "cHH GC dB2":3, 
-    "tHH_GC_C1'-B1-B1pair":2, "tHH_GC_B1-B1pair-C1'pair":1, "tHH_GC_C4'-C1'-B1-B1pair":1, "tHH_GC_B1-B1pair-C1'pair-C4'pair":2, "tHH_GC_alpha_1":3, "tHH_GC_alpha_2":1, "tHH GC dB1":6, "tHH GC dB2":3, 
-    "cSH_GC_C1'-B1-B1pair":2, "cSH_GC_B1-B1pair-C1'pair":3, "cSH_GC_C4'-C1'-B1-B1pair":1, "cSH_GC_B1-B1pair-C1'pair-C4'pair":3, "cSH_GC_alpha_1":2, "cSH_GC_alpha_2":2, "cSH GC dB1":5, "cSH GC dB2":4, 
-    "tSH_GC_C1'-B1-B1pair":1, "tSH_GC_B1-B1pair-C1'pair":2, "tSH_GC_C4'-C1'-B1-B1pair":1, "tSH_GC_B1-B1pair-C1'pair-C4'pair":4, "tSH_GC_alpha_1":1, "tSH_GC_alpha_2":2, "tSH GC dB1":2, "tSH GC dB2":3, 
-    "cHS_GC_C1'-B1-B1pair":2, "cHS_GC_B1-B1pair-C1'pair":2, "cHS_GC_C4'-C1'-B1-B1pair":2, "cHS_GC_B1-B1pair-C1'pair-C4'pair":2, "cHS_GC_alpha_1":3, "cHS_GC_alpha_2":1, "cHS GC dB1":2, "cHS GC dB2":5, 
-    "tHS_GC_C1'-B1-B1pair":2, "tHS_GC_B1-B1pair-C1'pair":2, "tHS_GC_C4'-C1'-B1-B1pair":2, "tHS_GC_B1-B1pair-C1'pair-C4'pair":3, "tHS_GC_alpha_1":2, "tHS_GC_alpha_2":2, "tHS GC dB1":2, "tHS GC dB2":2, 
-    "cSS_GC_C1'-B1-B1pair":2, "cSS_GC_B1-B1pair-C1'pair":2, "cSS_GC_C4'-C1'-B1-B1pair":1, "cSS_GC_B1-B1pair-C1'pair-C4'pair":1, "cSS_GC_alpha_1":2, "cSS_GC_alpha_2":3, "cSS GC dB1":3, "cSS GC dB2":3, 
-    "tSS_GC_C1'-B1-B1pair":2, "tSS_GC_B1-B1pair-C1'pair":2, "tSS_GC_C4'-C1'-B1-B1pair":1, "tSS_GC_B1-B1pair-C1'pair-C4'pair":1, "tSS_GC_alpha_1":2, "tSS_GC_alpha_2":3, "tSS GC dB1":2, "tSS GC dB2":1, 
-    "cWW_GG_C1'-B1-B1pair":1, "cWW_GG_B1-B1pair-C1'pair":1, "cWW_GG_C4'-C1'-B1-B1pair":2, "cWW_GG_B1-B1pair-C1'pair-C4'pair":1, "cWW_GG_alpha_1":1, "cWW_GG_alpha_2":1, "cWW GG dB1":2, "cWW GG dB2":2, 
-    "tWW_GG_C1'-B1-B1pair":1, "tWW_GG_B1-B1pair-C1'pair":1, "tWW_GG_C4'-C1'-B1-B1pair":2, "tWW_GG_B1-B1pair-C1'pair-C4'pair":2, "tWW_GG_alpha_1":2, "tWW_GG_alpha_2":2, "tWW GG dB1":1, "tWW GG dB2":2, 
-    "cWH_GG_C1'-B1-B1pair":2, "cWH_GG_B1-B1pair-C1'pair":2, "cWH_GG_C4'-C1'-B1-B1pair":2, "cWH_GG_B1-B1pair-C1'pair-C4'pair":2, "cWH_GG_alpha_1":2, "cWH_GG_alpha_2":2, "cWH GG dB1":4, "cWH GG dB2":3, 
-    "tWH_GG_C1'-B1-B1pair":1, "tWH_GG_B1-B1pair-C1'pair":2, "tWH_GG_C4'-C1'-B1-B1pair":2, "tWH_GG_B1-B1pair-C1'pair-C4'pair":2, "tWH_GG_alpha_1":2, "tWH_GG_alpha_2":2, "tWH GG dB1":2, "tWH GG dB2":3, 
-    "cHW_GG_C1'-B1-B1pair":2, "cHW_GG_B1-B1pair-C1'pair":2, "cHW_GG_C4'-C1'-B1-B1pair":1, "cHW_GG_B1-B1pair-C1'pair-C4'pair":1, "cHW_GG_alpha_1":1, "cHW_GG_alpha_2":1, "cHW GG dB1":2, "cHW GG dB2":2, 
-    "tHW_GG_C1'-B1-B1pair":2, "tHW_GG_B1-B1pair-C1'pair":2, "tHW_GG_C4'-C1'-B1-B1pair":1, "tHW_GG_B1-B1pair-C1'pair-C4'pair":2, "tHW_GG_alpha_1":2, "tHW_GG_alpha_2":2, "tHW GG dB1":1, "tHW GG dB2":4, 
-    "cWS_GG_C1'-B1-B1pair":1, "cWS_GG_B1-B1pair-C1'pair":1, "cWS_GG_C4'-C1'-B1-B1pair":2, "cWS_GG_B1-B1pair-C1'pair-C4'pair":1, "cWS_GG_alpha_1":2, "cWS_GG_alpha_2":2, "cWS GG dB1":4, "cWS GG dB2":3, 
-    "tWS_GG_C1'-B1-B1pair":3, "tWS_GG_B1-B1pair-C1'pair":2, "tWS_GG_C4'-C1'-B1-B1pair":3, "tWS_GG_B1-B1pair-C1'pair-C4'pair":2, "tWS_GG_alpha_1":1, "tWS_GG_alpha_2":1, "tWS GG dB1":1, "tWS GG dB2":3, 
-    "cSW_GG_C1'-B1-B1pair":1, "cSW_GG_B1-B1pair-C1'pair":1, "cSW_GG_C4'-C1'-B1-B1pair":1, "cSW_GG_B1-B1pair-C1'pair-C4'pair":2, "cSW_GG_alpha_1":2, "cSW_GG_alpha_2":2, "cSW GG dB1":2, "cSW GG dB2":2, 
-    "tSW_GG_C1'-B1-B1pair":3, "tSW_GG_B1-B1pair-C1'pair":2, "tSW_GG_C4'-C1'-B1-B1pair":3, "tSW_GG_B1-B1pair-C1'pair-C4'pair":2, "tSW_GG_alpha_1":1, "tSW_GG_alpha_2":3, "tSW GG dB1":2, "tSW GG dB2":1, 
-    "cHH_GG_C1'-B1-B1pair":1, "cHH_GG_B1-B1pair-C1'pair":1, "cHH_GG_C4'-C1'-B1-B1pair":2, "cHH_GG_B1-B1pair-C1'pair-C4'pair":3, "cHH_GG_alpha_1":1, "cHH_GG_alpha_2":2, "cHH GG dB1":2, "cHH GG dB2":3, 
-    "tHH_GG_C1'-B1-B1pair":2, "tHH_GG_B1-B1pair-C1'pair":2, "tHH_GG_C4'-C1'-B1-B1pair":2, "tHH_GG_B1-B1pair-C1'pair-C4'pair":3, "tHH_GG_alpha_1":2, "tHH_GG_alpha_2":2, "tHH GG dB1":2, "tHH GG dB2":3, 
-    "cSH_GG_C1'-B1-B1pair":2, "cSH_GG_B1-B1pair-C1'pair":1, "cSH_GG_C4'-C1'-B1-B1pair":1, "cSH_GG_B1-B1pair-C1'pair-C4'pair":1, "cSH_GG_alpha_1":2, "cSH_GG_alpha_2":1, "cSH GG dB1":1, "cSH GG dB2":1, 
-    "tSH_GG_C1'-B1-B1pair":2, "tSH_GG_B1-B1pair-C1'pair":2, "tSH_GG_C4'-C1'-B1-B1pair":2, "tSH_GG_B1-B1pair-C1'pair-C4'pair":2, "tSH_GG_alpha_1":2, "tSH_GG_alpha_2":2, "tSH GG dB1":1, "tSH GG dB2":2, 
-    "cHS_GG_C1'-B1-B1pair":1, "cHS_GG_B1-B1pair-C1'pair":2, "cHS_GG_C4'-C1'-B1-B1pair":1, "cHS_GG_B1-B1pair-C1'pair-C4'pair":1, "cHS_GG_alpha_1":1, "cHS_GG_alpha_2":2, "cHS GG dB1":1, "cHS GG dB2":2, 
-    "tHS_GG_C1'-B1-B1pair":2, "tHS_GG_B1-B1pair-C1'pair":2, "tHS_GG_C4'-C1'-B1-B1pair":2, "tHS_GG_B1-B1pair-C1'pair-C4'pair":1, "tHS_GG_alpha_1":2, "tHS_GG_alpha_2":3, "tHS GG dB1":2, "tHS GG dB2":1, 
-    "cSS_GG_C1'-B1-B1pair":2, "cSS_GG_B1-B1pair-C1'pair":2, "cSS_GG_C4'-C1'-B1-B1pair":1, "cSS_GG_B1-B1pair-C1'pair-C4'pair":1, "cSS_GG_alpha_1":2, "cSS_GG_alpha_2":3, "cSS GG dB1":3, "cSS GG dB2":5, 
-    "tSS_GG_C1'-B1-B1pair":3, "tSS_GG_B1-B1pair-C1'pair":2, "tSS_GG_C4'-C1'-B1-B1pair":2, "tSS_GG_B1-B1pair-C1'pair-C4'pair":1, "tSS_GG_alpha_1":1, "tSS_GG_alpha_2":3, "tSS GG dB1":3, "tSS GG dB2":2, 
-    "cWW_GU_C1'-B1-B1pair":2, "cWW_GU_B1-B1pair-C1'pair":2, "cWW_GU_C4'-C1'-B1-B1pair":1, "cWW_GU_B1-B1pair-C1'pair-C4'pair":1, "cWW_GU_alpha_1":3, "cWW_GU_alpha_2":2, "cWW GU dB1":4, "cWW GU dB2":3, 
-    "tWW_GU_C1'-B1-B1pair":3, "tWW_GU_B1-B1pair-C1'pair":2, "tWW_GU_C4'-C1'-B1-B1pair":2, "tWW_GU_B1-B1pair-C1'pair-C4'pair":3, "tWW_GU_alpha_1":2, "tWW_GU_alpha_2":2, "tWW GU dB1":3, "tWW GU dB2":3, 
-    "cWH_GU_C1'-B1-B1pair":1, "cWH_GU_B1-B1pair-C1'pair":2, "cWH_GU_C4'-C1'-B1-B1pair":1, "cWH_GU_B1-B1pair-C1'pair-C4'pair":2, "cWH_GU_alpha_1":2, "cWH_GU_alpha_2":4, "cWH GU dB1":3, "cWH GU dB2":1, 
-    "tWH_GU_C1'-B1-B1pair":1, "tWH_GU_B1-B1pair-C1'pair":2, "tWH_GU_C4'-C1'-B1-B1pair":2, "tWH_GU_B1-B1pair-C1'pair-C4'pair":2, "tWH_GU_alpha_1":2, "tWH_GU_alpha_2":2, "tWH GU dB1":3, "tWH GU dB2":1, 
-    "cHW_GU_C1'-B1-B1pair":2, "cHW_GU_B1-B1pair-C1'pair":1, "cHW_GU_C4'-C1'-B1-B1pair":1, "cHW_GU_B1-B1pair-C1'pair-C4'pair":2, "cHW_GU_alpha_1":2, "cHW_GU_alpha_2":2, "cHW GU dB1":3, "cHW GU dB2":3, 
-    "tHW_GU_C1'-B1-B1pair":3, "tHW_GU_B1-B1pair-C1'pair":1, "tHW_GU_C4'-C1'-B1-B1pair":2, "tHW_GU_B1-B1pair-C1'pair-C4'pair":3, "tHW_GU_alpha_1":3, "tHW_GU_alpha_2":1, "tHW GU dB1":2, "tHW GU dB2":5, 
-    "cWS_GU_C1'-B1-B1pair":1, "cWS_GU_B1-B1pair-C1'pair":1, "cWS_GU_C4'-C1'-B1-B1pair":1, "cWS_GU_B1-B1pair-C1'pair-C4'pair":2, "cWS_GU_alpha_1":3, "cWS_GU_alpha_2":3, "cWS GU dB1":2, "cWS GU dB2":3, 
-    "tWS_GU_C1'-B1-B1pair":3, "tWS_GU_B1-B1pair-C1'pair":1, "tWS_GU_C4'-C1'-B1-B1pair":2, "tWS_GU_B1-B1pair-C1'pair-C4'pair":1, "tWS_GU_alpha_1":1, "tWS_GU_alpha_2":2, "tWS GU dB1":3, "tWS GU dB2":3, 
-    "cSW_GU_C1'-B1-B1pair":2, "cSW_GU_B1-B1pair-C1'pair":2, "cSW_GU_C4'-C1'-B1-B1pair":2, "cSW_GU_B1-B1pair-C1'pair-C4'pair":2, "cSW_GU_alpha_1":1, "cSW_GU_alpha_2":1, "cSW GU dB1":3, "cSW GU dB2":2, 
-    "tSW_GU_C1'-B1-B1pair":1, "tSW_GU_B1-B1pair-C1'pair":2, "tSW_GU_C4'-C1'-B1-B1pair":2, "tSW_GU_B1-B1pair-C1'pair-C4'pair":2, "tSW_GU_alpha_1":1, "tSW_GU_alpha_2":2, "tSW GU dB1":5, "tSW GU dB2":1, 
-    "cHH_GU_C1'-B1-B1pair":2, "cHH_GU_B1-B1pair-C1'pair":3, "cHH_GU_C4'-C1'-B1-B1pair":2, "cHH_GU_B1-B1pair-C1'pair-C4'pair":2, "cHH_GU_alpha_1":2, "cHH_GU_alpha_2":2, "cHH GU dB1":5, "cHH GU dB2":3, 
-    "tHH_GU_C1'-B1-B1pair":2, "tHH_GU_B1-B1pair-C1'pair":1, "tHH_GU_C4'-C1'-B1-B1pair":1, "tHH_GU_B1-B1pair-C1'pair-C4'pair":2, "tHH_GU_alpha_1":2, "tHH_GU_alpha_2":1, "tHH GU dB1":8, "tHH GU dB2":2, 
-    "cSH_GU_C1'-B1-B1pair":1, "cSH_GU_B1-B1pair-C1'pair":2, "cSH_GU_C4'-C1'-B1-B1pair":3, "cSH_GU_B1-B1pair-C1'pair-C4'pair":2, "cSH_GU_alpha_1":2, "cSH_GU_alpha_2":1, "cSH GU dB1":2, "cSH GU dB2":2, 
-    "tSH_GU_C1'-B1-B1pair":2, "tSH_GU_B1-B1pair-C1'pair":2, "tSH_GU_C4'-C1'-B1-B1pair":1, "tSH_GU_B1-B1pair-C1'pair-C4'pair":1, "tSH_GU_alpha_1":2, "tSH_GU_alpha_2":3, "tSH GU dB1":3, "tSH GU dB2":3, 
-    "cHS_GU_C1'-B1-B1pair":1, "cHS_GU_B1-B1pair-C1'pair":1, "cHS_GU_C4'-C1'-B1-B1pair":1, "cHS_GU_B1-B1pair-C1'pair-C4'pair":2, "cHS_GU_alpha_1":1, "cHS_GU_alpha_2":1, "cHS GU dB1":4, "cHS GU dB2":3, 
-    "tHS_GU_C1'-B1-B1pair":4, "tHS_GU_B1-B1pair-C1'pair":2, "tHS_GU_C4'-C1'-B1-B1pair":2, "tHS_GU_B1-B1pair-C1'pair-C4'pair":1, "tHS_GU_alpha_1":2, "tHS_GU_alpha_2":1, "tHS GU dB1":1, "tHS GU dB2":3, 
-    "cSS_GU_C1'-B1-B1pair":3, "cSS_GU_B1-B1pair-C1'pair":2, "cSS_GU_C4'-C1'-B1-B1pair":2, "cSS_GU_B1-B1pair-C1'pair-C4'pair":2, "cSS_GU_alpha_1":2, "cSS_GU_alpha_2":1, "cSS GU dB1":3, "cSS GU dB2":4, 
-    "tSS_GU_C1'-B1-B1pair":2, "tSS_GU_B1-B1pair-C1'pair":2, "tSS_GU_C4'-C1'-B1-B1pair":1, "tSS_GU_B1-B1pair-C1'pair-C4'pair":3, "tSS_GU_alpha_1":2, "tSS_GU_alpha_2":2, "tSS GU dB1":2, "tSS GU dB2":6, 
-    "cWW_UA_C1'-B1-B1pair":2, "cWW_UA_B1-B1pair-C1'pair":2, "cWW_UA_C4'-C1'-B1-B1pair":1, "cWW_UA_B1-B1pair-C1'pair-C4'pair":2, "cWW_UA_alpha_1":2, "cWW_UA_alpha_2":2, "cWW UA dB1":2, "cWW UA dB2":7, 
-    "tWW_UA_C1'-B1-B1pair":1, "tWW_UA_B1-B1pair-C1'pair":2, "tWW_UA_C4'-C1'-B1-B1pair":1, "tWW_UA_B1-B1pair-C1'pair-C4'pair":1, "tWW_UA_alpha_1":2, "tWW_UA_alpha_2":1, "tWW UA dB1":6, "tWW UA dB2":1, 
-    "cWH_UA_C1'-B1-B1pair":3, "cWH_UA_B1-B1pair-C1'pair":3, "cWH_UA_C4'-C1'-B1-B1pair":3, "cWH_UA_B1-B1pair-C1'pair-C4'pair":2, "cWH_UA_alpha_1":2, "cWH_UA_alpha_2":3, "cWH UA dB1":4, "cWH UA dB2":3, 
-    "tWH_UA_C1'-B1-B1pair":2, "tWH_UA_B1-B1pair-C1'pair":1, "tWH_UA_C4'-C1'-B1-B1pair":2, "tWH_UA_B1-B1pair-C1'pair-C4'pair":2, "tWH_UA_alpha_1":1, "tWH_UA_alpha_2":2, "tWH UA dB1":3, "tWH UA dB2":2, 
-    "cHW_UA_C1'-B1-B1pair":1, "cHW_UA_B1-B1pair-C1'pair":1, "cHW_UA_C4'-C1'-B1-B1pair":3, "cHW_UA_B1-B1pair-C1'pair-C4'pair":1, "cHW_UA_alpha_1":1, "cHW_UA_alpha_2":1, "cHW UA dB1":3, "cHW UA dB2":1, 
-    "tHW_UA_C1'-B1-B1pair":3, "tHW_UA_B1-B1pair-C1'pair":2, "tHW_UA_C4'-C1'-B1-B1pair":1, "tHW_UA_B1-B1pair-C1'pair-C4'pair":2, "tHW_UA_alpha_1":3, "tHW_UA_alpha_2":3, "tHW UA dB1":2, "tHW UA dB2":1, 
-    "cWS_UA_C1'-B1-B1pair":2, "cWS_UA_B1-B1pair-C1'pair":3, "cWS_UA_C4'-C1'-B1-B1pair":2, "cWS_UA_B1-B1pair-C1'pair-C4'pair":1, "cWS_UA_alpha_1":2, "cWS_UA_alpha_2":2, "cWS UA dB1":3, "cWS UA dB2":4, 
-    "tWS_UA_C1'-B1-B1pair":1, "tWS_UA_B1-B1pair-C1'pair":2, "tWS_UA_C4'-C1'-B1-B1pair":1, "tWS_UA_B1-B1pair-C1'pair-C4'pair":1, "tWS_UA_alpha_1":1, "tWS_UA_alpha_2":3, "tWS UA dB1":1, "tWS UA dB2":1, 
-    "cSW_UA_C1'-B1-B1pair":1, "cSW_UA_B1-B1pair-C1'pair":1, "cSW_UA_C4'-C1'-B1-B1pair":2, "cSW_UA_B1-B1pair-C1'pair-C4'pair":2, "cSW_UA_alpha_1":2, "cSW_UA_alpha_2":3, "cSW UA dB1":3, "cSW UA dB2":3, 
-    "tSW_UA_C1'-B1-B1pair":1, "tSW_UA_B1-B1pair-C1'pair":2, "tSW_UA_C4'-C1'-B1-B1pair":1, "tSW_UA_B1-B1pair-C1'pair-C4'pair":1, "tSW_UA_alpha_1":2, "tSW_UA_alpha_2":2, "tSW UA dB1":3, "tSW UA dB2":2, 
-    "cHH_UA_C1'-B1-B1pair":1, "cHH_UA_B1-B1pair-C1'pair":1, "cHH_UA_C4'-C1'-B1-B1pair":1, "cHH_UA_B1-B1pair-C1'pair-C4'pair":1, "cHH_UA_alpha_1":2, "cHH_UA_alpha_2":2, "cHH UA dB1":5, "cHH UA dB2":2, 
-    "tHH_UA_C1'-B1-B1pair":2, "tHH_UA_B1-B1pair-C1'pair":2, "tHH_UA_C4'-C1'-B1-B1pair":2, "tHH_UA_B1-B1pair-C1'pair-C4'pair":2, "tHH_UA_alpha_1":2, "tHH_UA_alpha_2":3, "tHH UA dB1":3, "tHH UA dB2":1, 
-    "cSH_UA_C1'-B1-B1pair":1, "cSH_UA_B1-B1pair-C1'pair":1, "cSH_UA_C4'-C1'-B1-B1pair":2, "cSH_UA_B1-B1pair-C1'pair-C4'pair":1, "cSH_UA_alpha_1":2, "cSH_UA_alpha_2":2, "cSH UA dB1":3, "cSH UA dB2":2, 
-    "tSH_UA_C1'-B1-B1pair":2, "tSH_UA_B1-B1pair-C1'pair":2, "tSH_UA_C4'-C1'-B1-B1pair":3, "tSH_UA_B1-B1pair-C1'pair-C4'pair":2, "tSH_UA_alpha_1":3, "tSH_UA_alpha_2":2, "tSH UA dB1":4, "tSH UA dB2":1, 
-    "cHS_UA_C1'-B1-B1pair":2, "cHS_UA_B1-B1pair-C1'pair":2, "cHS_UA_C4'-C1'-B1-B1pair":2, "cHS_UA_B1-B1pair-C1'pair-C4'pair":2, "cHS_UA_alpha_1":2, "cHS_UA_alpha_2":2, "cHS UA dB1":1, "cHS UA dB2":3, 
-    "tHS_UA_C1'-B1-B1pair":2, "tHS_UA_B1-B1pair-C1'pair":2, "tHS_UA_C4'-C1'-B1-B1pair":3, "tHS_UA_B1-B1pair-C1'pair-C4'pair":1, "tHS_UA_alpha_1":3, "tHS_UA_alpha_2":3, "tHS UA dB1":2, "tHS UA dB2":7, 
-    "cSS_UA_C1'-B1-B1pair":2, "cSS_UA_B1-B1pair-C1'pair":2, "cSS_UA_C4'-C1'-B1-B1pair":2, "cSS_UA_B1-B1pair-C1'pair-C4'pair":1, "cSS_UA_alpha_1":1, "cSS_UA_alpha_2":1, "cSS UA dB1":2, "cSS UA dB2":1, 
-    "tSS_UA_C1'-B1-B1pair":1, "tSS_UA_B1-B1pair-C1'pair":3, "tSS_UA_C4'-C1'-B1-B1pair":2, "tSS_UA_B1-B1pair-C1'pair-C4'pair":3, "tSS_UA_alpha_1":2, "tSS_UA_alpha_2":2, "tSS UA dB1":4, "tSS UA dB2":4, 
-    "cWW_UC_C1'-B1-B1pair":1, "cWW_UC_B1-B1pair-C1'pair":2, "cWW_UC_C4'-C1'-B1-B1pair":2, "cWW_UC_B1-B1pair-C1'pair-C4'pair":2, "cWW_UC_alpha_1":2, "cWW_UC_alpha_2":1, "cWW UC dB1":1, "cWW UC dB2":2, 
-    "tWW_UC_C1'-B1-B1pair":2, "tWW_UC_B1-B1pair-C1'pair":2, "tWW_UC_C4'-C1'-B1-B1pair":2, "tWW_UC_B1-B1pair-C1'pair-C4'pair":2, "tWW_UC_alpha_1":3, "tWW_UC_alpha_2":1, "tWW UC dB1":1, "tWW UC dB2":4, 
-    "cWH_UC_C1'-B1-B1pair":2, "cWH_UC_B1-B1pair-C1'pair":2, "cWH_UC_C4'-C1'-B1-B1pair":2, "cWH_UC_B1-B1pair-C1'pair-C4'pair":4, "cWH_UC_alpha_1":2, "cWH_UC_alpha_2":3, "cWH UC dB1":3, "cWH UC dB2":3, 
-    "tWH_UC_C1'-B1-B1pair":3, "tWH_UC_B1-B1pair-C1'pair":2, "tWH_UC_C4'-C1'-B1-B1pair":3, "tWH_UC_B1-B1pair-C1'pair-C4'pair":1, "tWH_UC_alpha_1":4, "tWH_UC_alpha_2":1, "tWH UC dB1":4, "tWH UC dB2":2, 
-    "cHW_UC_C1'-B1-B1pair":2, "cHW_UC_B1-B1pair-C1'pair":2, "cHW_UC_C4'-C1'-B1-B1pair":1, "cHW_UC_B1-B1pair-C1'pair-C4'pair":2, "cHW_UC_alpha_1":1, "cHW_UC_alpha_2":2, "cHW UC dB1":2, "cHW UC dB2":6, 
-    "tHW_UC_C1'-B1-B1pair":2, "tHW_UC_B1-B1pair-C1'pair":2, "tHW_UC_C4'-C1'-B1-B1pair":3, "tHW_UC_B1-B1pair-C1'pair-C4'pair":2, "tHW_UC_alpha_1":2, "tHW_UC_alpha_2":4, "tHW UC dB1":4, "tHW UC dB2":4, 
-    "cWS_UC_C1'-B1-B1pair":2, "cWS_UC_B1-B1pair-C1'pair":2, "cWS_UC_C4'-C1'-B1-B1pair":2, "cWS_UC_B1-B1pair-C1'pair-C4'pair":1, "cWS_UC_alpha_1":3, "cWS_UC_alpha_2":2, "cWS UC dB1":3, "cWS UC dB2":2, 
-    "tWS_UC_C1'-B1-B1pair":2, "tWS_UC_B1-B1pair-C1'pair":1, "tWS_UC_C4'-C1'-B1-B1pair":2, "tWS_UC_B1-B1pair-C1'pair-C4'pair":2, "tWS_UC_alpha_1":2, "tWS_UC_alpha_2":1, "tWS UC dB1":3, "tWS UC dB2":2, 
-    "cSW_UC_C1'-B1-B1pair":1, "cSW_UC_B1-B1pair-C1'pair":2, "cSW_UC_C4'-C1'-B1-B1pair":2, "cSW_UC_B1-B1pair-C1'pair-C4'pair":2, "cSW_UC_alpha_1":2, "cSW_UC_alpha_2":3, "cSW UC dB1":3, "cSW UC dB2":6, 
-    "tSW_UC_C1'-B1-B1pair":1, "tSW_UC_B1-B1pair-C1'pair":2, "tSW_UC_C4'-C1'-B1-B1pair":3, "tSW_UC_B1-B1pair-C1'pair-C4'pair":1, "tSW_UC_alpha_1":2, "tSW_UC_alpha_2":2, "tSW UC dB1":2, "tSW UC dB2":1, 
-    "cHH_UC_C1'-B1-B1pair":2, "cHH_UC_B1-B1pair-C1'pair":1, "cHH_UC_C4'-C1'-B1-B1pair":2, "cHH_UC_B1-B1pair-C1'pair-C4'pair":2, "cHH_UC_alpha_1":1, "cHH_UC_alpha_2":3, "cHH UC dB1":7, "cHH UC dB2":3, 
-    "tHH_UC_C1'-B1-B1pair":1, "tHH_UC_B1-B1pair-C1'pair":1, "tHH_UC_C4'-C1'-B1-B1pair":2, "tHH_UC_B1-B1pair-C1'pair-C4'pair":3, "tHH_UC_alpha_1":2, "tHH_UC_alpha_2":2, "tHH UC dB1":8, "tHH UC dB2":8, 
-    "cSH_UC_C1'-B1-B1pair":2, "cSH_UC_B1-B1pair-C1'pair":2, "cSH_UC_C4'-C1'-B1-B1pair":2, "cSH_UC_B1-B1pair-C1'pair-C4'pair":1, "cSH_UC_alpha_1":2, "cSH_UC_alpha_2":3, "cSH UC dB1":5, "cSH UC dB2":3, 
-    "tSH_UC_C1'-B1-B1pair":1, "tSH_UC_B1-B1pair-C1'pair":1, "tSH_UC_C4'-C1'-B1-B1pair":2, "tSH_UC_B1-B1pair-C1'pair-C4'pair":1, "tSH_UC_alpha_1":2, "tSH_UC_alpha_2":2, "tSH UC dB1":2, "tSH UC dB2":7, 
-    "cHS_UC_C1'-B1-B1pair":2, "cHS_UC_B1-B1pair-C1'pair":2, "cHS_UC_C4'-C1'-B1-B1pair":1, "cHS_UC_B1-B1pair-C1'pair-C4'pair":3, "cHS_UC_alpha_1":3, "cHS_UC_alpha_2":2, "cHS UC dB1":6, "cHS UC dB2":7, 
-    "tHS_UC_C1'-B1-B1pair":3, "tHS_UC_B1-B1pair-C1'pair":2, "tHS_UC_C4'-C1'-B1-B1pair":2, "tHS_UC_B1-B1pair-C1'pair-C4'pair":3, "tHS_UC_alpha_1":3, "tHS_UC_alpha_2":1, "tHS UC dB1":5, "tHS UC dB2":7, 
-    "cSS_UC_C1'-B1-B1pair":2, "cSS_UC_B1-B1pair-C1'pair":1, "cSS_UC_C4'-C1'-B1-B1pair":3, "cSS_UC_B1-B1pair-C1'pair-C4'pair":1, "cSS_UC_alpha_1":3, "cSS_UC_alpha_2":3, "cSS UC dB1":8, "cSS UC dB2":5, 
-    "tSS_UC_C1'-B1-B1pair":2, "tSS_UC_B1-B1pair-C1'pair":1, "tSS_UC_C4'-C1'-B1-B1pair":3, "tSS_UC_B1-B1pair-C1'pair-C4'pair":3, "tSS_UC_alpha_1":3, "tSS_UC_alpha_2":1, "tSS UC dB1":8, "tSS UC dB2":7, 
-    "cWW_UG_C1'-B1-B1pair":2, "cWW_UG_B1-B1pair-C1'pair":3, "cWW_UG_C4'-C1'-B1-B1pair":2, "cWW_UG_B1-B1pair-C1'pair-C4'pair":2, "cWW_UG_alpha_1":2, "cWW_UG_alpha_2":3, "cWW UG dB1":4, "cWW UG dB2":3, 
-    "tWW_UG_C1'-B1-B1pair":1, "tWW_UG_B1-B1pair-C1'pair":1, "tWW_UG_C4'-C1'-B1-B1pair":2, "tWW_UG_B1-B1pair-C1'pair-C4'pair":2, "tWW_UG_alpha_1":3, "tWW_UG_alpha_2":3, "tWW UG dB1":3, "tWW UG dB2":4, 
-    "cWH_UG_C1'-B1-B1pair":1, "cWH_UG_B1-B1pair-C1'pair":2, "cWH_UG_C4'-C1'-B1-B1pair":1, "cWH_UG_B1-B1pair-C1'pair-C4'pair":1, "cWH_UG_alpha_1":2, "cWH_UG_alpha_2":2, "cWH UG dB1":2, "cWH UG dB2":2, 
-    "tWH_UG_C1'-B1-B1pair":2, "tWH_UG_B1-B1pair-C1'pair":2, "tWH_UG_C4'-C1'-B1-B1pair":1, "tWH_UG_B1-B1pair-C1'pair-C4'pair":2, "tWH_UG_alpha_1":2, "tWH_UG_alpha_2":2, "tWH UG dB1":6, "tWH UG dB2":2, 
-    "cHW_UG_C1'-B1-B1pair":2, "cHW_UG_B1-B1pair-C1'pair":2, "cHW_UG_C4'-C1'-B1-B1pair":1, "cHW_UG_B1-B1pair-C1'pair-C4'pair":2, "cHW_UG_alpha_1":1, "cHW_UG_alpha_2":2, "cHW UG dB1":4, "cHW UG dB2":4, 
-    "tHW_UG_C1'-B1-B1pair":2, "tHW_UG_B1-B1pair-C1'pair":1, "tHW_UG_C4'-C1'-B1-B1pair":2, "tHW_UG_B1-B1pair-C1'pair-C4'pair":2, "tHW_UG_alpha_1":3, "tHW_UG_alpha_2":2, "tHW UG dB1":6, "tHW UG dB2":3, 
-    "cWS_UG_C1'-B1-B1pair":4, "cWS_UG_B1-B1pair-C1'pair":2, "cWS_UG_C4'-C1'-B1-B1pair":3, "cWS_UG_B1-B1pair-C1'pair-C4'pair":2, "cWS_UG_alpha_1":2, "cWS_UG_alpha_2":2, "cWS UG dB1":2, "cWS UG dB2":2, 
-    "tWS_UG_C1'-B1-B1pair":2, "tWS_UG_B1-B1pair-C1'pair":2, "tWS_UG_C4'-C1'-B1-B1pair":2, "tWS_UG_B1-B1pair-C1'pair-C4'pair":2, "tWS_UG_alpha_1":2, "tWS_UG_alpha_2":1, "tWS UG dB1":3, "tWS UG dB2":5, 
-    "cSW_UG_C1'-B1-B1pair":2, "cSW_UG_B1-B1pair-C1'pair":3, "cSW_UG_C4'-C1'-B1-B1pair":2, "cSW_UG_B1-B1pair-C1'pair-C4'pair":1, "cSW_UG_alpha_1":2, "cSW_UG_alpha_2":2, "cSW UG dB1":3, "cSW UG dB2":2, 
-    "tSW_UG_C1'-B1-B1pair":1, "tSW_UG_B1-B1pair-C1'pair":1, "tSW_UG_C4'-C1'-B1-B1pair":1, "tSW_UG_B1-B1pair-C1'pair-C4'pair":2, "tSW_UG_alpha_1":2, "tSW_UG_alpha_2":2, "tSW UG dB1":2, "tSW UG dB2":2, 
-    "cHH_UG_C1'-B1-B1pair":3, "cHH_UG_B1-B1pair-C1'pair":2, "cHH_UG_C4'-C1'-B1-B1pair":2, "cHH_UG_B1-B1pair-C1'pair-C4'pair":2, "cHH_UG_alpha_1":2, "cHH_UG_alpha_2":3, "cHH UG dB1":4, "cHH UG dB2":5, 
-    "tHH_UG_C1'-B1-B1pair":2, "tHH_UG_B1-B1pair-C1'pair":2, "tHH_UG_C4'-C1'-B1-B1pair":2, "tHH_UG_B1-B1pair-C1'pair-C4'pair":3, "tHH_UG_alpha_1":3, "tHH_UG_alpha_2":2, "tHH UG dB1":3, "tHH UG dB2":2, 
-    "cSH_UG_C1'-B1-B1pair":1, "cSH_UG_B1-B1pair-C1'pair":2, "cSH_UG_C4'-C1'-B1-B1pair":2, "cSH_UG_B1-B1pair-C1'pair-C4'pair":2, "cSH_UG_alpha_1":2, "cSH_UG_alpha_2":2, "cSH UG dB1":3, "cSH UG dB2":4, 
-    "tSH_UG_C1'-B1-B1pair":2, "tSH_UG_B1-B1pair-C1'pair":1, "tSH_UG_C4'-C1'-B1-B1pair":2, "tSH_UG_B1-B1pair-C1'pair-C4'pair":1, "tSH_UG_alpha_1":3, "tSH_UG_alpha_2":1, "tSH UG dB1":2, "tSH UG dB2":2, 
-    "cHS_UG_C1'-B1-B1pair":2, "cHS_UG_B1-B1pair-C1'pair":3, "cHS_UG_C4'-C1'-B1-B1pair":2, "cHS_UG_B1-B1pair-C1'pair-C4'pair":4, "cHS_UG_alpha_1":2, "cHS_UG_alpha_2":3, "cHS UG dB1":3, "cHS UG dB2":4, 
-    "tHS_UG_C1'-B1-B1pair":1, "tHS_UG_B1-B1pair-C1'pair":3, "tHS_UG_C4'-C1'-B1-B1pair":2, "tHS_UG_B1-B1pair-C1'pair-C4'pair":1, "tHS_UG_alpha_1":2, "tHS_UG_alpha_2":3, "tHS UG dB1":2, "tHS UG dB2":1, 
-    "cSS_UG_C1'-B1-B1pair":2, "cSS_UG_B1-B1pair-C1'pair":2, "cSS_UG_C4'-C1'-B1-B1pair":2, "cSS_UG_B1-B1pair-C1'pair-C4'pair":2, "cSS_UG_alpha_1":1, "cSS_UG_alpha_2":2, "cSS UG dB1":2, "cSS UG dB2":3, 
-    "tSS_UG_C1'-B1-B1pair":2, "tSS_UG_B1-B1pair-C1'pair":2, "tSS_UG_C4'-C1'-B1-B1pair":1, "tSS_UG_B1-B1pair-C1'pair-C4'pair":2, "tSS_UG_alpha_1":2, "tSS_UG_alpha_2":2, "tSS UG dB1":3, "tSS UG dB2":4, 
-    "cWW_UU_C1'-B1-B1pair":2, "cWW_UU_B1-B1pair-C1'pair":3, "cWW_UU_C4'-C1'-B1-B1pair":3, "cWW_UU_B1-B1pair-C1'pair-C4'pair":2, "cWW_UU_alpha_1":2, "cWW_UU_alpha_2":2, "cWW UU dB1":2, "cWW UU dB2":1, 
-    "tWW_UU_C1'-B1-B1pair":2, "tWW_UU_B1-B1pair-C1'pair":2, "tWW_UU_C4'-C1'-B1-B1pair":2, "tWW_UU_B1-B1pair-C1'pair-C4'pair":2, "tWW_UU_alpha_1":2, "tWW_UU_alpha_2":2, "tWW UU dB1":4, "tWW UU dB2":5, 
-    "cWH_UU_C1'-B1-B1pair":2, "cWH_UU_B1-B1pair-C1'pair":2, "cWH_UU_C4'-C1'-B1-B1pair":3, "cWH_UU_B1-B1pair-C1'pair-C4'pair":3, "cWH_UU_alpha_1":2, "cWH_UU_alpha_2":3, "cWH UU dB1":3, "cWH UU dB2":5, 
-    "tWH_UU_C1'-B1-B1pair":2, "tWH_UU_B1-B1pair-C1'pair":2, "tWH_UU_C4'-C1'-B1-B1pair":2, "tWH_UU_B1-B1pair-C1'pair-C4'pair":2, "tWH_UU_alpha_1":3, "tWH_UU_alpha_2":3, "tWH UU dB1":2, "tWH UU dB2":2, 
-    "cHW_UU_C1'-B1-B1pair":2, "cHW_UU_B1-B1pair-C1'pair":3, "cHW_UU_C4'-C1'-B1-B1pair":1, "cHW_UU_B1-B1pair-C1'pair-C4'pair":3, "cHW_UU_alpha_1":1, "cHW_UU_alpha_2":2, "cHW UU dB1":3, "cHW UU dB2":4, 
-    "tHW_UU_C1'-B1-B1pair":3, "tHW_UU_B1-B1pair-C1'pair":2, "tHW_UU_C4'-C1'-B1-B1pair":2, "tHW_UU_B1-B1pair-C1'pair-C4'pair":2, "tHW_UU_alpha_1":2, "tHW_UU_alpha_2":3, "tHW UU dB1":2, "tHW UU dB2":2, 
-    "cWS_UU_C1'-B1-B1pair":1, "cWS_UU_B1-B1pair-C1'pair":1, "cWS_UU_C4'-C1'-B1-B1pair":2, "cWS_UU_B1-B1pair-C1'pair-C4'pair":3, "cWS_UU_alpha_1":2, "cWS_UU_alpha_2":1, "cWS UU dB1":2, "cWS UU dB2":1, 
-    "tWS_UU_C1'-B1-B1pair":2, "tWS_UU_B1-B1pair-C1'pair":2, "tWS_UU_C4'-C1'-B1-B1pair":3, "tWS_UU_B1-B1pair-C1'pair-C4'pair":2, "tWS_UU_alpha_1":2, "tWS_UU_alpha_2":2, "tWS UU dB1":3, "tWS UU dB2":3, 
-    "cSW_UU_C1'-B1-B1pair":1, "cSW_UU_B1-B1pair-C1'pair":3, "cSW_UU_C4'-C1'-B1-B1pair":2, "cSW_UU_B1-B1pair-C1'pair-C4'pair":3, "cSW_UU_alpha_1":2, "cSW_UU_alpha_2":3, "cSW UU dB1":1, "cSW UU dB2":4, 
-    "tSW_UU_C1'-B1-B1pair":3, "tSW_UU_B1-B1pair-C1'pair":1, "tSW_UU_C4'-C1'-B1-B1pair":2, "tSW_UU_B1-B1pair-C1'pair-C4'pair":2, "tSW_UU_alpha_1":1, "tSW_UU_alpha_2":2, "tSW UU dB1":3, "tSW UU dB2":3, 
-    "cHH_UU_C1'-B1-B1pair":1, "cHH_UU_B1-B1pair-C1'pair":1, "cHH_UU_C4'-C1'-B1-B1pair":3, "cHH_UU_B1-B1pair-C1'pair-C4'pair":2, "cHH_UU_alpha_1":2, "cHH_UU_alpha_2":2, "cHH UU dB1":1, "cHH UU dB2":5, 
-    "tHH_UU_C1'-B1-B1pair":2, "tHH_UU_B1-B1pair-C1'pair":3, "tHH_UU_C4'-C1'-B1-B1pair":1, "tHH_UU_B1-B1pair-C1'pair-C4'pair":3, "tHH_UU_alpha_1":2, "tHH_UU_alpha_2":4, "tHH UU dB1":4, "tHH UU dB2":5, 
-    "cSH_UU_C1'-B1-B1pair":1, "cSH_UU_B1-B1pair-C1'pair":3, "cSH_UU_C4'-C1'-B1-B1pair":2, "cSH_UU_B1-B1pair-C1'pair-C4'pair":2, "cSH_UU_alpha_1":3, "cSH_UU_alpha_2":2, "cSH UU dB1":2, "cSH UU dB2":5, 
-    "tSH_UU_C1'-B1-B1pair":2, "tSH_UU_B1-B1pair-C1'pair":1, "tSH_UU_C4'-C1'-B1-B1pair":3, "tSH_UU_B1-B1pair-C1'pair-C4'pair":3, "tSH_UU_alpha_1":1, "tSH_UU_alpha_2":1, "tSH UU dB1":1, "tSH UU dB2":5, 
-    "cHS_UU_C1'-B1-B1pair":2, "cHS_UU_B1-B1pair-C1'pair":2, "cHS_UU_C4'-C1'-B1-B1pair":2, "cHS_UU_B1-B1pair-C1'pair-C4'pair":2, "cHS_UU_alpha_1":2, "cHS_UU_alpha_2":2, "cHS UU dB1":3, "cHS UU dB2":2, 
-    "tHS_UU_C1'-B1-B1pair":1, "tHS_UU_B1-B1pair-C1'pair":2, "tHS_UU_C4'-C1'-B1-B1pair":2, "tHS_UU_B1-B1pair-C1'pair-C4'pair":1, "tHS_UU_alpha_1":1, "tHS_UU_alpha_2":2, "tHS UU dB1":4, "tHS UU dB2":1, 
-    "cSS_UU_C1'-B1-B1pair":2, "cSS_UU_B1-B1pair-C1'pair":2, "cSS_UU_C4'-C1'-B1-B1pair":2, "cSS_UU_B1-B1pair-C1'pair-C4'pair":3, "cSS_UU_alpha_1":2, "cSS_UU_alpha_2":2, "cSS UU dB1":6, "cSS UU dB2":4, 
-    "tSS_UU_C1'-B1-B1pair":1, "tSS_UU_B1-B1pair-C1'pair":1, "tSS_UU_C4'-C1'-B1-B1pair":2, "tSS_UU_B1-B1pair-C1'pair-C4'pair":1, "tSS_UU_alpha_1":1, "tSS_UU_alpha_2":2, "tSS UU dB1":3, "tSS UU dB2":4, 
+    "cWW_AA_tips_distance":3, "cWW_AA_C1'-B1-B1pair":1, "cWW_AA_B1-B1pair-C1'pair":1, "cWW_AA_C4'-C1'-B1-B1pair":2, "cWW_AA_B1-B1pair-C1'pair-C4'pair":3, "cWW_AA_alpha_1":2, "cWW_AA_alpha_2":3, "cWW_AA_dB1":3, "cWW_AA_dB2":3, 
+    "tWW_AA_tips_distance":1, "tWW_AA_C1'-B1-B1pair":1, "tWW_AA_B1-B1pair-C1'pair":1, "tWW_AA_C4'-C1'-B1-B1pair":2, "tWW_AA_B1-B1pair-C1'pair-C4'pair":3, "tWW_AA_alpha_1":2, "tWW_AA_alpha_2":1, "tWW_AA_dB1":1, "tWW_AA_dB2":2, 
+    "cWH_AA_tips_distance":3, "cWH_AA_C1'-B1-B1pair":2, "cWH_AA_B1-B1pair-C1'pair":2, "cWH_AA_C4'-C1'-B1-B1pair":2, "cWH_AA_B1-B1pair-C1'pair-C4'pair":2, "cWH_AA_alpha_1":1, "cWH_AA_alpha_2":2, "cWH_AA_dB1":3, "cWH_AA_dB2":2, 
+    "tWH_AA_tips_distance":3, "tWH_AA_C1'-B1-B1pair":1, "tWH_AA_B1-B1pair-C1'pair":3, "tWH_AA_C4'-C1'-B1-B1pair":2, "tWH_AA_B1-B1pair-C1'pair-C4'pair":2, "tWH_AA_alpha_1":1, "tWH_AA_alpha_2":3, "tWH_AA_dB1":2, "tWH_AA_dB2":1, 
+    "cHW_AA_tips_distance":1, "cHW_AA_C1'-B1-B1pair":2, "cHW_AA_B1-B1pair-C1'pair":2, "cHW_AA_C4'-C1'-B1-B1pair":3, "cHW_AA_B1-B1pair-C1'pair-C4'pair":2, "cHW_AA_alpha_1":2, "cHW_AA_alpha_2":2, "cHW_AA_dB1":3, "cHW_AA_dB2":2, 
+    "tHW_AA_tips_distance":4, "tHW_AA_C1'-B1-B1pair":2, "tHW_AA_B1-B1pair-C1'pair":2, "tHW_AA_C4'-C1'-B1-B1pair":2, "tHW_AA_B1-B1pair-C1'pair-C4'pair":2, "tHW_AA_alpha_1":2, "tHW_AA_alpha_2":1, "tHW_AA_dB1":2, "tHW_AA_dB2":1, 
+    "cWS_AA_tips_distance":2, "cWS_AA_C1'-B1-B1pair":2, "cWS_AA_B1-B1pair-C1'pair":2, "cWS_AA_C4'-C1'-B1-B1pair":2, "cWS_AA_B1-B1pair-C1'pair-C4'pair":1, "cWS_AA_alpha_1":2, "cWS_AA_alpha_2":2, "cWS_AA_dB1":2, "cWS_AA_dB2":1, 
+    "tWS_AA_tips_distance":2, "tWS_AA_C1'-B1-B1pair":2, "tWS_AA_B1-B1pair-C1'pair":2, "tWS_AA_C4'-C1'-B1-B1pair":3, "tWS_AA_B1-B1pair-C1'pair-C4'pair":1, "tWS_AA_alpha_1":2, "tWS_AA_alpha_2":2, "tWS_AA_dB1":2, "tWS_AA_dB2":3, 
+    "cSW_AA_tips_distance":3, "cSW_AA_C1'-B1-B1pair":3, "cSW_AA_B1-B1pair-C1'pair":2, "cSW_AA_C4'-C1'-B1-B1pair":1, "cSW_AA_B1-B1pair-C1'pair-C4'pair":2, "cSW_AA_alpha_1":2, "cSW_AA_alpha_2":2, "cSW_AA_dB1":1, "cSW_AA_dB2":1, 
+    "tSW_AA_tips_distance":3, "tSW_AA_C1'-B1-B1pair":3, "tSW_AA_B1-B1pair-C1'pair":3, "tSW_AA_C4'-C1'-B1-B1pair":2, "tSW_AA_B1-B1pair-C1'pair-C4'pair":2, "tSW_AA_alpha_1":2, "tSW_AA_alpha_2":2, "tSW_AA_dB1":2, "tSW_AA_dB2":2, 
+    "cHH_AA_tips_distance":4, "cHH_AA_C1'-B1-B1pair":2, "cHH_AA_B1-B1pair-C1'pair":3, "cHH_AA_C4'-C1'-B1-B1pair":3, "cHH_AA_B1-B1pair-C1'pair-C4'pair":3, "cHH_AA_alpha_1":2, "cHH_AA_alpha_2":3, "cHH_AA_dB1":3, "cHH_AA_dB2":1, 
+    "tHH_AA_tips_distance":2, "tHH_AA_C1'-B1-B1pair":2, "tHH_AA_B1-B1pair-C1'pair":2, "tHH_AA_C4'-C1'-B1-B1pair":3, "tHH_AA_B1-B1pair-C1'pair-C4'pair":1, "tHH_AA_alpha_1":2, "tHH_AA_alpha_2":2, "tHH_AA_dB1":2, "tHH_AA_dB2":2, 
+    "cSH_AA_tips_distance":2, "cSH_AA_C1'-B1-B1pair":2, "cSH_AA_B1-B1pair-C1'pair":1, "cSH_AA_C4'-C1'-B1-B1pair":3, "cSH_AA_B1-B1pair-C1'pair-C4'pair":2, "cSH_AA_alpha_1":2, "cSH_AA_alpha_2":2, "cSH_AA_dB1":4, "cSH_AA_dB2":1, 
+    "tSH_AA_tips_distance":2, "tSH_AA_C1'-B1-B1pair":1, "tSH_AA_B1-B1pair-C1'pair":2, "tSH_AA_C4'-C1'-B1-B1pair":2, "tSH_AA_B1-B1pair-C1'pair-C4'pair":2, "tSH_AA_alpha_1":2, "tSH_AA_alpha_2":3, "tSH_AA_dB1":2, "tSH_AA_dB2":2, 
+    "cHS_AA_tips_distance":3, "cHS_AA_C1'-B1-B1pair":2, "cHS_AA_B1-B1pair-C1'pair":2, "cHS_AA_C4'-C1'-B1-B1pair":2, "cHS_AA_B1-B1pair-C1'pair-C4'pair":1, "cHS_AA_alpha_1":2, "cHS_AA_alpha_2":2, "cHS_AA_dB1":1, "cHS_AA_dB2":4, 
+    "tHS_AA_tips_distance":4, "tHS_AA_C1'-B1-B1pair":2, "tHS_AA_B1-B1pair-C1'pair":2, "tHS_AA_C4'-C1'-B1-B1pair":2, "tHS_AA_B1-B1pair-C1'pair-C4'pair":1, "tHS_AA_alpha_1":2, "tHS_AA_alpha_2":1, "tHS_AA_dB1":2, "tHS_AA_dB2":1, 
+    "cSS_AA_tips_distance":6, "cSS_AA_C1'-B1-B1pair":3, "cSS_AA_B1-B1pair-C1'pair":3, "cSS_AA_C4'-C1'-B1-B1pair":2, "cSS_AA_B1-B1pair-C1'pair-C4'pair":2, "cSS_AA_alpha_1":3, "cSS_AA_alpha_2":3, "cSS_AA_dB1":3, "cSS_AA_dB2":5, 
+    "tSS_AA_tips_distance":5, "tSS_AA_C1'-B1-B1pair":1, "tSS_AA_B1-B1pair-C1'pair":1, "tSS_AA_C4'-C1'-B1-B1pair":2, "tSS_AA_B1-B1pair-C1'pair-C4'pair":1, "tSS_AA_alpha_1":3, "tSS_AA_alpha_2":1, "tSS_AA_dB1":4, "tSS_AA_dB2":2, 
+    "cWW_AC_tips_distance":2, "cWW_AC_C1'-B1-B1pair":1, "cWW_AC_B1-B1pair-C1'pair":2, "cWW_AC_C4'-C1'-B1-B1pair":2, "cWW_AC_B1-B1pair-C1'pair-C4'pair":2, "cWW_AC_alpha_1":1, "cWW_AC_alpha_2":2, "cWW_AC_dB1":3, "cWW_AC_dB2":3, 
+    "tWW_AC_tips_distance":2, "tWW_AC_C1'-B1-B1pair":3, "tWW_AC_B1-B1pair-C1'pair":2, "tWW_AC_C4'-C1'-B1-B1pair":3, "tWW_AC_B1-B1pair-C1'pair-C4'pair":3, "tWW_AC_alpha_1":3, "tWW_AC_alpha_2":2, "tWW_AC_dB1":4, "tWW_AC_dB2":3, 
+    "cWH_AC_tips_distance":5, "cWH_AC_C1'-B1-B1pair":2, "cWH_AC_B1-B1pair-C1'pair":2, "cWH_AC_C4'-C1'-B1-B1pair":1, "cWH_AC_B1-B1pair-C1'pair-C4'pair":2, "cWH_AC_alpha_1":2, "cWH_AC_alpha_2":2, "cWH_AC_dB1":4, "cWH_AC_dB2":4, 
+    "tWH_AC_tips_distance":8, "tWH_AC_C1'-B1-B1pair":1, "tWH_AC_B1-B1pair-C1'pair":2, "tWH_AC_C4'-C1'-B1-B1pair":2, "tWH_AC_B1-B1pair-C1'pair-C4'pair":3, "tWH_AC_alpha_1":2, "tWH_AC_alpha_2":2, "tWH_AC_dB1":3, "tWH_AC_dB2":3, 
+    "cHW_AC_tips_distance":2, "cHW_AC_C1'-B1-B1pair":2, "cHW_AC_B1-B1pair-C1'pair":2, "cHW_AC_C4'-C1'-B1-B1pair":3, "cHW_AC_B1-B1pair-C1'pair-C4'pair":2, "cHW_AC_alpha_1":2, "cHW_AC_alpha_2":3, "cHW_AC_dB1":2, "cHW_AC_dB2":5, 
+    "tHW_AC_tips_distance":3, "tHW_AC_C1'-B1-B1pair":2, "tHW_AC_B1-B1pair-C1'pair":3, "tHW_AC_C4'-C1'-B1-B1pair":3, "tHW_AC_B1-B1pair-C1'pair-C4'pair":2, "tHW_AC_alpha_1":2, "tHW_AC_alpha_2":2, "tHW_AC_dB1":3, "tHW_AC_dB2":3, 
+    "cWS_AC_tips_distance":3, "cWS_AC_C1'-B1-B1pair":2, "cWS_AC_B1-B1pair-C1'pair":1, "cWS_AC_C4'-C1'-B1-B1pair":2, "cWS_AC_B1-B1pair-C1'pair-C4'pair":1, "cWS_AC_alpha_1":2, "cWS_AC_alpha_2":1, "cWS_AC_dB1":1, "cWS_AC_dB2":1, 
+    "tWS_AC_tips_distance":4, "tWS_AC_C1'-B1-B1pair":2, "tWS_AC_B1-B1pair-C1'pair":1, "tWS_AC_C4'-C1'-B1-B1pair":2, "tWS_AC_B1-B1pair-C1'pair-C4'pair":2, "tWS_AC_alpha_1":3, "tWS_AC_alpha_2":1, "tWS_AC_dB1":3, "tWS_AC_dB2":2, 
+    "cSW_AC_tips_distance":6, "cSW_AC_C1'-B1-B1pair":2, "cSW_AC_B1-B1pair-C1'pair":2, "cSW_AC_C4'-C1'-B1-B1pair":2, "cSW_AC_B1-B1pair-C1'pair-C4'pair":2, "cSW_AC_alpha_1":3, "cSW_AC_alpha_2":2, "cSW_AC_dB1":2, "cSW_AC_dB2":3, 
+    "tSW_AC_tips_distance":5, "tSW_AC_C1'-B1-B1pair":1, "tSW_AC_B1-B1pair-C1'pair":2, "tSW_AC_C4'-C1'-B1-B1pair":1, "tSW_AC_B1-B1pair-C1'pair-C4'pair":2, "tSW_AC_alpha_1":1, "tSW_AC_alpha_2":2, "tSW_AC_dB1":2, "tSW_AC_dB2":3, 
+    "cHH_AC_tips_distance":5, "cHH_AC_C1'-B1-B1pair":2, "cHH_AC_B1-B1pair-C1'pair":2, "cHH_AC_C4'-C1'-B1-B1pair":2, "cHH_AC_B1-B1pair-C1'pair-C4'pair":1, "cHH_AC_alpha_1":3, "cHH_AC_alpha_2":3, "cHH_AC_dB1":3, "cHH_AC_dB2":4, 
+    "tHH_AC_tips_distance":4, "tHH_AC_C1'-B1-B1pair":1, "tHH_AC_B1-B1pair-C1'pair":2, "tHH_AC_C4'-C1'-B1-B1pair":2, "tHH_AC_B1-B1pair-C1'pair-C4'pair":3, "tHH_AC_alpha_1":2, "tHH_AC_alpha_2":2, "tHH_AC_dB1":4, "tHH_AC_dB2":3, 
+    "cSH_AC_tips_distance":3, "cSH_AC_C1'-B1-B1pair":1, "cSH_AC_B1-B1pair-C1'pair":3, "cSH_AC_C4'-C1'-B1-B1pair":1, "cSH_AC_B1-B1pair-C1'pair-C4'pair":2, "cSH_AC_alpha_1":1, "cSH_AC_alpha_2":1, "cSH_AC_dB1":2, "cSH_AC_dB2":6, 
+    "tSH_AC_tips_distance":8, "tSH_AC_C1'-B1-B1pair":3, "tSH_AC_B1-B1pair-C1'pair":2, "tSH_AC_C4'-C1'-B1-B1pair":1, "tSH_AC_B1-B1pair-C1'pair-C4'pair":2, "tSH_AC_alpha_1":2, "tSH_AC_alpha_2":3, "tSH_AC_dB1":1, "tSH_AC_dB2":2, 
+    "cHS_AC_tips_distance":4, "cHS_AC_C1'-B1-B1pair":1, "cHS_AC_B1-B1pair-C1'pair":1, "cHS_AC_C4'-C1'-B1-B1pair":2, "cHS_AC_B1-B1pair-C1'pair-C4'pair":1, "cHS_AC_alpha_1":1, "cHS_AC_alpha_2":1, "cHS_AC_dB1":3, "cHS_AC_dB2":2, 
+    "tHS_AC_tips_distance":8, "tHS_AC_C1'-B1-B1pair":1, "tHS_AC_B1-B1pair-C1'pair":2, "tHS_AC_C4'-C1'-B1-B1pair":2, "tHS_AC_B1-B1pair-C1'pair-C4'pair":2, "tHS_AC_alpha_1":1, "tHS_AC_alpha_2":1, "tHS_AC_dB1":1, "tHS_AC_dB2":1, 
+    "cSS_AC_tips_distance":2, "cSS_AC_C1'-B1-B1pair":2, "cSS_AC_B1-B1pair-C1'pair":2, "cSS_AC_C4'-C1'-B1-B1pair":1, "cSS_AC_B1-B1pair-C1'pair-C4'pair":1, "cSS_AC_alpha_1":2, "cSS_AC_alpha_2":1, "cSS_AC_dB1":1, "cSS_AC_dB2":5, 
+    "tSS_AC_tips_distance":5, "tSS_AC_C1'-B1-B1pair":2, "tSS_AC_B1-B1pair-C1'pair":2, "tSS_AC_C4'-C1'-B1-B1pair":1, "tSS_AC_B1-B1pair-C1'pair-C4'pair":2, "tSS_AC_alpha_1":2, "tSS_AC_alpha_2":2, "tSS_AC_dB1":3, "tSS_AC_dB2":5, 
+    "cWW_AG_tips_distance":3, "cWW_AG_C1'-B1-B1pair":1, "cWW_AG_B1-B1pair-C1'pair":1, "cWW_AG_C4'-C1'-B1-B1pair":2, "cWW_AG_B1-B1pair-C1'pair-C4'pair":2, "cWW_AG_alpha_1":1, "cWW_AG_alpha_2":1, "cWW_AG_dB1":1, "cWW_AG_dB2":1, 
+    "tWW_AG_tips_distance":5, "tWW_AG_C1'-B1-B1pair":1, "tWW_AG_B1-B1pair-C1'pair":1, "tWW_AG_C4'-C1'-B1-B1pair":2, "tWW_AG_B1-B1pair-C1'pair-C4'pair":2, "tWW_AG_alpha_1":2, "tWW_AG_alpha_2":2, "tWW_AG_dB1":2, "tWW_AG_dB2":3, 
+    "cWH_AG_tips_distance":4, "cWH_AG_C1'-B1-B1pair":1, "cWH_AG_B1-B1pair-C1'pair":1, "cWH_AG_C4'-C1'-B1-B1pair":2, "cWH_AG_B1-B1pair-C1'pair-C4'pair":2, "cWH_AG_alpha_1":3, "cWH_AG_alpha_2":1, "cWH_AG_dB1":2, "cWH_AG_dB2":1, 
+    "tWH_AG_tips_distance":3, "tWH_AG_C1'-B1-B1pair":1, "tWH_AG_B1-B1pair-C1'pair":1, "tWH_AG_C4'-C1'-B1-B1pair":2, "tWH_AG_B1-B1pair-C1'pair-C4'pair":2, "tWH_AG_alpha_1":2, "tWH_AG_alpha_2":1, "tWH_AG_dB1":2, "tWH_AG_dB2":1, 
+    "cHW_AG_tips_distance":2, "cHW_AG_C1'-B1-B1pair":2, "cHW_AG_B1-B1pair-C1'pair":1, "cHW_AG_C4'-C1'-B1-B1pair":2, "cHW_AG_B1-B1pair-C1'pair-C4'pair":1, "cHW_AG_alpha_1":1, "cHW_AG_alpha_2":2, "cHW_AG_dB1":2, "cHW_AG_dB2":2, 
+    "tHW_AG_tips_distance":3, "tHW_AG_C1'-B1-B1pair":2, "tHW_AG_B1-B1pair-C1'pair":2, "tHW_AG_C4'-C1'-B1-B1pair":2, "tHW_AG_B1-B1pair-C1'pair-C4'pair":2, "tHW_AG_alpha_1":2, "tHW_AG_alpha_2":2, "tHW_AG_dB1":2, "tHW_AG_dB2":2, 
+    "cWS_AG_tips_distance":1, "cWS_AG_C1'-B1-B1pair":3, "cWS_AG_B1-B1pair-C1'pair":1, "cWS_AG_C4'-C1'-B1-B1pair":1, "cWS_AG_B1-B1pair-C1'pair-C4'pair":1, "cWS_AG_alpha_1":2, "cWS_AG_alpha_2":2, "cWS_AG_dB1":2, "cWS_AG_dB2":1, 
+    "tWS_AG_tips_distance":6, "tWS_AG_C1'-B1-B1pair":1, "tWS_AG_B1-B1pair-C1'pair":2, "tWS_AG_C4'-C1'-B1-B1pair":2, "tWS_AG_B1-B1pair-C1'pair-C4'pair":1, "tWS_AG_alpha_1":2, "tWS_AG_alpha_2":2, "tWS_AG_dB1":1, "tWS_AG_dB2":3, 
+    "cSW_AG_tips_distance":4, "cSW_AG_C1'-B1-B1pair":1, "cSW_AG_B1-B1pair-C1'pair":2, "cSW_AG_C4'-C1'-B1-B1pair":1, "cSW_AG_B1-B1pair-C1'pair-C4'pair":2, "cSW_AG_alpha_1":1, "cSW_AG_alpha_2":2, "cSW_AG_dB1":3, "cSW_AG_dB2":1, 
+    "tSW_AG_tips_distance":7, "tSW_AG_C1'-B1-B1pair":3, "tSW_AG_B1-B1pair-C1'pair":2, "tSW_AG_C4'-C1'-B1-B1pair":2, "tSW_AG_B1-B1pair-C1'pair-C4'pair":2, "tSW_AG_alpha_1":2, "tSW_AG_alpha_2":2, "tSW_AG_dB1":3, "tSW_AG_dB2":3, 
+    "cHH_AG_tips_distance":2, "cHH_AG_C1'-B1-B1pair":2, "cHH_AG_B1-B1pair-C1'pair":4, "cHH_AG_C4'-C1'-B1-B1pair":3, "cHH_AG_B1-B1pair-C1'pair-C4'pair":2, "cHH_AG_alpha_1":2, "cHH_AG_alpha_2":3, "cHH_AG_dB1":1, "cHH_AG_dB2":2, 
+    "tHH_AG_tips_distance":8, "tHH_AG_C1'-B1-B1pair":3, "tHH_AG_B1-B1pair-C1'pair":3, "tHH_AG_C4'-C1'-B1-B1pair":3, "tHH_AG_B1-B1pair-C1'pair-C4'pair":2, "tHH_AG_alpha_1":3, "tHH_AG_alpha_2":3, "tHH_AG_dB1":1, "tHH_AG_dB2":2, 
+    "cSH_AG_tips_distance":5, "cSH_AG_C1'-B1-B1pair":2, "cSH_AG_B1-B1pair-C1'pair":2, "cSH_AG_C4'-C1'-B1-B1pair":2, "cSH_AG_B1-B1pair-C1'pair-C4'pair":2, "cSH_AG_alpha_1":3, "cSH_AG_alpha_2":1, "cSH_AG_dB1":1, "cSH_AG_dB2":3, 
+    "tSH_AG_tips_distance":5, "tSH_AG_C1'-B1-B1pair":2, "tSH_AG_B1-B1pair-C1'pair":2, "tSH_AG_C4'-C1'-B1-B1pair":2, "tSH_AG_B1-B1pair-C1'pair-C4'pair":3, "tSH_AG_alpha_1":2, "tSH_AG_alpha_2":4, "tSH_AG_dB1":3, "tSH_AG_dB2":2, 
+    "cHS_AG_tips_distance":1, "cHS_AG_C1'-B1-B1pair":3, "cHS_AG_B1-B1pair-C1'pair":1, "cHS_AG_C4'-C1'-B1-B1pair":3, "cHS_AG_B1-B1pair-C1'pair-C4'pair":1, "cHS_AG_alpha_1":2, "cHS_AG_alpha_2":3, "cHS_AG_dB1":1, "cHS_AG_dB2":2, 
+    "tHS_AG_tips_distance":6, "tHS_AG_C1'-B1-B1pair":1, "tHS_AG_B1-B1pair-C1'pair":2, "tHS_AG_C4'-C1'-B1-B1pair":2, "tHS_AG_B1-B1pair-C1'pair-C4'pair":2, "tHS_AG_alpha_1":1, "tHS_AG_alpha_2":2, "tHS_AG_dB1":2, "tHS_AG_dB2":1, 
+    "cSS_AG_tips_distance":2, "cSS_AG_C1'-B1-B1pair":2, "cSS_AG_B1-B1pair-C1'pair":2, "cSS_AG_C4'-C1'-B1-B1pair":2, "cSS_AG_B1-B1pair-C1'pair-C4'pair":1, "cSS_AG_alpha_1":2, "cSS_AG_alpha_2":1, "cSS_AG_dB1":2, "cSS_AG_dB2":4, 
+    "tSS_AG_tips_distance":4, "tSS_AG_C1'-B1-B1pair":3, "tSS_AG_B1-B1pair-C1'pair":1, "tSS_AG_C4'-C1'-B1-B1pair":2, "tSS_AG_B1-B1pair-C1'pair-C4'pair":1, "tSS_AG_alpha_1":2, "tSS_AG_alpha_2":1, "tSS_AG_dB1":2, "tSS_AG_dB2":4, 
+    "cWW_AU_tips_distance":3, "cWW_AU_C1'-B1-B1pair":1, "cWW_AU_B1-B1pair-C1'pair":2, "cWW_AU_C4'-C1'-B1-B1pair":3, "cWW_AU_B1-B1pair-C1'pair-C4'pair":2, "cWW_AU_alpha_1":3, "cWW_AU_alpha_2":1, "cWW_AU_dB1":4, "cWW_AU_dB2":2, 
+    "tWW_AU_tips_distance":3, "tWW_AU_C1'-B1-B1pair":3, "tWW_AU_B1-B1pair-C1'pair":3, "tWW_AU_C4'-C1'-B1-B1pair":2, "tWW_AU_B1-B1pair-C1'pair-C4'pair":2, "tWW_AU_alpha_1":3, "tWW_AU_alpha_2":2, "tWW_AU_dB1":3, "tWW_AU_dB2":2, 
+    "cWH_AU_tips_distance":5, "cWH_AU_C1'-B1-B1pair":2, "cWH_AU_B1-B1pair-C1'pair":2, "cWH_AU_C4'-C1'-B1-B1pair":2, "cWH_AU_B1-B1pair-C1'pair-C4'pair":2, "cWH_AU_alpha_1":1, "cWH_AU_alpha_2":3, "cWH_AU_dB1":3, "cWH_AU_dB2":3, 
+    "tWH_AU_tips_distance":6, "tWH_AU_C1'-B1-B1pair":1, "tWH_AU_B1-B1pair-C1'pair":3, "tWH_AU_C4'-C1'-B1-B1pair":2, "tWH_AU_B1-B1pair-C1'pair-C4'pair":2, "tWH_AU_alpha_1":2, "tWH_AU_alpha_2":2, "tWH_AU_dB1":1, "tWH_AU_dB2":3, 
+    "cHW_AU_tips_distance":3, "cHW_AU_C1'-B1-B1pair":3, "cHW_AU_B1-B1pair-C1'pair":3, "cHW_AU_C4'-C1'-B1-B1pair":2, "cHW_AU_B1-B1pair-C1'pair-C4'pair":2, "cHW_AU_alpha_1":1, "cHW_AU_alpha_2":2, "cHW_AU_dB1":2, "cHW_AU_dB2":2, 
+    "tHW_AU_tips_distance":3, "tHW_AU_C1'-B1-B1pair":2, "tHW_AU_B1-B1pair-C1'pair":2, "tHW_AU_C4'-C1'-B1-B1pair":2, "tHW_AU_B1-B1pair-C1'pair-C4'pair":2, "tHW_AU_alpha_1":2, "tHW_AU_alpha_2":1, "tHW_AU_dB1":1, "tHW_AU_dB2":4, 
+    "cWS_AU_tips_distance":2, "cWS_AU_C1'-B1-B1pair":1, "cWS_AU_B1-B1pair-C1'pair":1, "cWS_AU_C4'-C1'-B1-B1pair":2, "cWS_AU_B1-B1pair-C1'pair-C4'pair":1, "cWS_AU_alpha_1":2, "cWS_AU_alpha_2":2, "cWS_AU_dB1":2, "cWS_AU_dB2":5, 
+    "tWS_AU_tips_distance":2, "tWS_AU_C1'-B1-B1pair":2, "tWS_AU_B1-B1pair-C1'pair":2, "tWS_AU_C4'-C1'-B1-B1pair":2, "tWS_AU_B1-B1pair-C1'pair-C4'pair":1, "tWS_AU_alpha_1":2, "tWS_AU_alpha_2":2, "tWS_AU_dB1":3, "tWS_AU_dB2":4, 
+    "cSW_AU_tips_distance":2, "cSW_AU_C1'-B1-B1pair":3, "cSW_AU_B1-B1pair-C1'pair":2, "cSW_AU_C4'-C1'-B1-B1pair":2, "cSW_AU_B1-B1pair-C1'pair-C4'pair":2, "cSW_AU_alpha_1":3, "cSW_AU_alpha_2":2, "cSW_AU_dB1":2, "cSW_AU_dB2":3, 
+    "tSW_AU_tips_distance":3, "tSW_AU_C1'-B1-B1pair":2, "tSW_AU_B1-B1pair-C1'pair":3, "tSW_AU_C4'-C1'-B1-B1pair":3, "tSW_AU_B1-B1pair-C1'pair-C4'pair":2, "tSW_AU_alpha_1":2, "tSW_AU_alpha_2":1, "tSW_AU_dB1":3, "tSW_AU_dB2":4, 
+    "cHH_AU_tips_distance":6, "cHH_AU_C1'-B1-B1pair":2, "cHH_AU_B1-B1pair-C1'pair":1, "cHH_AU_C4'-C1'-B1-B1pair":2, "cHH_AU_B1-B1pair-C1'pair-C4'pair":1, "cHH_AU_alpha_1":2, "cHH_AU_alpha_2":2, "cHH_AU_dB1":1, "cHH_AU_dB2":2, 
+    "tHH_AU_tips_distance":8, "tHH_AU_C1'-B1-B1pair":3, "tHH_AU_B1-B1pair-C1'pair":3, "tHH_AU_C4'-C1'-B1-B1pair":3, "tHH_AU_B1-B1pair-C1'pair-C4'pair":2, "tHH_AU_alpha_1":3, "tHH_AU_alpha_2":3, "tHH_AU_dB1":1, "tHH_AU_dB2":3, 
+    "cSH_AU_tips_distance":5, "cSH_AU_C1'-B1-B1pair":1, "cSH_AU_B1-B1pair-C1'pair":3, "cSH_AU_C4'-C1'-B1-B1pair":3, "cSH_AU_B1-B1pair-C1'pair-C4'pair":2, "cSH_AU_alpha_1":2, "cSH_AU_alpha_2":1, "cSH_AU_dB1":4, "cSH_AU_dB2":4, 
+    "tSH_AU_tips_distance":5, "tSH_AU_C1'-B1-B1pair":3, "tSH_AU_B1-B1pair-C1'pair":1, "tSH_AU_C4'-C1'-B1-B1pair":1, "tSH_AU_B1-B1pair-C1'pair-C4'pair":2, "tSH_AU_alpha_1":3, "tSH_AU_alpha_2":3, "tSH_AU_dB1":3, "tSH_AU_dB2":4, 
+    "cHS_AU_tips_distance":2, "cHS_AU_C1'-B1-B1pair":3, "cHS_AU_B1-B1pair-C1'pair":1, "cHS_AU_C4'-C1'-B1-B1pair":2, "cHS_AU_B1-B1pair-C1'pair-C4'pair":2, "cHS_AU_alpha_1":2, "cHS_AU_alpha_2":2, "cHS_AU_dB1":1, "cHS_AU_dB2":3, 
+    "tHS_AU_tips_distance":2, "tHS_AU_C1'-B1-B1pair":2, "tHS_AU_B1-B1pair-C1'pair":2, "tHS_AU_C4'-C1'-B1-B1pair":2, "tHS_AU_B1-B1pair-C1'pair-C4'pair":3, "tHS_AU_alpha_1":3, "tHS_AU_alpha_2":2, "tHS_AU_dB1":3, "tHS_AU_dB2":3, 
+    "cSS_AU_tips_distance":3, "cSS_AU_C1'-B1-B1pair":2, "cSS_AU_B1-B1pair-C1'pair":2, "cSS_AU_C4'-C1'-B1-B1pair":1, "cSS_AU_B1-B1pair-C1'pair-C4'pair":2, "cSS_AU_alpha_1":3, "cSS_AU_alpha_2":2, "cSS_AU_dB1":1, "cSS_AU_dB2":4, 
+    "tSS_AU_tips_distance":5, "tSS_AU_C1'-B1-B1pair":2, "tSS_AU_B1-B1pair-C1'pair":1, "tSS_AU_C4'-C1'-B1-B1pair":3, "tSS_AU_B1-B1pair-C1'pair-C4'pair":2, "tSS_AU_alpha_1":2, "tSS_AU_alpha_2":3, "tSS_AU_dB1":3, "tSS_AU_dB2":8, 
+    "cWW_CA_tips_distance":2, "cWW_CA_C1'-B1-B1pair":2, "cWW_CA_B1-B1pair-C1'pair":1, "cWW_CA_C4'-C1'-B1-B1pair":2, "cWW_CA_B1-B1pair-C1'pair-C4'pair":2, "cWW_CA_alpha_1":1, "cWW_CA_alpha_2":2, "cWW_CA_dB1":1, "cWW_CA_dB2":1, 
+    "tWW_CA_tips_distance":4, "tWW_CA_C1'-B1-B1pair":2, "tWW_CA_B1-B1pair-C1'pair":2, "tWW_CA_C4'-C1'-B1-B1pair":3, "tWW_CA_B1-B1pair-C1'pair-C4'pair":2, "tWW_CA_alpha_1":2, "tWW_CA_alpha_2":1, "tWW_CA_dB1":4, "tWW_CA_dB2":2, 
+    "cWH_CA_tips_distance":3, "cWH_CA_C1'-B1-B1pair":3, "cWH_CA_B1-B1pair-C1'pair":2, "cWH_CA_C4'-C1'-B1-B1pair":2, "cWH_CA_B1-B1pair-C1'pair-C4'pair":3, "cWH_CA_alpha_1":3, "cWH_CA_alpha_2":2, "cWH_CA_dB1":5, "cWH_CA_dB2":2, 
+    "tWH_CA_tips_distance":5, "tWH_CA_C1'-B1-B1pair":1, "tWH_CA_B1-B1pair-C1'pair":1, "tWH_CA_C4'-C1'-B1-B1pair":2, "tWH_CA_B1-B1pair-C1'pair-C4'pair":2, "tWH_CA_alpha_1":3, "tWH_CA_alpha_2":1, "tWH_CA_dB1":3, "tWH_CA_dB2":2, 
+    "cHW_CA_tips_distance":2, "cHW_CA_C1'-B1-B1pair":2, "cHW_CA_B1-B1pair-C1'pair":2, "cHW_CA_C4'-C1'-B1-B1pair":2, "cHW_CA_B1-B1pair-C1'pair-C4'pair":2, "cHW_CA_alpha_1":2, "cHW_CA_alpha_2":2, "cHW_CA_dB1":4, "cHW_CA_dB2":2, 
+    "tHW_CA_tips_distance":2, "tHW_CA_C1'-B1-B1pair":2, "tHW_CA_B1-B1pair-C1'pair":2, "tHW_CA_C4'-C1'-B1-B1pair":2, "tHW_CA_B1-B1pair-C1'pair-C4'pair":2, "tHW_CA_alpha_1":2, "tHW_CA_alpha_2":2, "tHW_CA_dB1":6, "tHW_CA_dB2":2, 
+    "cWS_CA_tips_distance":2, "cWS_CA_C1'-B1-B1pair":2, "cWS_CA_B1-B1pair-C1'pair":2, "cWS_CA_C4'-C1'-B1-B1pair":2, "cWS_CA_B1-B1pair-C1'pair-C4'pair":1, "cWS_CA_alpha_1":2, "cWS_CA_alpha_2":2, "cWS_CA_dB1":4, "cWS_CA_dB2":2, 
+    "tWS_CA_tips_distance":5, "tWS_CA_C1'-B1-B1pair":3, "tWS_CA_B1-B1pair-C1'pair":1, "tWS_CA_C4'-C1'-B1-B1pair":3, "tWS_CA_B1-B1pair-C1'pair-C4'pair":2, "tWS_CA_alpha_1":3, "tWS_CA_alpha_2":1, "tWS_CA_dB1":1, "tWS_CA_dB2":1, 
+    "cSW_CA_tips_distance":1, "cSW_CA_C1'-B1-B1pair":1, "cSW_CA_B1-B1pair-C1'pair":1, "cSW_CA_C4'-C1'-B1-B1pair":1, "cSW_CA_B1-B1pair-C1'pair-C4'pair":2, "cSW_CA_alpha_1":1, "cSW_CA_alpha_2":3, "cSW_CA_dB1":1, "cSW_CA_dB2":1, 
+    "tSW_CA_tips_distance":3, "tSW_CA_C1'-B1-B1pair":2, "tSW_CA_B1-B1pair-C1'pair":2, "tSW_CA_C4'-C1'-B1-B1pair":1, "tSW_CA_B1-B1pair-C1'pair-C4'pair":1, "tSW_CA_alpha_1":2, "tSW_CA_alpha_2":3, "tSW_CA_dB1":3, "tSW_CA_dB2":1, 
+    "cHH_CA_tips_distance":5, "cHH_CA_C1'-B1-B1pair":2, "cHH_CA_B1-B1pair-C1'pair":1, "cHH_CA_C4'-C1'-B1-B1pair":3, "cHH_CA_B1-B1pair-C1'pair-C4'pair":1, "cHH_CA_alpha_1":2, "cHH_CA_alpha_2":1, "cHH_CA_dB1":1, "cHH_CA_dB2":2, 
+    "tHH_CA_tips_distance":1, "tHH_CA_C1'-B1-B1pair":2, "tHH_CA_B1-B1pair-C1'pair":2, "tHH_CA_C4'-C1'-B1-B1pair":3, "tHH_CA_B1-B1pair-C1'pair-C4'pair":3, "tHH_CA_alpha_1":2, "tHH_CA_alpha_2":1, "tHH_CA_dB1":3, "tHH_CA_dB2":5, 
+    "cSH_CA_tips_distance":3, "cSH_CA_C1'-B1-B1pair":1, "cSH_CA_B1-B1pair-C1'pair":3, "cSH_CA_C4'-C1'-B1-B1pair":2, "cSH_CA_B1-B1pair-C1'pair-C4'pair":1, "cSH_CA_alpha_1":1, "cSH_CA_alpha_2":1, "cSH_CA_dB1":2, "cSH_CA_dB2":3, 
+    "tSH_CA_tips_distance":2, "tSH_CA_C1'-B1-B1pair":1, "tSH_CA_B1-B1pair-C1'pair":2, "tSH_CA_C4'-C1'-B1-B1pair":2, "tSH_CA_B1-B1pair-C1'pair-C4'pair":2, "tSH_CA_alpha_1":3, "tSH_CA_alpha_2":2, "tSH_CA_dB1":6, "tSH_CA_dB2":4, 
+    "cHS_CA_tips_distance":2, "cHS_CA_C1'-B1-B1pair":2, "cHS_CA_B1-B1pair-C1'pair":2, "cHS_CA_C4'-C1'-B1-B1pair":1, "cHS_CA_B1-B1pair-C1'pair-C4'pair":1, "cHS_CA_alpha_1":1, "cHS_CA_alpha_2":2, "cHS_CA_dB1":2, "cHS_CA_dB2":2, 
+    "tHS_CA_tips_distance":3, "tHS_CA_C1'-B1-B1pair":2, "tHS_CA_B1-B1pair-C1'pair":1, "tHS_CA_C4'-C1'-B1-B1pair":2, "tHS_CA_B1-B1pair-C1'pair-C4'pair":2, "tHS_CA_alpha_1":3, "tHS_CA_alpha_2":3, "tHS_CA_dB1":2, "tHS_CA_dB2":1, 
+    "cSS_CA_tips_distance":7, "cSS_CA_C1'-B1-B1pair":2, "cSS_CA_B1-B1pair-C1'pair":2, "cSS_CA_C4'-C1'-B1-B1pair":1, "cSS_CA_B1-B1pair-C1'pair-C4'pair":1, "cSS_CA_alpha_1":3, "cSS_CA_alpha_2":3, "cSS_CA_dB1":3, "cSS_CA_dB2":1, 
+    "tSS_CA_tips_distance":5, "tSS_CA_C1'-B1-B1pair":2, "tSS_CA_B1-B1pair-C1'pair":2, "tSS_CA_C4'-C1'-B1-B1pair":2, "tSS_CA_B1-B1pair-C1'pair-C4'pair":1, "tSS_CA_alpha_1":2, "tSS_CA_alpha_2":2, "tSS_CA_dB1":4, "tSS_CA_dB2":2, 
+    "cWW_CC_tips_distance":3, "cWW_CC_C1'-B1-B1pair":1, "cWW_CC_B1-B1pair-C1'pair":1, "cWW_CC_C4'-C1'-B1-B1pair":2, "cWW_CC_B1-B1pair-C1'pair-C4'pair":2, "cWW_CC_alpha_1":1, "cWW_CC_alpha_2":2, "cWW_CC_dB1":2, "cWW_CC_dB2":2, 
+    "tWW_CC_tips_distance":6, "tWW_CC_C1'-B1-B1pair":3, "tWW_CC_B1-B1pair-C1'pair":3, "tWW_CC_C4'-C1'-B1-B1pair":3, "tWW_CC_B1-B1pair-C1'pair-C4'pair":3, "tWW_CC_alpha_1":2, "tWW_CC_alpha_2":2, "tWW_CC_dB1":6, "tWW_CC_dB2":3, 
+    "cWH_CC_tips_distance":4, "cWH_CC_C1'-B1-B1pair":2, "cWH_CC_B1-B1pair-C1'pair":2, "cWH_CC_C4'-C1'-B1-B1pair":2, "cWH_CC_B1-B1pair-C1'pair-C4'pair":1, "cWH_CC_alpha_1":1, "cWH_CC_alpha_2":3, "cWH_CC_dB1":3, "cWH_CC_dB2":2, 
+    "tWH_CC_tips_distance":1, "tWH_CC_C1'-B1-B1pair":1, "tWH_CC_B1-B1pair-C1'pair":3, "tWH_CC_C4'-C1'-B1-B1pair":2, "tWH_CC_B1-B1pair-C1'pair-C4'pair":1, "tWH_CC_alpha_1":3, "tWH_CC_alpha_2":1, "tWH_CC_dB1":3, "tWH_CC_dB2":3, 
+    "cHW_CC_tips_distance":4, "cHW_CC_C1'-B1-B1pair":3, "cHW_CC_B1-B1pair-C1'pair":2, "cHW_CC_C4'-C1'-B1-B1pair":1, "cHW_CC_B1-B1pair-C1'pair-C4'pair":2, "cHW_CC_alpha_1":2, "cHW_CC_alpha_2":2, "cHW_CC_dB1":2, "cHW_CC_dB2":3, 
+    "tHW_CC_tips_distance":2, "tHW_CC_C1'-B1-B1pair":1, "tHW_CC_B1-B1pair-C1'pair":3, "tHW_CC_C4'-C1'-B1-B1pair":3, "tHW_CC_B1-B1pair-C1'pair-C4'pair":2, "tHW_CC_alpha_1":2, "tHW_CC_alpha_2":2, "tHW_CC_dB1":3, "tHW_CC_dB2":3, 
+    "cWS_CC_tips_distance":3, "cWS_CC_C1'-B1-B1pair":2, "cWS_CC_B1-B1pair-C1'pair":2, "cWS_CC_C4'-C1'-B1-B1pair":1, "cWS_CC_B1-B1pair-C1'pair-C4'pair":1, "cWS_CC_alpha_1":2, "cWS_CC_alpha_2":3, "cWS_CC_dB1":2, "cWS_CC_dB2":1, 
+    "tWS_CC_tips_distance":5, "tWS_CC_C1'-B1-B1pair":2, "tWS_CC_B1-B1pair-C1'pair":2, "tWS_CC_C4'-C1'-B1-B1pair":2, "tWS_CC_B1-B1pair-C1'pair-C4'pair":1, "tWS_CC_alpha_1":2, "tWS_CC_alpha_2":2, "tWS_CC_dB1":2, "tWS_CC_dB2":2, 
+    "cSW_CC_tips_distance":3, "cSW_CC_C1'-B1-B1pair":2, "cSW_CC_B1-B1pair-C1'pair":2, "cSW_CC_C4'-C1'-B1-B1pair":2, "cSW_CC_B1-B1pair-C1'pair-C4'pair":1, "cSW_CC_alpha_1":3, "cSW_CC_alpha_2":2, "cSW_CC_dB1":2, "cSW_CC_dB2":2, 
+    "tSW_CC_tips_distance":5, "tSW_CC_C1'-B1-B1pair":1, "tSW_CC_B1-B1pair-C1'pair":2, "tSW_CC_C4'-C1'-B1-B1pair":1, "tSW_CC_B1-B1pair-C1'pair-C4'pair":2, "tSW_CC_alpha_1":1, "tSW_CC_alpha_2":2, "tSW_CC_dB1":3, "tSW_CC_dB2":2, 
+    "cHH_CC_tips_distance":5, "cHH_CC_C1'-B1-B1pair":1, "cHH_CC_B1-B1pair-C1'pair":1, "cHH_CC_C4'-C1'-B1-B1pair":1, "cHH_CC_B1-B1pair-C1'pair-C4'pair":1, "cHH_CC_alpha_1":2, "cHH_CC_alpha_2":1, "cHH_CC_dB1":7, "cHH_CC_dB2":7, 
+    "tHH_CC_tips_distance":5, "tHH_CC_C1'-B1-B1pair":3, "tHH_CC_B1-B1pair-C1'pair":2, "tHH_CC_C4'-C1'-B1-B1pair":3, "tHH_CC_B1-B1pair-C1'pair-C4'pair":2, "tHH_CC_alpha_1":1, "tHH_CC_alpha_2":3, "tHH_CC_dB1":5, "tHH_CC_dB2":5, 
+    "cSH_CC_tips_distance":3, "cSH_CC_C1'-B1-B1pair":2, "cSH_CC_B1-B1pair-C1'pair":2, "cSH_CC_C4'-C1'-B1-B1pair":2, "cSH_CC_B1-B1pair-C1'pair-C4'pair":2, "cSH_CC_alpha_1":3, "cSH_CC_alpha_2":2, "cSH_CC_dB1":5, "cSH_CC_dB2":2, 
+    "tSH_CC_tips_distance":5, "tSH_CC_C1'-B1-B1pair":2, "tSH_CC_B1-B1pair-C1'pair":1, "tSH_CC_C4'-C1'-B1-B1pair":2, "tSH_CC_B1-B1pair-C1'pair-C4'pair":2, "tSH_CC_alpha_1":3, "tSH_CC_alpha_2":1, "tSH_CC_dB1":4, "tSH_CC_dB2":2, 
+    "cHS_CC_tips_distance":3, "cHS_CC_C1'-B1-B1pair":2, "cHS_CC_B1-B1pair-C1'pair":2, "cHS_CC_C4'-C1'-B1-B1pair":2, "cHS_CC_B1-B1pair-C1'pair-C4'pair":2, "cHS_CC_alpha_1":3, "cHS_CC_alpha_2":2, "cHS_CC_dB1":2, "cHS_CC_dB2":2, 
+    "tHS_CC_tips_distance":5, "tHS_CC_C1'-B1-B1pair":3, "tHS_CC_B1-B1pair-C1'pair":1, "tHS_CC_C4'-C1'-B1-B1pair":2, "tHS_CC_B1-B1pair-C1'pair-C4'pair":3, "tHS_CC_alpha_1":1, "tHS_CC_alpha_2":2, "tHS_CC_dB1":4, "tHS_CC_dB2":4, 
+    "cSS_CC_tips_distance":5, "cSS_CC_C1'-B1-B1pair":2, "cSS_CC_B1-B1pair-C1'pair":2, "cSS_CC_C4'-C1'-B1-B1pair":2, "cSS_CC_B1-B1pair-C1'pair-C4'pair":1, "cSS_CC_alpha_1":1, "cSS_CC_alpha_2":3, "cSS_CC_dB1":1, "cSS_CC_dB2":3, 
+    "tSS_CC_tips_distance":5, "tSS_CC_C1'-B1-B1pair":2, "tSS_CC_B1-B1pair-C1'pair":2, "tSS_CC_C4'-C1'-B1-B1pair":3, "tSS_CC_B1-B1pair-C1'pair-C4'pair":2, "tSS_CC_alpha_1":3, "tSS_CC_alpha_2":2, "tSS_CC_dB1":2, "tSS_CC_dB2":1, 
+    "cWW_CG_tips_distance":5, "cWW_CG_C1'-B1-B1pair":2, "cWW_CG_B1-B1pair-C1'pair":1, "cWW_CG_C4'-C1'-B1-B1pair":2, "cWW_CG_B1-B1pair-C1'pair-C4'pair":2, "cWW_CG_alpha_1":2, "cWW_CG_alpha_2":3, "cWW_CG_dB1":2, "cWW_CG_dB2":2, 
+    "tWW_CG_tips_distance":3, "tWW_CG_C1'-B1-B1pair":1, "tWW_CG_B1-B1pair-C1'pair":2, "tWW_CG_C4'-C1'-B1-B1pair":2, "tWW_CG_B1-B1pair-C1'pair-C4'pair":2, "tWW_CG_alpha_1":2, "tWW_CG_alpha_2":1, "tWW_CG_dB1":1, "tWW_CG_dB2":4, 
+    "cWH_CG_tips_distance":3, "cWH_CG_C1'-B1-B1pair":1, "cWH_CG_B1-B1pair-C1'pair":1, "cWH_CG_C4'-C1'-B1-B1pair":2, "cWH_CG_B1-B1pair-C1'pair-C4'pair":2, "cWH_CG_alpha_1":2, "cWH_CG_alpha_2":1, "cWH_CG_dB1":4, "cWH_CG_dB2":2, 
+    "tWH_CG_tips_distance":4, "tWH_CG_C1'-B1-B1pair":2, "tWH_CG_B1-B1pair-C1'pair":1, "tWH_CG_C4'-C1'-B1-B1pair":2, "tWH_CG_B1-B1pair-C1'pair-C4'pair":3, "tWH_CG_alpha_1":2, "tWH_CG_alpha_2":1, "tWH_CG_dB1":3, "tWH_CG_dB2":2, 
+    "cHW_CG_tips_distance":3, "cHW_CG_C1'-B1-B1pair":2, "cHW_CG_B1-B1pair-C1'pair":2, "cHW_CG_C4'-C1'-B1-B1pair":1, "cHW_CG_B1-B1pair-C1'pair-C4'pair":2, "cHW_CG_alpha_1":1, "cHW_CG_alpha_2":2, "cHW_CG_dB1":2, "cHW_CG_dB2":2, 
+    "tHW_CG_tips_distance":5, "tHW_CG_C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair":2, "tHW_CG_C4'-C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair-C4'pair":2, "tHW_CG_alpha_1":3, "tHW_CG_alpha_2":2, "tHW_CG_dB1":4, "tHW_CG_dB2":3, 
+    "cWS_CG_tips_distance":2, "cWS_CG_C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair":1, "cWS_CG_C4'-C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair-C4'pair":1, "cWS_CG_alpha_1":1, "cWS_CG_alpha_2":2, "cWS_CG_dB1":2, "cWS_CG_dB2":3, 
+    "tWS_CG_tips_distance":2, "tWS_CG_C1'-B1-B1pair":3, "tWS_CG_B1-B1pair-C1'pair":1, "tWS_CG_C4'-C1'-B1-B1pair":2, "tWS_CG_B1-B1pair-C1'pair-C4'pair":1, "tWS_CG_alpha_1":2, "tWS_CG_alpha_2":1, "tWS_CG_dB1":2, "tWS_CG_dB2":4, 
+    "cSW_CG_tips_distance":7, "cSW_CG_C1'-B1-B1pair":1, "cSW_CG_B1-B1pair-C1'pair":2, "cSW_CG_C4'-C1'-B1-B1pair":2, "cSW_CG_B1-B1pair-C1'pair-C4'pair":3, "cSW_CG_alpha_1":1, "cSW_CG_alpha_2":2, "cSW_CG_dB1":1, "cSW_CG_dB2":3, 
+    "tSW_CG_tips_distance":4, "tSW_CG_C1'-B1-B1pair":1, "tSW_CG_B1-B1pair-C1'pair":2, "tSW_CG_C4'-C1'-B1-B1pair":3, "tSW_CG_B1-B1pair-C1'pair-C4'pair":2, "tSW_CG_alpha_1":1, "tSW_CG_alpha_2":2, "tSW_CG_dB1":7, "tSW_CG_dB2":2, 
+    "cHH_CG_tips_distance":1, "cHH_CG_C1'-B1-B1pair":1, "cHH_CG_B1-B1pair-C1'pair":2, "cHH_CG_C4'-C1'-B1-B1pair":3, "cHH_CG_B1-B1pair-C1'pair-C4'pair":2, "cHH_CG_alpha_1":1, "cHH_CG_alpha_2":2, "cHH_CG_dB1":4, "cHH_CG_dB2":1, 
+    "tHH_CG_tips_distance":8, "tHH_CG_C1'-B1-B1pair":2, "tHH_CG_B1-B1pair-C1'pair":2, "tHH_CG_C4'-C1'-B1-B1pair":3, "tHH_CG_B1-B1pair-C1'pair-C4'pair":2, "tHH_CG_alpha_1":2, "tHH_CG_alpha_2":3, "tHH_CG_dB1":3, "tHH_CG_dB2":4, 
+    "cSH_CG_tips_distance":5, "cSH_CG_C1'-B1-B1pair":1, "cSH_CG_B1-B1pair-C1'pair":2, "cSH_CG_C4'-C1'-B1-B1pair":2, "cSH_CG_B1-B1pair-C1'pair-C4'pair":2, "cSH_CG_alpha_1":1, "cSH_CG_alpha_2":2, "cSH_CG_dB1":6, "cSH_CG_dB2":4, 
+    "tSH_CG_tips_distance":5, "tSH_CG_C1'-B1-B1pair":1, "tSH_CG_B1-B1pair-C1'pair":2, "tSH_CG_C4'-C1'-B1-B1pair":2, "tSH_CG_B1-B1pair-C1'pair-C4'pair":1, "tSH_CG_alpha_1":1, "tSH_CG_alpha_2":3, "tSH_CG_dB1":2, "tSH_CG_dB2":3, 
+    "cHS_CG_tips_distance":4, "cHS_CG_C1'-B1-B1pair":2, "cHS_CG_B1-B1pair-C1'pair":2, "cHS_CG_C4'-C1'-B1-B1pair":3, "cHS_CG_B1-B1pair-C1'pair-C4'pair":2, "cHS_CG_alpha_1":2, "cHS_CG_alpha_2":3, "cHS_CG_dB1":5, "cHS_CG_dB2":2, 
+    "tHS_CG_tips_distance":4, "tHS_CG_C1'-B1-B1pair":1, "tHS_CG_B1-B1pair-C1'pair":2, "tHS_CG_C4'-C1'-B1-B1pair":3, "tHS_CG_B1-B1pair-C1'pair-C4'pair":1, "tHS_CG_alpha_1":1, "tHS_CG_alpha_2":1, "tHS_CG_dB1":3, "tHS_CG_dB2":2, 
+    "cSS_CG_tips_distance":1, "cSS_CG_C1'-B1-B1pair":2, "cSS_CG_B1-B1pair-C1'pair":1, "cSS_CG_C4'-C1'-B1-B1pair":2, "cSS_CG_B1-B1pair-C1'pair-C4'pair":1, "cSS_CG_alpha_1":1, "cSS_CG_alpha_2":2, "cSS_CG_dB1":3, "cSS_CG_dB2":3, 
+    "tSS_CG_tips_distance":5, "tSS_CG_C1'-B1-B1pair":2, "tSS_CG_B1-B1pair-C1'pair":2, "tSS_CG_C4'-C1'-B1-B1pair":1, "tSS_CG_B1-B1pair-C1'pair-C4'pair":2, "tSS_CG_alpha_1":1, "tSS_CG_alpha_2":2, "tSS_CG_dB1":1, "tSS_CG_dB2":2, 
+    "cWW_CU_tips_distance":4, "cWW_CU_C1'-B1-B1pair":1, "cWW_CU_B1-B1pair-C1'pair":1, "cWW_CU_C4'-C1'-B1-B1pair":2, "cWW_CU_B1-B1pair-C1'pair-C4'pair":2, "cWW_CU_alpha_1":1, "cWW_CU_alpha_2":1, "cWW_CU_dB1":1, "cWW_CU_dB2":1, 
+    "tWW_CU_tips_distance":1, "tWW_CU_C1'-B1-B1pair":2, "tWW_CU_B1-B1pair-C1'pair":2, "tWW_CU_C4'-C1'-B1-B1pair":2, "tWW_CU_B1-B1pair-C1'pair-C4'pair":2, "tWW_CU_alpha_1":1, "tWW_CU_alpha_2":2, "tWW_CU_dB1":2, "tWW_CU_dB2":1, 
+    "cWH_CU_tips_distance":5, "cWH_CU_C1'-B1-B1pair":2, "cWH_CU_B1-B1pair-C1'pair":2, "cWH_CU_C4'-C1'-B1-B1pair":2, "cWH_CU_B1-B1pair-C1'pair-C4'pair":2, "cWH_CU_alpha_1":3, "cWH_CU_alpha_2":2, "cWH_CU_dB1":3, "cWH_CU_dB2":1, 
+    "tWH_CU_tips_distance":1, "tWH_CU_C1'-B1-B1pair":2, "tWH_CU_B1-B1pair-C1'pair":2, "tWH_CU_C4'-C1'-B1-B1pair":3, "tWH_CU_B1-B1pair-C1'pair-C4'pair":2, "tWH_CU_alpha_1":3, "tWH_CU_alpha_2":3, "tWH_CU_dB1":5, "tWH_CU_dB2":2, 
+    "cHW_CU_tips_distance":3, "cHW_CU_C1'-B1-B1pair":2, "cHW_CU_B1-B1pair-C1'pair":2, "cHW_CU_C4'-C1'-B1-B1pair":1, "cHW_CU_B1-B1pair-C1'pair-C4'pair":3, "cHW_CU_alpha_1":2, "cHW_CU_alpha_2":2, "cHW_CU_dB1":1, "cHW_CU_dB2":3, 
+    "tHW_CU_tips_distance":8, "tHW_CU_C1'-B1-B1pair":1, "tHW_CU_B1-B1pair-C1'pair":1, "tHW_CU_C4'-C1'-B1-B1pair":3, "tHW_CU_B1-B1pair-C1'pair-C4'pair":2, "tHW_CU_alpha_1":1, "tHW_CU_alpha_2":2, "tHW_CU_dB1":3, "tHW_CU_dB2":3, 
+    "cWS_CU_tips_distance":4, "cWS_CU_C1'-B1-B1pair":1, "cWS_CU_B1-B1pair-C1'pair":2, "cWS_CU_C4'-C1'-B1-B1pair":2, "cWS_CU_B1-B1pair-C1'pair-C4'pair":2, "cWS_CU_alpha_1":3, "cWS_CU_alpha_2":2, "cWS_CU_dB1":4, "cWS_CU_dB2":2, 
+    "tWS_CU_tips_distance":5, "tWS_CU_C1'-B1-B1pair":3, "tWS_CU_B1-B1pair-C1'pair":1, "tWS_CU_C4'-C1'-B1-B1pair":2, "tWS_CU_B1-B1pair-C1'pair-C4'pair":2, "tWS_CU_alpha_1":2, "tWS_CU_alpha_2":1, "tWS_CU_dB1":3, "tWS_CU_dB2":5, 
+    "cSW_CU_tips_distance":3, "cSW_CU_C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair":2, "cSW_CU_C4'-C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair-C4'pair":3, "cSW_CU_alpha_1":3, "cSW_CU_alpha_2":3, "cSW_CU_dB1":2, "cSW_CU_dB2":4, 
+    "tSW_CU_tips_distance":7, "tSW_CU_C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair":2, "tSW_CU_C4'-C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair-C4'pair":2, "tSW_CU_alpha_1":2, "tSW_CU_alpha_2":2, "tSW_CU_dB1":2, "tSW_CU_dB2":2, 
+    "cHH_CU_tips_distance":6, "cHH_CU_C1'-B1-B1pair":2, "cHH_CU_B1-B1pair-C1'pair":1, "cHH_CU_C4'-C1'-B1-B1pair":2, "cHH_CU_B1-B1pair-C1'pair-C4'pair":3, "cHH_CU_alpha_1":1, "cHH_CU_alpha_2":1, "cHH_CU_dB1":2, "cHH_CU_dB2":4, 
+    "tHH_CU_tips_distance":5, "tHH_CU_C1'-B1-B1pair":3, "tHH_CU_B1-B1pair-C1'pair":2, "tHH_CU_C4'-C1'-B1-B1pair":2, "tHH_CU_B1-B1pair-C1'pair-C4'pair":1, "tHH_CU_alpha_1":2, "tHH_CU_alpha_2":2, "tHH_CU_dB1":2, "tHH_CU_dB2":2, 
+    "cSH_CU_tips_distance":5, "cSH_CU_C1'-B1-B1pair":2, "cSH_CU_B1-B1pair-C1'pair":2, "cSH_CU_C4'-C1'-B1-B1pair":2, "cSH_CU_B1-B1pair-C1'pair-C4'pair":1, "cSH_CU_alpha_1":1, "cSH_CU_alpha_2":1, "cSH_CU_dB1":4, "cSH_CU_dB2":2, 
+    "tSH_CU_tips_distance":5, "tSH_CU_C1'-B1-B1pair":2, "tSH_CU_B1-B1pair-C1'pair":3, "tSH_CU_C4'-C1'-B1-B1pair":2, "tSH_CU_B1-B1pair-C1'pair-C4'pair":2, "tSH_CU_alpha_1":3, "tSH_CU_alpha_2":3, "tSH_CU_dB1":4, "tSH_CU_dB2":2, 
+    "cHS_CU_tips_distance":2, "cHS_CU_C1'-B1-B1pair":1, "cHS_CU_B1-B1pair-C1'pair":2, "cHS_CU_C4'-C1'-B1-B1pair":2, "cHS_CU_B1-B1pair-C1'pair-C4'pair":2, "cHS_CU_alpha_1":1, "cHS_CU_alpha_2":2, "cHS_CU_dB1":2, "cHS_CU_dB2":4, 
+    "tHS_CU_tips_distance":8, "tHS_CU_C1'-B1-B1pair":2, "tHS_CU_B1-B1pair-C1'pair":1, "tHS_CU_C4'-C1'-B1-B1pair":2, "tHS_CU_B1-B1pair-C1'pair-C4'pair":2, "tHS_CU_alpha_1":2, "tHS_CU_alpha_2":2, "tHS_CU_dB1":3, "tHS_CU_dB2":4, 
+    "cSS_CU_tips_distance":5, "cSS_CU_C1'-B1-B1pair":2, "cSS_CU_B1-B1pair-C1'pair":2, "cSS_CU_C4'-C1'-B1-B1pair":1, "cSS_CU_B1-B1pair-C1'pair-C4'pair":1, "cSS_CU_alpha_1":2, "cSS_CU_alpha_2":3, "cSS_CU_dB1":6, "cSS_CU_dB2":1, 
+    "tSS_CU_tips_distance":5, "tSS_CU_C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair":3, "tSS_CU_C4'-C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair-C4'pair":2, "tSS_CU_alpha_1":3, "tSS_CU_alpha_2":3, "tSS_CU_dB1":7, "tSS_CU_dB2":2, 
+    "cWW_GA_tips_distance":5, "cWW_GA_C1'-B1-B1pair":1, "cWW_GA_B1-B1pair-C1'pair":1, "cWW_GA_C4'-C1'-B1-B1pair":2, "cWW_GA_B1-B1pair-C1'pair-C4'pair":2, "cWW_GA_alpha_1":1, "cWW_GA_alpha_2":1, "cWW_GA_dB1":2, "cWW_GA_dB2":1, 
+    "tWW_GA_tips_distance":6, "tWW_GA_C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair":1, "tWW_GA_C4'-C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair-C4'pair":2, "tWW_GA_alpha_1":1, "tWW_GA_alpha_2":2, "tWW_GA_dB1":1, "tWW_GA_dB2":2, 
+    "cWH_GA_tips_distance":2, "cWH_GA_C1'-B1-B1pair":1, "cWH_GA_B1-B1pair-C1'pair":1, "cWH_GA_C4'-C1'-B1-B1pair":3, "cWH_GA_B1-B1pair-C1'pair-C4'pair":2, "cWH_GA_alpha_1":2, "cWH_GA_alpha_2":1, "cWH_GA_dB1":2, "cWH_GA_dB2":2, 
+    "tWH_GA_tips_distance":7, "tWH_GA_C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair":2, "tWH_GA_C4'-C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair-C4'pair":2, "tWH_GA_alpha_1":2, "tWH_GA_alpha_2":2, "tWH_GA_dB1":1, "tWH_GA_dB2":6, 
+    "cHW_GA_tips_distance":4, "cHW_GA_C1'-B1-B1pair":2, "cHW_GA_B1-B1pair-C1'pair":2, "cHW_GA_C4'-C1'-B1-B1pair":2, "cHW_GA_B1-B1pair-C1'pair-C4'pair":3, "cHW_GA_alpha_1":1, "cHW_GA_alpha_2":2, "cHW_GA_dB1":1, "cHW_GA_dB2":4, 
+    "tHW_GA_tips_distance":3, "tHW_GA_C1'-B1-B1pair":2, "tHW_GA_B1-B1pair-C1'pair":1, "tHW_GA_C4'-C1'-B1-B1pair":2, "tHW_GA_B1-B1pair-C1'pair-C4'pair":2, "tHW_GA_alpha_1":1, "tHW_GA_alpha_2":2, "tHW_GA_dB1":3, "tHW_GA_dB2":1, 
+    "cWS_GA_tips_distance":6, "cWS_GA_C1'-B1-B1pair":3, "cWS_GA_B1-B1pair-C1'pair":2, "cWS_GA_C4'-C1'-B1-B1pair":2, "cWS_GA_B1-B1pair-C1'pair-C4'pair":1, "cWS_GA_alpha_1":2, "cWS_GA_alpha_2":3, "cWS_GA_dB1":3, "cWS_GA_dB2":4, 
+    "tWS_GA_tips_distance":5, "tWS_GA_C1'-B1-B1pair":3, "tWS_GA_B1-B1pair-C1'pair":2, "tWS_GA_C4'-C1'-B1-B1pair":1, "tWS_GA_B1-B1pair-C1'pair-C4'pair":1, "tWS_GA_alpha_1":2, "tWS_GA_alpha_2":2, "tWS_GA_dB1":2, "tWS_GA_dB2":5, 
+    "cSW_GA_tips_distance":4, "cSW_GA_C1'-B1-B1pair":1, "cSW_GA_B1-B1pair-C1'pair":1, "cSW_GA_C4'-C1'-B1-B1pair":1, "cSW_GA_B1-B1pair-C1'pair-C4'pair":1, "cSW_GA_alpha_1":1, "cSW_GA_alpha_2":2, "cSW_GA_dB1":1, "cSW_GA_dB2":2, 
+    "tSW_GA_tips_distance":2, "tSW_GA_C1'-B1-B1pair":1, "tSW_GA_B1-B1pair-C1'pair":2, "tSW_GA_C4'-C1'-B1-B1pair":1, "tSW_GA_B1-B1pair-C1'pair-C4'pair":2, "tSW_GA_alpha_1":1, "tSW_GA_alpha_2":3, "tSW_GA_dB1":2, "tSW_GA_dB2":2, 
+    "cHH_GA_tips_distance":3, "cHH_GA_C1'-B1-B1pair":2, "cHH_GA_B1-B1pair-C1'pair":2, "cHH_GA_C4'-C1'-B1-B1pair":2, "cHH_GA_B1-B1pair-C1'pair-C4'pair":2, "cHH_GA_alpha_1":2, "cHH_GA_alpha_2":3, "cHH_GA_dB1":2, "cHH_GA_dB2":3, 
+    "tHH_GA_tips_distance":3, "tHH_GA_C1'-B1-B1pair":3, "tHH_GA_B1-B1pair-C1'pair":2, "tHH_GA_C4'-C1'-B1-B1pair":2, "tHH_GA_B1-B1pair-C1'pair-C4'pair":2, "tHH_GA_alpha_1":1, "tHH_GA_alpha_2":2, "tHH_GA_dB1":3, "tHH_GA_dB2":2, 
+    "cSH_GA_tips_distance":1, "cSH_GA_C1'-B1-B1pair":2, "cSH_GA_B1-B1pair-C1'pair":2, "cSH_GA_C4'-C1'-B1-B1pair":2, "cSH_GA_B1-B1pair-C1'pair-C4'pair":2, "cSH_GA_alpha_1":1, "cSH_GA_alpha_2":2, "cSH_GA_dB1":2, "cSH_GA_dB2":1, 
+    "tSH_GA_tips_distance":3, "tSH_GA_C1'-B1-B1pair":1, "tSH_GA_B1-B1pair-C1'pair":1, "tSH_GA_C4'-C1'-B1-B1pair":2, "tSH_GA_B1-B1pair-C1'pair-C4'pair":2, "tSH_GA_alpha_1":2, "tSH_GA_alpha_2":2, "tSH_GA_dB1":2, "tSH_GA_dB2":7, 
+    "cHS_GA_tips_distance":5, "cHS_GA_C1'-B1-B1pair":3, "cHS_GA_B1-B1pair-C1'pair":3, "cHS_GA_C4'-C1'-B1-B1pair":3, "cHS_GA_B1-B1pair-C1'pair-C4'pair":2, "cHS_GA_alpha_1":2, "cHS_GA_alpha_2":2, "cHS_GA_dB1":3, "cHS_GA_dB2":4, 
+    "tHS_GA_tips_distance":5, "tHS_GA_C1'-B1-B1pair":3, "tHS_GA_B1-B1pair-C1'pair":1, "tHS_GA_C4'-C1'-B1-B1pair":3, "tHS_GA_B1-B1pair-C1'pair-C4'pair":2, "tHS_GA_alpha_1":2, "tHS_GA_alpha_2":1, "tHS_GA_dB1":1, "tHS_GA_dB2":2, 
+    "cSS_GA_tips_distance":4, "cSS_GA_C1'-B1-B1pair":3, "cSS_GA_B1-B1pair-C1'pair":2, "cSS_GA_C4'-C1'-B1-B1pair":1, "cSS_GA_B1-B1pair-C1'pair-C4'pair":1, "cSS_GA_alpha_1":2, "cSS_GA_alpha_2":1, "cSS_GA_dB1":1, "cSS_GA_dB2":1, 
+    "tSS_GA_tips_distance":4, "tSS_GA_C1'-B1-B1pair":1, "tSS_GA_B1-B1pair-C1'pair":1, "tSS_GA_C4'-C1'-B1-B1pair":1, "tSS_GA_B1-B1pair-C1'pair-C4'pair":1, "tSS_GA_alpha_1":1, "tSS_GA_alpha_2":2, "tSS_GA_dB1":5, "tSS_GA_dB2":2, 
+    "cWW_GC_tips_distance":5, "cWW_GC_C1'-B1-B1pair":1, "cWW_GC_B1-B1pair-C1'pair":2, "cWW_GC_C4'-C1'-B1-B1pair":2, "cWW_GC_B1-B1pair-C1'pair-C4'pair":2, "cWW_GC_alpha_1":2, "cWW_GC_alpha_2":1, "cWW_GC_dB1":2, "cWW_GC_dB2":3, 
+    "tWW_GC_tips_distance":3, "tWW_GC_C1'-B1-B1pair":1, "tWW_GC_B1-B1pair-C1'pair":2, "tWW_GC_C4'-C1'-B1-B1pair":2, "tWW_GC_B1-B1pair-C1'pair-C4'pair":2, "tWW_GC_alpha_1":1, "tWW_GC_alpha_2":2, "tWW_GC_dB1":3, "tWW_GC_dB2":4, 
+    "cWH_GC_tips_distance":7, "cWH_GC_C1'-B1-B1pair":2, "cWH_GC_B1-B1pair-C1'pair":2, "cWH_GC_C4'-C1'-B1-B1pair":2, "cWH_GC_B1-B1pair-C1'pair-C4'pair":1, "cWH_GC_alpha_1":2, "cWH_GC_alpha_2":2, "cWH_GC_dB1":2, "cWH_GC_dB2":3, 
+    "tWH_GC_tips_distance":5, "tWH_GC_C1'-B1-B1pair":1, "tWH_GC_B1-B1pair-C1'pair":1, "tWH_GC_C4'-C1'-B1-B1pair":2, "tWH_GC_B1-B1pair-C1'pair-C4'pair":2, "tWH_GC_alpha_1":3, "tWH_GC_alpha_2":3, "tWH_GC_dB1":2, "tWH_GC_dB2":2, 
+    "cHW_GC_tips_distance":4, "cHW_GC_C1'-B1-B1pair":1, "cHW_GC_B1-B1pair-C1'pair":1, "cHW_GC_C4'-C1'-B1-B1pair":2, "cHW_GC_B1-B1pair-C1'pair-C4'pair":2, "cHW_GC_alpha_1":1, "cHW_GC_alpha_2":1, "cHW_GC_dB1":3, "cHW_GC_dB2":4, 
+    "tHW_GC_tips_distance":5, "tHW_GC_C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair":2, "tHW_GC_C4'-C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair-C4'pair":2, "tHW_GC_alpha_1":2, "tHW_GC_alpha_2":2, "tHW_GC_dB1":2, "tHW_GC_dB2":4, 
+    "cWS_GC_tips_distance":8, "cWS_GC_C1'-B1-B1pair":1, "cWS_GC_B1-B1pair-C1'pair":1, "cWS_GC_C4'-C1'-B1-B1pair":2, "cWS_GC_B1-B1pair-C1'pair-C4'pair":2, "cWS_GC_alpha_1":2, "cWS_GC_alpha_2":1, "cWS_GC_dB1":2, "cWS_GC_dB2":1, 
+    "tWS_GC_tips_distance":2, "tWS_GC_C1'-B1-B1pair":1, "tWS_GC_B1-B1pair-C1'pair":1, "tWS_GC_C4'-C1'-B1-B1pair":3, "tWS_GC_B1-B1pair-C1'pair-C4'pair":2, "tWS_GC_alpha_1":1, "tWS_GC_alpha_2":1, "tWS_GC_dB1":4, "tWS_GC_dB2":5, 
+    "cSW_GC_tips_distance":4, "cSW_GC_C1'-B1-B1pair":2, "cSW_GC_B1-B1pair-C1'pair":3, "cSW_GC_C4'-C1'-B1-B1pair":1, "cSW_GC_B1-B1pair-C1'pair-C4'pair":2, "cSW_GC_alpha_1":3, "cSW_GC_alpha_2":2, "cSW_GC_dB1":3, "cSW_GC_dB2":2, 
+    "tSW_GC_tips_distance":2, "tSW_GC_C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair":3, "tSW_GC_C4'-C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair-C4'pair":2, "tSW_GC_alpha_1":2, "tSW_GC_alpha_2":2, "tSW_GC_dB1":4, "tSW_GC_dB2":2, 
+    "cHH_GC_tips_distance":1, "cHH_GC_C1'-B1-B1pair":3, "cHH_GC_B1-B1pair-C1'pair":1, "cHH_GC_C4'-C1'-B1-B1pair":2, "cHH_GC_B1-B1pair-C1'pair-C4'pair":1, "cHH_GC_alpha_1":2, "cHH_GC_alpha_2":2, "cHH_GC_dB1":3, "cHH_GC_dB2":3, 
+    "tHH_GC_tips_distance":8, "tHH_GC_C1'-B1-B1pair":2, "tHH_GC_B1-B1pair-C1'pair":1, "tHH_GC_C4'-C1'-B1-B1pair":2, "tHH_GC_B1-B1pair-C1'pair-C4'pair":2, "tHH_GC_alpha_1":3, "tHH_GC_alpha_2":1, "tHH_GC_dB1":6, "tHH_GC_dB2":3, 
+    "cSH_GC_tips_distance":8, "cSH_GC_C1'-B1-B1pair":2, "cSH_GC_B1-B1pair-C1'pair":3, "cSH_GC_C4'-C1'-B1-B1pair":1, "cSH_GC_B1-B1pair-C1'pair-C4'pair":3, "cSH_GC_alpha_1":2, "cSH_GC_alpha_2":2, "cSH_GC_dB1":5, "cSH_GC_dB2":4, 
+    "tSH_GC_tips_distance":4, "tSH_GC_C1'-B1-B1pair":1, "tSH_GC_B1-B1pair-C1'pair":2, "tSH_GC_C4'-C1'-B1-B1pair":1, "tSH_GC_B1-B1pair-C1'pair-C4'pair":4, "tSH_GC_alpha_1":1, "tSH_GC_alpha_2":2, "tSH_GC_dB1":2, "tSH_GC_dB2":3, 
+    "cHS_GC_tips_distance":5, "cHS_GC_C1'-B1-B1pair":2, "cHS_GC_B1-B1pair-C1'pair":2, "cHS_GC_C4'-C1'-B1-B1pair":2, "cHS_GC_B1-B1pair-C1'pair-C4'pair":2, "cHS_GC_alpha_1":3, "cHS_GC_alpha_2":1, "cHS_GC_dB1":2, "cHS_GC_dB2":5, 
+    "tHS_GC_tips_distance":5, "tHS_GC_C1'-B1-B1pair":2, "tHS_GC_B1-B1pair-C1'pair":2, "tHS_GC_C4'-C1'-B1-B1pair":2, "tHS_GC_B1-B1pair-C1'pair-C4'pair":3, "tHS_GC_alpha_1":2, "tHS_GC_alpha_2":2, "tHS_GC_dB1":2, "tHS_GC_dB2":2, 
+    "cSS_GC_tips_distance":2, "cSS_GC_C1'-B1-B1pair":2, "cSS_GC_B1-B1pair-C1'pair":2, "cSS_GC_C4'-C1'-B1-B1pair":1, "cSS_GC_B1-B1pair-C1'pair-C4'pair":1, "cSS_GC_alpha_1":2, "cSS_GC_alpha_2":3, "cSS_GC_dB1":3, "cSS_GC_dB2":3, 
+    "tSS_GC_tips_distance":5, "tSS_GC_C1'-B1-B1pair":2, "tSS_GC_B1-B1pair-C1'pair":2, "tSS_GC_C4'-C1'-B1-B1pair":1, "tSS_GC_B1-B1pair-C1'pair-C4'pair":2, "tSS_GC_alpha_1":2, "tSS_GC_alpha_2":3, "tSS_GC_dB1":2, "tSS_GC_dB2":1, 
+    "cWW_GG_tips_distance":3, "cWW_GG_C1'-B1-B1pair":1, "cWW_GG_B1-B1pair-C1'pair":1, "cWW_GG_C4'-C1'-B1-B1pair":2, "cWW_GG_B1-B1pair-C1'pair-C4'pair":1, "cWW_GG_alpha_1":1, "cWW_GG_alpha_2":2, "cWW_GG_dB1":2, "cWW_GG_dB2":2, 
+    "tWW_GG_tips_distance":4, "tWW_GG_C1'-B1-B1pair":1, "tWW_GG_B1-B1pair-C1'pair":1, "tWW_GG_C4'-C1'-B1-B1pair":2, "tWW_GG_B1-B1pair-C1'pair-C4'pair":2, "tWW_GG_alpha_1":2, "tWW_GG_alpha_2":2, "tWW_GG_dB1":1, "tWW_GG_dB2":2, 
+    "cWH_GG_tips_distance":2, "cWH_GG_C1'-B1-B1pair":2, "cWH_GG_B1-B1pair-C1'pair":2, "cWH_GG_C4'-C1'-B1-B1pair":2, "cWH_GG_B1-B1pair-C1'pair-C4'pair":2, "cWH_GG_alpha_1":2, "cWH_GG_alpha_2":2, "cWH_GG_dB1":4, "cWH_GG_dB2":3, 
+    "tWH_GG_tips_distance":2, "tWH_GG_C1'-B1-B1pair":1, "tWH_GG_B1-B1pair-C1'pair":2, "tWH_GG_C4'-C1'-B1-B1pair":2, "tWH_GG_B1-B1pair-C1'pair-C4'pair":2, "tWH_GG_alpha_1":2, "tWH_GG_alpha_2":2, "tWH_GG_dB1":2, "tWH_GG_dB2":3, 
+    "cHW_GG_tips_distance":3, "cHW_GG_C1'-B1-B1pair":2, "cHW_GG_B1-B1pair-C1'pair":2, "cHW_GG_C4'-C1'-B1-B1pair":2, "cHW_GG_B1-B1pair-C1'pair-C4'pair":2, "cHW_GG_alpha_1":1, "cHW_GG_alpha_2":1, "cHW_GG_dB1":2, "cHW_GG_dB2":2, 
+    "tHW_GG_tips_distance":4, "tHW_GG_C1'-B1-B1pair":2, "tHW_GG_B1-B1pair-C1'pair":2, "tHW_GG_C4'-C1'-B1-B1pair":1, "tHW_GG_B1-B1pair-C1'pair-C4'pair":2, "tHW_GG_alpha_1":2, "tHW_GG_alpha_2":2, "tHW_GG_dB1":1, "tHW_GG_dB2":4, 
+    "cWS_GG_tips_distance":2, "cWS_GG_C1'-B1-B1pair":1, "cWS_GG_B1-B1pair-C1'pair":1, "cWS_GG_C4'-C1'-B1-B1pair":2, "cWS_GG_B1-B1pair-C1'pair-C4'pair":1, "cWS_GG_alpha_1":2, "cWS_GG_alpha_2":2, "cWS_GG_dB1":4, "cWS_GG_dB2":3, 
+    "tWS_GG_tips_distance":8, "tWS_GG_C1'-B1-B1pair":3, "tWS_GG_B1-B1pair-C1'pair":2, "tWS_GG_C4'-C1'-B1-B1pair":3, "tWS_GG_B1-B1pair-C1'pair-C4'pair":2, "tWS_GG_alpha_1":1, "tWS_GG_alpha_2":1, "tWS_GG_dB1":1, "tWS_GG_dB2":3, 
+    "cSW_GG_tips_distance":1, "cSW_GG_C1'-B1-B1pair":1, "cSW_GG_B1-B1pair-C1'pair":1, "cSW_GG_C4'-C1'-B1-B1pair":1, "cSW_GG_B1-B1pair-C1'pair-C4'pair":2, "cSW_GG_alpha_1":2, "cSW_GG_alpha_2":2, "cSW_GG_dB1":2, "cSW_GG_dB2":2, 
+    "tSW_GG_tips_distance":5, "tSW_GG_C1'-B1-B1pair":3, "tSW_GG_B1-B1pair-C1'pair":2, "tSW_GG_C4'-C1'-B1-B1pair":3, "tSW_GG_B1-B1pair-C1'pair-C4'pair":2, "tSW_GG_alpha_1":1, "tSW_GG_alpha_2":3, "tSW_GG_dB1":2, "tSW_GG_dB2":1, 
+    "cHH_GG_tips_distance":4, "cHH_GG_C1'-B1-B1pair":1, "cHH_GG_B1-B1pair-C1'pair":1, "cHH_GG_C4'-C1'-B1-B1pair":2, "cHH_GG_B1-B1pair-C1'pair-C4'pair":3, "cHH_GG_alpha_1":1, "cHH_GG_alpha_2":2, "cHH_GG_dB1":2, "cHH_GG_dB2":3, 
+    "tHH_GG_tips_distance":8, "tHH_GG_C1'-B1-B1pair":2, "tHH_GG_B1-B1pair-C1'pair":2, "tHH_GG_C4'-C1'-B1-B1pair":2, "tHH_GG_B1-B1pair-C1'pair-C4'pair":3, "tHH_GG_alpha_1":2, "tHH_GG_alpha_2":2, "tHH_GG_dB1":2, "tHH_GG_dB2":3, 
+    "cSH_GG_tips_distance":2, "cSH_GG_C1'-B1-B1pair":2, "cSH_GG_B1-B1pair-C1'pair":1, "cSH_GG_C4'-C1'-B1-B1pair":1, "cSH_GG_B1-B1pair-C1'pair-C4'pair":2, "cSH_GG_alpha_1":2, "cSH_GG_alpha_2":1, "cSH_GG_dB1":1, "cSH_GG_dB2":1, 
+    "tSH_GG_tips_distance":2, "tSH_GG_C1'-B1-B1pair":2, "tSH_GG_B1-B1pair-C1'pair":2, "tSH_GG_C4'-C1'-B1-B1pair":2, "tSH_GG_B1-B1pair-C1'pair-C4'pair":2, "tSH_GG_alpha_1":2, "tSH_GG_alpha_2":2, "tSH_GG_dB1":1, "tSH_GG_dB2":2, 
+    "cHS_GG_tips_distance":2, "cHS_GG_C1'-B1-B1pair":1, "cHS_GG_B1-B1pair-C1'pair":2, "cHS_GG_C4'-C1'-B1-B1pair":2, "cHS_GG_B1-B1pair-C1'pair-C4'pair":1, "cHS_GG_alpha_1":1, "cHS_GG_alpha_2":2, "cHS_GG_dB1":1, "cHS_GG_dB2":2, 
+    "tHS_GG_tips_distance":2, "tHS_GG_C1'-B1-B1pair":2, "tHS_GG_B1-B1pair-C1'pair":2, "tHS_GG_C4'-C1'-B1-B1pair":2, "tHS_GG_B1-B1pair-C1'pair-C4'pair":1, "tHS_GG_alpha_1":2, "tHS_GG_alpha_2":3, "tHS_GG_dB1":2, "tHS_GG_dB2":1, 
+    "cSS_GG_tips_distance":2, "cSS_GG_C1'-B1-B1pair":2, "cSS_GG_B1-B1pair-C1'pair":2, "cSS_GG_C4'-C1'-B1-B1pair":1, "cSS_GG_B1-B1pair-C1'pair-C4'pair":1, "cSS_GG_alpha_1":2, "cSS_GG_alpha_2":3, "cSS_GG_dB1":3, "cSS_GG_dB2":5, 
+    "tSS_GG_tips_distance":2, "tSS_GG_C1'-B1-B1pair":3, "tSS_GG_B1-B1pair-C1'pair":2, "tSS_GG_C4'-C1'-B1-B1pair":2, "tSS_GG_B1-B1pair-C1'pair-C4'pair":1, "tSS_GG_alpha_1":1, "tSS_GG_alpha_2":3, "tSS_GG_dB1":3, "tSS_GG_dB2":2, 
+    "cWW_GU_tips_distance":2, "cWW_GU_C1'-B1-B1pair":2, "cWW_GU_B1-B1pair-C1'pair":2, "cWW_GU_C4'-C1'-B1-B1pair":2, "cWW_GU_B1-B1pair-C1'pair-C4'pair":1, "cWW_GU_alpha_1":3, "cWW_GU_alpha_2":2, "cWW_GU_dB1":4, "cWW_GU_dB2":3, 
+    "tWW_GU_tips_distance":2, "tWW_GU_C1'-B1-B1pair":3, "tWW_GU_B1-B1pair-C1'pair":2, "tWW_GU_C4'-C1'-B1-B1pair":2, "tWW_GU_B1-B1pair-C1'pair-C4'pair":3, "tWW_GU_alpha_1":2, "tWW_GU_alpha_2":2, "tWW_GU_dB1":3, "tWW_GU_dB2":3, 
+    "cWH_GU_tips_distance":2, "cWH_GU_C1'-B1-B1pair":1, "cWH_GU_B1-B1pair-C1'pair":2, "cWH_GU_C4'-C1'-B1-B1pair":1, "cWH_GU_B1-B1pair-C1'pair-C4'pair":2, "cWH_GU_alpha_1":2, "cWH_GU_alpha_2":4, "cWH_GU_dB1":3, "cWH_GU_dB2":1, 
+    "tWH_GU_tips_distance":8, "tWH_GU_C1'-B1-B1pair":1, "tWH_GU_B1-B1pair-C1'pair":2, "tWH_GU_C4'-C1'-B1-B1pair":2, "tWH_GU_B1-B1pair-C1'pair-C4'pair":2, "tWH_GU_alpha_1":2, "tWH_GU_alpha_2":2, "tWH_GU_dB1":3, "tWH_GU_dB2":1, 
+    "cHW_GU_tips_distance":4, "cHW_GU_C1'-B1-B1pair":2, "cHW_GU_B1-B1pair-C1'pair":1, "cHW_GU_C4'-C1'-B1-B1pair":2, "cHW_GU_B1-B1pair-C1'pair-C4'pair":2, "cHW_GU_alpha_1":2, "cHW_GU_alpha_2":2, "cHW_GU_dB1":3, "cHW_GU_dB2":3, 
+    "tHW_GU_tips_distance":1, "tHW_GU_C1'-B1-B1pair":3, "tHW_GU_B1-B1pair-C1'pair":1, "tHW_GU_C4'-C1'-B1-B1pair":2, "tHW_GU_B1-B1pair-C1'pair-C4'pair":3, "tHW_GU_alpha_1":3, "tHW_GU_alpha_2":1, "tHW_GU_dB1":2, "tHW_GU_dB2":5, 
+    "cWS_GU_tips_distance":2, "cWS_GU_C1'-B1-B1pair":1, "cWS_GU_B1-B1pair-C1'pair":1, "cWS_GU_C4'-C1'-B1-B1pair":1, "cWS_GU_B1-B1pair-C1'pair-C4'pair":2, "cWS_GU_alpha_1":3, "cWS_GU_alpha_2":3, "cWS_GU_dB1":2, "cWS_GU_dB2":3, 
+    "tWS_GU_tips_distance":4, "tWS_GU_C1'-B1-B1pair":3, "tWS_GU_B1-B1pair-C1'pair":1, "tWS_GU_C4'-C1'-B1-B1pair":3, "tWS_GU_B1-B1pair-C1'pair-C4'pair":2, "tWS_GU_alpha_1":1, "tWS_GU_alpha_2":2, "tWS_GU_dB1":3, "tWS_GU_dB2":3, 
+    "cSW_GU_tips_distance":2, "cSW_GU_C1'-B1-B1pair":2, "cSW_GU_B1-B1pair-C1'pair":2, "cSW_GU_C4'-C1'-B1-B1pair":2, "cSW_GU_B1-B1pair-C1'pair-C4'pair":2, "cSW_GU_alpha_1":1, "cSW_GU_alpha_2":2, "cSW_GU_dB1":3, "cSW_GU_dB2":2, 
+    "tSW_GU_tips_distance":3, "tSW_GU_C1'-B1-B1pair":1, "tSW_GU_B1-B1pair-C1'pair":2, "tSW_GU_C4'-C1'-B1-B1pair":2, "tSW_GU_B1-B1pair-C1'pair-C4'pair":2, "tSW_GU_alpha_1":1, "tSW_GU_alpha_2":2, "tSW_GU_dB1":5, "tSW_GU_dB2":1, 
+    "cHH_GU_tips_distance":5, "cHH_GU_C1'-B1-B1pair":2, "cHH_GU_B1-B1pair-C1'pair":3, "cHH_GU_C4'-C1'-B1-B1pair":2, "cHH_GU_B1-B1pair-C1'pair-C4'pair":2, "cHH_GU_alpha_1":2, "cHH_GU_alpha_2":2, "cHH_GU_dB1":5, "cHH_GU_dB2":3, 
+    "tHH_GU_tips_distance":5, "tHH_GU_C1'-B1-B1pair":2, "tHH_GU_B1-B1pair-C1'pair":1, "tHH_GU_C4'-C1'-B1-B1pair":1, "tHH_GU_B1-B1pair-C1'pair-C4'pair":2, "tHH_GU_alpha_1":2, "tHH_GU_alpha_2":1, "tHH_GU_dB1":8, "tHH_GU_dB2":2, 
+    "cSH_GU_tips_distance":3, "cSH_GU_C1'-B1-B1pair":1, "cSH_GU_B1-B1pair-C1'pair":2, "cSH_GU_C4'-C1'-B1-B1pair":3, "cSH_GU_B1-B1pair-C1'pair-C4'pair":2, "cSH_GU_alpha_1":2, "cSH_GU_alpha_2":1, "cSH_GU_dB1":2, "cSH_GU_dB2":2, 
+    "tSH_GU_tips_distance":2, "tSH_GU_C1'-B1-B1pair":2, "tSH_GU_B1-B1pair-C1'pair":2, "tSH_GU_C4'-C1'-B1-B1pair":1, "tSH_GU_B1-B1pair-C1'pair-C4'pair":1, "tSH_GU_alpha_1":2, "tSH_GU_alpha_2":3, "tSH_GU_dB1":3, "tSH_GU_dB2":3, 
+    "cHS_GU_tips_distance":8, "cHS_GU_C1'-B1-B1pair":1, "cHS_GU_B1-B1pair-C1'pair":1, "cHS_GU_C4'-C1'-B1-B1pair":2, "cHS_GU_B1-B1pair-C1'pair-C4'pair":2, "cHS_GU_alpha_1":1, "cHS_GU_alpha_2":1, "cHS_GU_dB1":4, "cHS_GU_dB2":3, 
+    "tHS_GU_tips_distance":5, "tHS_GU_C1'-B1-B1pair":4, "tHS_GU_B1-B1pair-C1'pair":2, "tHS_GU_C4'-C1'-B1-B1pair":2, "tHS_GU_B1-B1pair-C1'pair-C4'pair":1, "tHS_GU_alpha_1":2, "tHS_GU_alpha_2":1, "tHS_GU_dB1":1, "tHS_GU_dB2":3, 
+    "cSS_GU_tips_distance":2, "cSS_GU_C1'-B1-B1pair":3, "cSS_GU_B1-B1pair-C1'pair":2, "cSS_GU_C4'-C1'-B1-B1pair":2, "cSS_GU_B1-B1pair-C1'pair-C4'pair":2, "cSS_GU_alpha_1":2, "cSS_GU_alpha_2":1, "cSS_GU_dB1":3, "cSS_GU_dB2":4, 
+    "tSS_GU_tips_distance":5, "tSS_GU_C1'-B1-B1pair":2, "tSS_GU_B1-B1pair-C1'pair":2, "tSS_GU_C4'-C1'-B1-B1pair":1, "tSS_GU_B1-B1pair-C1'pair-C4'pair":3, "tSS_GU_alpha_1":2, "tSS_GU_alpha_2":2, "tSS_GU_dB1":2, "tSS_GU_dB2":6, 
+    "cWW_UA_tips_distance":4, "cWW_UA_C1'-B1-B1pair":2, "cWW_UA_B1-B1pair-C1'pair":2, "cWW_UA_C4'-C1'-B1-B1pair":1, "cWW_UA_B1-B1pair-C1'pair-C4'pair":2, "cWW_UA_alpha_1":2, "cWW_UA_alpha_2":2, "cWW_UA_dB1":2, "cWW_UA_dB2":7, 
+    "tWW_UA_tips_distance":2, "tWW_UA_C1'-B1-B1pair":1, "tWW_UA_B1-B1pair-C1'pair":2, "tWW_UA_C4'-C1'-B1-B1pair":2, "tWW_UA_B1-B1pair-C1'pair-C4'pair":1, "tWW_UA_alpha_1":2, "tWW_UA_alpha_2":1, "tWW_UA_dB1":6, "tWW_UA_dB2":1, 
+    "cWH_UA_tips_distance":3, "cWH_UA_C1'-B1-B1pair":3, "cWH_UA_B1-B1pair-C1'pair":3, "cWH_UA_C4'-C1'-B1-B1pair":3, "cWH_UA_B1-B1pair-C1'pair-C4'pair":2, "cWH_UA_alpha_1":2, "cWH_UA_alpha_2":3, "cWH_UA_dB1":4, "cWH_UA_dB2":3, 
+    "tWH_UA_tips_distance":3, "tWH_UA_C1'-B1-B1pair":2, "tWH_UA_B1-B1pair-C1'pair":1, "tWH_UA_C4'-C1'-B1-B1pair":2, "tWH_UA_B1-B1pair-C1'pair-C4'pair":2, "tWH_UA_alpha_1":1, "tWH_UA_alpha_2":2, "tWH_UA_dB1":3, "tWH_UA_dB2":2, 
+    "cHW_UA_tips_distance":5, "cHW_UA_C1'-B1-B1pair":1, "cHW_UA_B1-B1pair-C1'pair":1, "cHW_UA_C4'-C1'-B1-B1pair":3, "cHW_UA_B1-B1pair-C1'pair-C4'pair":1, "cHW_UA_alpha_1":1, "cHW_UA_alpha_2":1, "cHW_UA_dB1":3, "cHW_UA_dB2":1, 
+    "tHW_UA_tips_distance":7, "tHW_UA_C1'-B1-B1pair":3, "tHW_UA_B1-B1pair-C1'pair":2, "tHW_UA_C4'-C1'-B1-B1pair":1, "tHW_UA_B1-B1pair-C1'pair-C4'pair":2, "tHW_UA_alpha_1":3, "tHW_UA_alpha_2":3, "tHW_UA_dB1":2, "tHW_UA_dB2":1, 
+    "cWS_UA_tips_distance":1, "cWS_UA_C1'-B1-B1pair":2, "cWS_UA_B1-B1pair-C1'pair":3, "cWS_UA_C4'-C1'-B1-B1pair":2, "cWS_UA_B1-B1pair-C1'pair-C4'pair":1, "cWS_UA_alpha_1":2, "cWS_UA_alpha_2":2, "cWS_UA_dB1":3, "cWS_UA_dB2":4, 
+    "tWS_UA_tips_distance":5, "tWS_UA_C1'-B1-B1pair":1, "tWS_UA_B1-B1pair-C1'pair":2, "tWS_UA_C4'-C1'-B1-B1pair":2, "tWS_UA_B1-B1pair-C1'pair-C4'pair":1, "tWS_UA_alpha_1":1, "tWS_UA_alpha_2":3, "tWS_UA_dB1":1, "tWS_UA_dB2":1, 
+    "cSW_UA_tips_distance":2, "cSW_UA_C1'-B1-B1pair":1, "cSW_UA_B1-B1pair-C1'pair":1, "cSW_UA_C4'-C1'-B1-B1pair":2, "cSW_UA_B1-B1pair-C1'pair-C4'pair":2, "cSW_UA_alpha_1":2, "cSW_UA_alpha_2":3, "cSW_UA_dB1":3, "cSW_UA_dB2":3, 
+    "tSW_UA_tips_distance":2, "tSW_UA_C1'-B1-B1pair":1, "tSW_UA_B1-B1pair-C1'pair":2, "tSW_UA_C4'-C1'-B1-B1pair":1, "tSW_UA_B1-B1pair-C1'pair-C4'pair":1, "tSW_UA_alpha_1":2, "tSW_UA_alpha_2":2, "tSW_UA_dB1":3, "tSW_UA_dB2":2, 
+    "cHH_UA_tips_distance":4, "cHH_UA_C1'-B1-B1pair":1, "cHH_UA_B1-B1pair-C1'pair":1, "cHH_UA_C4'-C1'-B1-B1pair":1, "cHH_UA_B1-B1pair-C1'pair-C4'pair":2, "cHH_UA_alpha_1":2, "cHH_UA_alpha_2":2, "cHH_UA_dB1":5, "cHH_UA_dB2":2, 
+    "tHH_UA_tips_distance":4, "tHH_UA_C1'-B1-B1pair":2, "tHH_UA_B1-B1pair-C1'pair":2, "tHH_UA_C4'-C1'-B1-B1pair":2, "tHH_UA_B1-B1pair-C1'pair-C4'pair":2, "tHH_UA_alpha_1":2, "tHH_UA_alpha_2":3, "tHH_UA_dB1":3, "tHH_UA_dB2":1, 
+    "cSH_UA_tips_distance":4, "cSH_UA_C1'-B1-B1pair":1, "cSH_UA_B1-B1pair-C1'pair":1, "cSH_UA_C4'-C1'-B1-B1pair":2, "cSH_UA_B1-B1pair-C1'pair-C4'pair":2, "cSH_UA_alpha_1":2, "cSH_UA_alpha_2":2, "cSH_UA_dB1":3, "cSH_UA_dB2":2, 
+    "tSH_UA_tips_distance":2, "tSH_UA_C1'-B1-B1pair":2, "tSH_UA_B1-B1pair-C1'pair":2, "tSH_UA_C4'-C1'-B1-B1pair":3, "tSH_UA_B1-B1pair-C1'pair-C4'pair":2, "tSH_UA_alpha_1":3, "tSH_UA_alpha_2":2, "tSH_UA_dB1":4, "tSH_UA_dB2":1, 
+    "cHS_UA_tips_distance":5, "cHS_UA_C1'-B1-B1pair":2, "cHS_UA_B1-B1pair-C1'pair":2, "cHS_UA_C4'-C1'-B1-B1pair":2, "cHS_UA_B1-B1pair-C1'pair-C4'pair":2, "cHS_UA_alpha_1":2, "cHS_UA_alpha_2":2, "cHS_UA_dB1":1, "cHS_UA_dB2":3, 
+    "tHS_UA_tips_distance":5, "tHS_UA_C1'-B1-B1pair":2, "tHS_UA_B1-B1pair-C1'pair":2, "tHS_UA_C4'-C1'-B1-B1pair":3, "tHS_UA_B1-B1pair-C1'pair-C4'pair":1, "tHS_UA_alpha_1":3, "tHS_UA_alpha_2":3, "tHS_UA_dB1":2, "tHS_UA_dB2":7, 
+    "cSS_UA_tips_distance":2, "cSS_UA_C1'-B1-B1pair":2, "cSS_UA_B1-B1pair-C1'pair":2, "cSS_UA_C4'-C1'-B1-B1pair":2, "cSS_UA_B1-B1pair-C1'pair-C4'pair":1, "cSS_UA_alpha_1":1, "cSS_UA_alpha_2":1, "cSS_UA_dB1":2, "cSS_UA_dB2":1, 
+    "tSS_UA_tips_distance":5, "tSS_UA_C1'-B1-B1pair":1, "tSS_UA_B1-B1pair-C1'pair":3, "tSS_UA_C4'-C1'-B1-B1pair":2, "tSS_UA_B1-B1pair-C1'pair-C4'pair":3, "tSS_UA_alpha_1":2, "tSS_UA_alpha_2":2, "tSS_UA_dB1":4, "tSS_UA_dB2":4, 
+    "cWW_UC_tips_distance":3, "cWW_UC_C1'-B1-B1pair":1, "cWW_UC_B1-B1pair-C1'pair":2, "cWW_UC_C4'-C1'-B1-B1pair":2, "cWW_UC_B1-B1pair-C1'pair-C4'pair":2, "cWW_UC_alpha_1":2, "cWW_UC_alpha_2":1, "cWW_UC_dB1":1, "cWW_UC_dB2":2, 
+    "tWW_UC_tips_distance":4, "tWW_UC_C1'-B1-B1pair":2, "tWW_UC_B1-B1pair-C1'pair":2, "tWW_UC_C4'-C1'-B1-B1pair":2, "tWW_UC_B1-B1pair-C1'pair-C4'pair":2, "tWW_UC_alpha_1":3, "tWW_UC_alpha_2":1, "tWW_UC_dB1":1, "tWW_UC_dB2":4, 
+    "cWH_UC_tips_distance":2, "cWH_UC_C1'-B1-B1pair":2, "cWH_UC_B1-B1pair-C1'pair":2, "cWH_UC_C4'-C1'-B1-B1pair":2, "cWH_UC_B1-B1pair-C1'pair-C4'pair":4, "cWH_UC_alpha_1":2, "cWH_UC_alpha_2":3, "cWH_UC_dB1":3, "cWH_UC_dB2":3, 
+    "tWH_UC_tips_distance":4, "tWH_UC_C1'-B1-B1pair":3, "tWH_UC_B1-B1pair-C1'pair":2, "tWH_UC_C4'-C1'-B1-B1pair":3, "tWH_UC_B1-B1pair-C1'pair-C4'pair":1, "tWH_UC_alpha_1":4, "tWH_UC_alpha_2":1, "tWH_UC_dB1":4, "tWH_UC_dB2":2, 
+    "cHW_UC_tips_distance":5, "cHW_UC_C1'-B1-B1pair":2, "cHW_UC_B1-B1pair-C1'pair":2, "cHW_UC_C4'-C1'-B1-B1pair":1, "cHW_UC_B1-B1pair-C1'pair-C4'pair":2, "cHW_UC_alpha_1":2, "cHW_UC_alpha_2":2, "cHW_UC_dB1":2, "cHW_UC_dB2":6, 
+    "tHW_UC_tips_distance":2, "tHW_UC_C1'-B1-B1pair":2, "tHW_UC_B1-B1pair-C1'pair":2, "tHW_UC_C4'-C1'-B1-B1pair":3, "tHW_UC_B1-B1pair-C1'pair-C4'pair":2, "tHW_UC_alpha_1":2, "tHW_UC_alpha_2":4, "tHW_UC_dB1":4, "tHW_UC_dB2":4, 
+    "cWS_UC_tips_distance":4, "cWS_UC_C1'-B1-B1pair":2, "cWS_UC_B1-B1pair-C1'pair":2, "cWS_UC_C4'-C1'-B1-B1pair":2, "cWS_UC_B1-B1pair-C1'pair-C4'pair":2, "cWS_UC_alpha_1":3, "cWS_UC_alpha_2":2, "cWS_UC_dB1":3, "cWS_UC_dB2":2, 
+    "tWS_UC_tips_distance":4, "tWS_UC_C1'-B1-B1pair":2, "tWS_UC_B1-B1pair-C1'pair":1, "tWS_UC_C4'-C1'-B1-B1pair":2, "tWS_UC_B1-B1pair-C1'pair-C4'pair":2, "tWS_UC_alpha_1":2, "tWS_UC_alpha_2":1, "tWS_UC_dB1":3, "tWS_UC_dB2":2, 
+    "cSW_UC_tips_distance":4, "cSW_UC_C1'-B1-B1pair":1, "cSW_UC_B1-B1pair-C1'pair":2, "cSW_UC_C4'-C1'-B1-B1pair":2, "cSW_UC_B1-B1pair-C1'pair-C4'pair":2, "cSW_UC_alpha_1":2, "cSW_UC_alpha_2":3, "cSW_UC_dB1":3, "cSW_UC_dB2":6, 
+    "tSW_UC_tips_distance":5, "tSW_UC_C1'-B1-B1pair":1, "tSW_UC_B1-B1pair-C1'pair":2, "tSW_UC_C4'-C1'-B1-B1pair":3, "tSW_UC_B1-B1pair-C1'pair-C4'pair":1, "tSW_UC_alpha_1":2, "tSW_UC_alpha_2":2, "tSW_UC_dB1":2, "tSW_UC_dB2":1, 
+    "cHH_UC_tips_distance":5, "cHH_UC_C1'-B1-B1pair":2, "cHH_UC_B1-B1pair-C1'pair":1, "cHH_UC_C4'-C1'-B1-B1pair":2, "cHH_UC_B1-B1pair-C1'pair-C4'pair":2, "cHH_UC_alpha_1":1, "cHH_UC_alpha_2":3, "cHH_UC_dB1":7, "cHH_UC_dB2":3, 
+    "tHH_UC_tips_distance":5, "tHH_UC_C1'-B1-B1pair":1, "tHH_UC_B1-B1pair-C1'pair":1, "tHH_UC_C4'-C1'-B1-B1pair":2, "tHH_UC_B1-B1pair-C1'pair-C4'pair":3, "tHH_UC_alpha_1":2, "tHH_UC_alpha_2":2, "tHH_UC_dB1":8, "tHH_UC_dB2":8, 
+    "cSH_UC_tips_distance":5, "cSH_UC_C1'-B1-B1pair":2, "cSH_UC_B1-B1pair-C1'pair":2, "cSH_UC_C4'-C1'-B1-B1pair":2, "cSH_UC_B1-B1pair-C1'pair-C4'pair":1, "cSH_UC_alpha_1":2, "cSH_UC_alpha_2":3, "cSH_UC_dB1":5, "cSH_UC_dB2":3, 
+    "tSH_UC_tips_distance":2, "tSH_UC_C1'-B1-B1pair":1, "tSH_UC_B1-B1pair-C1'pair":1, "tSH_UC_C4'-C1'-B1-B1pair":2, "tSH_UC_B1-B1pair-C1'pair-C4'pair":1, "tSH_UC_alpha_1":2, "tSH_UC_alpha_2":2, "tSH_UC_dB1":2, "tSH_UC_dB2":7, 
+    "cHS_UC_tips_distance":5, "cHS_UC_C1'-B1-B1pair":2, "cHS_UC_B1-B1pair-C1'pair":2, "cHS_UC_C4'-C1'-B1-B1pair":1, "cHS_UC_B1-B1pair-C1'pair-C4'pair":3, "cHS_UC_alpha_1":3, "cHS_UC_alpha_2":2, "cHS_UC_dB1":6, "cHS_UC_dB2":7, 
+    "tHS_UC_tips_distance":5, "tHS_UC_C1'-B1-B1pair":3, "tHS_UC_B1-B1pair-C1'pair":2, "tHS_UC_C4'-C1'-B1-B1pair":2, "tHS_UC_B1-B1pair-C1'pair-C4'pair":3, "tHS_UC_alpha_1":3, "tHS_UC_alpha_2":1, "tHS_UC_dB1":5, "tHS_UC_dB2":7, 
+    "cSS_UC_tips_distance":5, "cSS_UC_C1'-B1-B1pair":2, "cSS_UC_B1-B1pair-C1'pair":1, "cSS_UC_C4'-C1'-B1-B1pair":3, "cSS_UC_B1-B1pair-C1'pair-C4'pair":1, "cSS_UC_alpha_1":3, "cSS_UC_alpha_2":3, "cSS_UC_dB1":8, "cSS_UC_dB2":5, 
+    "tSS_UC_tips_distance":5, "tSS_UC_C1'-B1-B1pair":2, "tSS_UC_B1-B1pair-C1'pair":1, "tSS_UC_C4'-C1'-B1-B1pair":3, "tSS_UC_B1-B1pair-C1'pair-C4'pair":3, "tSS_UC_alpha_1":3, "tSS_UC_alpha_2":1, "tSS_UC_dB1":8, "tSS_UC_dB2":7, 
+    "cWW_UG_tips_distance":3, "cWW_UG_C1'-B1-B1pair":2, "cWW_UG_B1-B1pair-C1'pair":3, "cWW_UG_C4'-C1'-B1-B1pair":2, "cWW_UG_B1-B1pair-C1'pair-C4'pair":2, "cWW_UG_alpha_1":2, "cWW_UG_alpha_2":3, "cWW_UG_dB1":4, "cWW_UG_dB2":3, 
+    "tWW_UG_tips_distance":2, "tWW_UG_C1'-B1-B1pair":1, "tWW_UG_B1-B1pair-C1'pair":1, "tWW_UG_C4'-C1'-B1-B1pair":2, "tWW_UG_B1-B1pair-C1'pair-C4'pair":2, "tWW_UG_alpha_1":3, "tWW_UG_alpha_2":3, "tWW_UG_dB1":3, "tWW_UG_dB2":4, 
+    "cWH_UG_tips_distance":2, "cWH_UG_C1'-B1-B1pair":1, "cWH_UG_B1-B1pair-C1'pair":2, "cWH_UG_C4'-C1'-B1-B1pair":2, "cWH_UG_B1-B1pair-C1'pair-C4'pair":2, "cWH_UG_alpha_1":2, "cWH_UG_alpha_2":2, "cWH_UG_dB1":2, "cWH_UG_dB2":2, 
+    "tWH_UG_tips_distance":1, "tWH_UG_C1'-B1-B1pair":2, "tWH_UG_B1-B1pair-C1'pair":2, "tWH_UG_C4'-C1'-B1-B1pair":2, "tWH_UG_B1-B1pair-C1'pair-C4'pair":2, "tWH_UG_alpha_1":2, "tWH_UG_alpha_2":2, "tWH_UG_dB1":6, "tWH_UG_dB2":2, 
+    "cHW_UG_tips_distance":2, "cHW_UG_C1'-B1-B1pair":2, "cHW_UG_B1-B1pair-C1'pair":2, "cHW_UG_C4'-C1'-B1-B1pair":1, "cHW_UG_B1-B1pair-C1'pair-C4'pair":2, "cHW_UG_alpha_1":1, "cHW_UG_alpha_2":2, "cHW_UG_dB1":4, "cHW_UG_dB2":4, 
+    "tHW_UG_tips_distance":1, "tHW_UG_C1'-B1-B1pair":2, "tHW_UG_B1-B1pair-C1'pair":1, "tHW_UG_C4'-C1'-B1-B1pair":2, "tHW_UG_B1-B1pair-C1'pair-C4'pair":2, "tHW_UG_alpha_1":3, "tHW_UG_alpha_2":2, "tHW_UG_dB1":6, "tHW_UG_dB2":3, 
+    "cWS_UG_tips_distance":2, "cWS_UG_C1'-B1-B1pair":4, "cWS_UG_B1-B1pair-C1'pair":2, "cWS_UG_C4'-C1'-B1-B1pair":3, "cWS_UG_B1-B1pair-C1'pair-C4'pair":2, "cWS_UG_alpha_1":2, "cWS_UG_alpha_2":2, "cWS_UG_dB1":2, "cWS_UG_dB2":2, 
+    "tWS_UG_tips_distance":5, "tWS_UG_C1'-B1-B1pair":2, "tWS_UG_B1-B1pair-C1'pair":2, "tWS_UG_C4'-C1'-B1-B1pair":2, "tWS_UG_B1-B1pair-C1'pair-C4'pair":2, "tWS_UG_alpha_1":2, "tWS_UG_alpha_2":1, "tWS_UG_dB1":3, "tWS_UG_dB2":5, 
+    "cSW_UG_tips_distance":2, "cSW_UG_C1'-B1-B1pair":2, "cSW_UG_B1-B1pair-C1'pair":3, "cSW_UG_C4'-C1'-B1-B1pair":2, "cSW_UG_B1-B1pair-C1'pair-C4'pair":1, "cSW_UG_alpha_1":2, "cSW_UG_alpha_2":2, "cSW_UG_dB1":3, "cSW_UG_dB2":2, 
+    "tSW_UG_tips_distance":4, "tSW_UG_C1'-B1-B1pair":1, "tSW_UG_B1-B1pair-C1'pair":1, "tSW_UG_C4'-C1'-B1-B1pair":2, "tSW_UG_B1-B1pair-C1'pair-C4'pair":3, "tSW_UG_alpha_1":2, "tSW_UG_alpha_2":2, "tSW_UG_dB1":2, "tSW_UG_dB2":2, 
+    "cHH_UG_tips_distance":5, "cHH_UG_C1'-B1-B1pair":3, "cHH_UG_B1-B1pair-C1'pair":2, "cHH_UG_C4'-C1'-B1-B1pair":2, "cHH_UG_B1-B1pair-C1'pair-C4'pair":2, "cHH_UG_alpha_1":2, "cHH_UG_alpha_2":3, "cHH_UG_dB1":4, "cHH_UG_dB2":5, 
+    "tHH_UG_tips_distance":5, "tHH_UG_C1'-B1-B1pair":2, "tHH_UG_B1-B1pair-C1'pair":2, "tHH_UG_C4'-C1'-B1-B1pair":2, "tHH_UG_B1-B1pair-C1'pair-C4'pair":3, "tHH_UG_alpha_1":3, "tHH_UG_alpha_2":2, "tHH_UG_dB1":3, "tHH_UG_dB2":2, 
+    "cSH_UG_tips_distance":5, "cSH_UG_C1'-B1-B1pair":1, "cSH_UG_B1-B1pair-C1'pair":2, "cSH_UG_C4'-C1'-B1-B1pair":2, "cSH_UG_B1-B1pair-C1'pair-C4'pair":2, "cSH_UG_alpha_1":2, "cSH_UG_alpha_2":2, "cSH_UG_dB1":3, "cSH_UG_dB2":4, 
+    "tSH_UG_tips_distance":5, "tSH_UG_C1'-B1-B1pair":2, "tSH_UG_B1-B1pair-C1'pair":1, "tSH_UG_C4'-C1'-B1-B1pair":2, "tSH_UG_B1-B1pair-C1'pair-C4'pair":1, "tSH_UG_alpha_1":3, "tSH_UG_alpha_2":1, "tSH_UG_dB1":2, "tSH_UG_dB2":2, 
+    "cHS_UG_tips_distance":3, "cHS_UG_C1'-B1-B1pair":2, "cHS_UG_B1-B1pair-C1'pair":3, "cHS_UG_C4'-C1'-B1-B1pair":2, "cHS_UG_B1-B1pair-C1'pair-C4'pair":4, "cHS_UG_alpha_1":2, "cHS_UG_alpha_2":3, "cHS_UG_dB1":3, "cHS_UG_dB2":4, 
+    "tHS_UG_tips_distance":7, "tHS_UG_C1'-B1-B1pair":1, "tHS_UG_B1-B1pair-C1'pair":3, "tHS_UG_C4'-C1'-B1-B1pair":2, "tHS_UG_B1-B1pair-C1'pair-C4'pair":1, "tHS_UG_alpha_1":2, "tHS_UG_alpha_2":3, "tHS_UG_dB1":2, "tHS_UG_dB2":1, 
+    "cSS_UG_tips_distance":2, "cSS_UG_C1'-B1-B1pair":2, "cSS_UG_B1-B1pair-C1'pair":2, "cSS_UG_C4'-C1'-B1-B1pair":2, "cSS_UG_B1-B1pair-C1'pair-C4'pair":2, "cSS_UG_alpha_1":1, "cSS_UG_alpha_2":2, "cSS_UG_dB1":2, "cSS_UG_dB2":3, 
+    "tSS_UG_tips_distance":5, "tSS_UG_C1'-B1-B1pair":2, "tSS_UG_B1-B1pair-C1'pair":2, "tSS_UG_C4'-C1'-B1-B1pair":1, "tSS_UG_B1-B1pair-C1'pair-C4'pair":2, "tSS_UG_alpha_1":2, "tSS_UG_alpha_2":2, "tSS_UG_dB1":3, "tSS_UG_dB2":4, 
+    "cWW_UU_tips_distance":1, "cWW_UU_C1'-B1-B1pair":2, "cWW_UU_B1-B1pair-C1'pair":3, "cWW_UU_C4'-C1'-B1-B1pair":3, "cWW_UU_B1-B1pair-C1'pair-C4'pair":2, "cWW_UU_alpha_1":2, "cWW_UU_alpha_2":2, "cWW_UU_dB1":2, "cWW_UU_dB2":1, 
+    "tWW_UU_tips_distance":3, "tWW_UU_C1'-B1-B1pair":2, "tWW_UU_B1-B1pair-C1'pair":2, "tWW_UU_C4'-C1'-B1-B1pair":2, "tWW_UU_B1-B1pair-C1'pair-C4'pair":2, "tWW_UU_alpha_1":2, "tWW_UU_alpha_2":2, "tWW_UU_dB1":4, "tWW_UU_dB2":5, 
+    "cWH_UU_tips_distance":2, "cWH_UU_C1'-B1-B1pair":2, "cWH_UU_B1-B1pair-C1'pair":2, "cWH_UU_C4'-C1'-B1-B1pair":3, "cWH_UU_B1-B1pair-C1'pair-C4'pair":3, "cWH_UU_alpha_1":2, "cWH_UU_alpha_2":3, "cWH_UU_dB1":3, "cWH_UU_dB2":5, 
+    "tWH_UU_tips_distance":3, "tWH_UU_C1'-B1-B1pair":2, "tWH_UU_B1-B1pair-C1'pair":2, "tWH_UU_C4'-C1'-B1-B1pair":2, "tWH_UU_B1-B1pair-C1'pair-C4'pair":2, "tWH_UU_alpha_1":3, "tWH_UU_alpha_2":3, "tWH_UU_dB1":2, "tWH_UU_dB2":2, 
+    "cHW_UU_tips_distance":1, "cHW_UU_C1'-B1-B1pair":2, "cHW_UU_B1-B1pair-C1'pair":3, "cHW_UU_C4'-C1'-B1-B1pair":1, "cHW_UU_B1-B1pair-C1'pair-C4'pair":3, "cHW_UU_alpha_1":2, "cHW_UU_alpha_2":2, "cHW_UU_dB1":3, "cHW_UU_dB2":4, 
+    "tHW_UU_tips_distance":3, "tHW_UU_C1'-B1-B1pair":3, "tHW_UU_B1-B1pair-C1'pair":2, "tHW_UU_C4'-C1'-B1-B1pair":2, "tHW_UU_B1-B1pair-C1'pair-C4'pair":2, "tHW_UU_alpha_1":2, "tHW_UU_alpha_2":3, "tHW_UU_dB1":2, "tHW_UU_dB2":2, 
+    "cWS_UU_tips_distance":5, "cWS_UU_C1'-B1-B1pair":1, "cWS_UU_B1-B1pair-C1'pair":1, "cWS_UU_C4'-C1'-B1-B1pair":2, "cWS_UU_B1-B1pair-C1'pair-C4'pair":3, "cWS_UU_alpha_1":2, "cWS_UU_alpha_2":1, "cWS_UU_dB1":2, "cWS_UU_dB2":1, 
+    "tWS_UU_tips_distance":3, "tWS_UU_C1'-B1-B1pair":2, "tWS_UU_B1-B1pair-C1'pair":2, "tWS_UU_C4'-C1'-B1-B1pair":3, "tWS_UU_B1-B1pair-C1'pair-C4'pair":2, "tWS_UU_alpha_1":2, "tWS_UU_alpha_2":2, "tWS_UU_dB1":3, "tWS_UU_dB2":3, 
+    "cSW_UU_tips_distance":5, "cSW_UU_C1'-B1-B1pair":1, "cSW_UU_B1-B1pair-C1'pair":3, "cSW_UU_C4'-C1'-B1-B1pair":2, "cSW_UU_B1-B1pair-C1'pair-C4'pair":3, "cSW_UU_alpha_1":2, "cSW_UU_alpha_2":3, "cSW_UU_dB1":1, "cSW_UU_dB2":4, 
+    "tSW_UU_tips_distance":6, "tSW_UU_C1'-B1-B1pair":3, "tSW_UU_B1-B1pair-C1'pair":1, "tSW_UU_C4'-C1'-B1-B1pair":2, "tSW_UU_B1-B1pair-C1'pair-C4'pair":2, "tSW_UU_alpha_1":1, "tSW_UU_alpha_2":2, "tSW_UU_dB1":3, "tSW_UU_dB2":3, 
+    "cHH_UU_tips_distance":5, "cHH_UU_C1'-B1-B1pair":1, "cHH_UU_B1-B1pair-C1'pair":1, "cHH_UU_C4'-C1'-B1-B1pair":3, "cHH_UU_B1-B1pair-C1'pair-C4'pair":2, "cHH_UU_alpha_1":2, "cHH_UU_alpha_2":2, "cHH_UU_dB1":1, "cHH_UU_dB2":5, 
+    "tHH_UU_tips_distance":5, "tHH_UU_C1'-B1-B1pair":2, "tHH_UU_B1-B1pair-C1'pair":3, "tHH_UU_C4'-C1'-B1-B1pair":1, "tHH_UU_B1-B1pair-C1'pair-C4'pair":3, "tHH_UU_alpha_1":2, "tHH_UU_alpha_2":4, "tHH_UU_dB1":4, "tHH_UU_dB2":5, 
+    "cSH_UU_tips_distance":5, "cSH_UU_C1'-B1-B1pair":1, "cSH_UU_B1-B1pair-C1'pair":3, "cSH_UU_C4'-C1'-B1-B1pair":2, "cSH_UU_B1-B1pair-C1'pair-C4'pair":2, "cSH_UU_alpha_1":3, "cSH_UU_alpha_2":2, "cSH_UU_dB1":2, "cSH_UU_dB2":5, 
+    "tSH_UU_tips_distance":5, "tSH_UU_C1'-B1-B1pair":2, "tSH_UU_B1-B1pair-C1'pair":1, "tSH_UU_C4'-C1'-B1-B1pair":3, "tSH_UU_B1-B1pair-C1'pair-C4'pair":3, "tSH_UU_alpha_1":1, "tSH_UU_alpha_2":1, "tSH_UU_dB1":1, "tSH_UU_dB2":5, 
+    "cHS_UU_tips_distance":7, "cHS_UU_C1'-B1-B1pair":2, "cHS_UU_B1-B1pair-C1'pair":2, "cHS_UU_C4'-C1'-B1-B1pair":2, "cHS_UU_B1-B1pair-C1'pair-C4'pair":2, "cHS_UU_alpha_1":2, "cHS_UU_alpha_2":2, "cHS_UU_dB1":3, "cHS_UU_dB2":2, 
+    "tHS_UU_tips_distance":5, "tHS_UU_C1'-B1-B1pair":1, "tHS_UU_B1-B1pair-C1'pair":2, "tHS_UU_C4'-C1'-B1-B1pair":2, "tHS_UU_B1-B1pair-C1'pair-C4'pair":1, "tHS_UU_alpha_1":1, "tHS_UU_alpha_2":2, "tHS_UU_dB1":4, "tHS_UU_dB2":1, 
+    "cSS_UU_tips_distance":5, "cSS_UU_C1'-B1-B1pair":2, "cSS_UU_B1-B1pair-C1'pair":2, "cSS_UU_C4'-C1'-B1-B1pair":2, "cSS_UU_B1-B1pair-C1'pair-C4'pair":3, "cSS_UU_alpha_1":2, "cSS_UU_alpha_2":2, "cSS_UU_dB1":6, "cSS_UU_dB2":4, 
+    "tSS_UU_tips_distance":8, "tSS_UU_C1'-B1-B1pair":1, "tSS_UU_B1-B1pair-C1'pair":1, "tSS_UU_C4'-C1'-B1-B1pair":2, "tSS_UU_B1-B1pair-C1'pair-C4'pair":1, "tSS_UU_alpha_1":1, "tSS_UU_alpha_2":2, "tSS_UU_dB1":3, "tSS_UU_dB2":4, 
 }  
 
-def retrieve_angles(db): 
+@trace_unhandled_exceptions
+def retrieve_angles(db, res): 
     """
     Retrieve torsion angles from RNANet.db and convert them to degrees
     """
 
     # Retrieve angle values
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(BASE_DIR, db)
-    database = sqlite3.connect(db_path)
-    cursor = database.cursor()
-    cursor.execute("SELECT chain_id, nt_name, alpha, beta, gamma, delta, epsilon, zeta, chi FROM nucleotide WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U' ;")
-    l = []
-    for nt in cursor.fetchall(): # retrieve the angle measurements and put them in a list
-        l.append(nt)
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
+        df = pd.read_sql(f"""SELECT chain_id, nt_name, alpha, beta, gamma, delta, epsilon, zeta, chi 
+                            FROM (
+                            SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                            WHERE chain.rfam_acc = 'unmappd' AND structure.resolution <= {res} AND issue = 0
+                            ) AS c NATURAL JOIN nucleotide
+                            WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U';""", conn)
 
-    # Convert to degrees
-    angles_torsion = []
-    for nt in l :
-        angles_deg = []
-        angles_deg.append(nt[0]) #chain_id
-        angles_deg.append(nt[1]) #nt_name
-        for i in range (2,9): # on all angles
-            angle = 0
-            if nt[i] == None : 
-                angle = None
-            elif nt[i]<=np.pi: #if angle value <pi, positive
-                angle = (180/np.pi)*nt[i]
-            elif np.pi < nt[i] <= 2*np.pi : #if value of the angle between pi and 2pi, negative
-                angle = ((180/np.pi)*nt[i]) - 360
-            else:
-                angle = nt[i] # in case some angles still in degrees
-            angles_deg.append(angle)
-        angles_torsion.append(angles_deg)
-    return angles_torsion
+    # convert to degrees
+    j = (180.0/np.pi)
+    torsions = df.iloc[:, 0:2].merge(
+        df.iloc[:, 2:9].applymap(lambda x: j*x if x <= np.pi else j*x-360.0, na_action='ignore'), 
+        left_index=True, right_index=True
+    )
+    return torsions
 
-def retrieve_eta_theta(db):
+def retrieve_eta_theta(db, res):
     """
     Retrieve pseudotorsions from RNANet.db and convert them to degrees
     """
     # Retrieve angle values
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(BASE_DIR, db)
-    database = sqlite3.connect(db_path)
-    cursor = database.cursor()
-    cursor.execute("SELECT chain_id, nt_name, eta, theta, eta_prime, theta_prime, eta_base, theta_base FROM nucleotide WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U';")
-    l = []
-    for nt in cursor.fetchall(): 
-        l.append(nt)
+    with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+        conn.execute('pragma journal_mode=wal')
+        df = pd.read_sql(f"""SELECT chain_id, nt_name, eta, theta, eta_prime, theta_prime, eta_base, theta_base 
+                            FROM (
+                            SELECT chain_id FROM chain JOIN structure ON chain.structure_id = structure.pdb_id
+                            WHERE chain.rfam_acc = 'unmappd' AND structure.resolution <= {res} AND issue = 0
+                            ) AS c NATURAL JOIN nucleotide
+                            WHERE nt_name='A' OR nt_name='C' OR nt_name='G' OR nt_name='U';""", conn)
 
     # convert to degrees
-    pseudotorsions=[]
-    for nt in l :
-        angles_deg = []
-        angles_deg.append(nt[0]) #chain_id
-        angles_deg.append(nt[1]) #nt_name
-        for i in range (2,8): 
-            angle = 0
-            if nt[i] == None : 
-                angle=None
-            elif nt[i]<=np.pi:
-                angle = (180/np.pi)*nt[i]
-            elif np.pi < nt[i] <= 2*np.pi : 
-                angle = ((180/np.pi)*nt[i]) - 360
-            else:
-                angle = nt[i] 
-            angles_deg.append(angle)
-        pseudotorsions.append(angles_deg)
+    j = (180.0/np.pi)
+    pseudotorsions = df.iloc[:, 0:2].merge(
+        df.iloc[:, 2:8].applymap(lambda x: j*x if x <= np.pi else j*x-360.0, na_action='ignore'), 
+        left_index=True, right_index=True
+    )
     return pseudotorsions
 
 def get_euclidian_distance(L1, L2):
@@ -548,36 +528,6 @@ def pos_b2(res):
     else:
         return []
 
-def measure_from_structure(f):
-    """
-    Do geometric measures required on a given filename
-    """
-
-    name = f.split('.')[0]
-
-    global idxQueue
-    thr_idx = idxQueue.get()
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measure_from_structure({f})")
-
-    # Open the structure 
-    with warnings.catch_warnings():
-        # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
-        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
-        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
-        parser = MMCIFParser()
-        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
-    
-    #pyle_measures(name, s, thr_idx)
-    measures_aa(name, s, thr_idx)
-    if DO_HIRE_RNA_MEASURES:
-        measures_hrna(name, s, thr_idx)
-        measures_hrna_basepairs(name, s, thr_idx)
-    if DO_WADLEY_ANALYSIS:
-        measures_pyle(name, s, thr_idx)
-    
-    idxQueue.put(thr_idx) # replace the thread index in the queue
-    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
-
 @trace_unhandled_exceptions
 def measures_aa(name, s, thr_idx):
     """
@@ -585,7 +535,7 @@ def measures_aa(name, s, thr_idx):
     """
 
     # do not recompute something already computed
-    if os.isfile(runDir + "/results/geometry/all-atoms/distances/dist_atoms_" + name + ".csv"):
+    if os.path.isfile(runDir + "/results/geometry/all-atoms/distances/dist_atoms_" + name + ".csv"):
         return
     
     last_o3p = [] # o3 'of the previous nucleotide linked to the P of the current nucleotide
@@ -892,6 +842,7 @@ def measures_hrna(name, s, thr_idx):
             l_dist.append([res.get_resname(), last_c4p_p, p_o5p, o5p_c5p, c5p_c4p, c4p_c1p, c1p_b1, b1_b2])
             l_angl.append([res.get_resname(), lastc4p_p_o5p, lastc1p_lastc4p_p, lastc5p_lastc4p_p, p_o5p_c5p, o5p_c5p_c4p, c5p_c4p_c1p, c4p_c1p_b1, c1p_b1_b2])
             l_tors.append([res.get_resname(), p_o5_c5_c4, o5_c5_c4_c1, c5_c4_c1_b1, c4_c1_b1_b2, o5_c5_c4_psuiv, c5_c4_psuiv_o5suiv, c4_psuiv_o5suiv_c5suiv, c1_c4_psuiv_o5suiv])
+
     df = pd.DataFrame(l_dist, columns=["Residue", "C4'-P", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2"])
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/distances/distances_HiRERNA '+name+'.csv')
     df = pd.DataFrame(l_angl, columns=["Residue", "C4'-P-O5'", "C1'-C4'-P", "C5'-C4'-P", "P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2"])
@@ -900,7 +851,7 @@ def measures_hrna(name, s, thr_idx):
     df.to_csv(runDir + '/results/geometry/HiRE-RNA/torsions/torsions_HiRERNA '+name+'.csv')
 
 @trace_unhandled_exceptions
-def measures_hrna_basepairs(name, s, thr_idx):
+def measures_hrna_basepairs(name, s, path_to_3D_data, thr_idx):
     """
     Open a rna_only/ file, and run measures_hrna_basepairs_chain() on every chain
     """  
@@ -1103,6 +1054,11 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
     """
     Plot Gaussian-Mixture-Model (with or without histograms)
     """
+
+    if len(data_ori) < 30:
+        warn(f"We only have {len(data_ori)} observations of {name_data}, we cannot model it. Skipping.")
+        return
+
     data_ori = np.array(data_ori)
 
     if toric:
@@ -1122,7 +1078,7 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
         nb_log_max = n_components_range[0]
         log_max = 0
         for n_comp in n_components_range:
-            gmm = GaussianMixture(n_components=n_comp).fit(md)
+            gmm = GaussianMixture(n_components=n_comp, random_state=1234).fit(md)
             # aic.append(abs(gmm.aic(md)))
             # bic.append(abs(gmm.bic(md)))
             maxlogv.append(gmm.lower_bound_)
@@ -1136,14 +1092,16 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
             nb_log_max = n_comp
     else:
         try:
-            n_components = data[name_data]
+            nb_components = modes_data[name_data]
         except KeyError:
+            warn(f"Unexpected key {name_data} not known in geometric_stats.py mode_data. Skipping.")
             return # unexpected atom ? skip it...
-
+        if toric:
+            nb_components = nb_components * 2 + 1 # because we extend the xrange for toric computation. It will be restored later.
     
     # Now compute the final GMM
     obs = np.array(data).reshape(-1,1) # still on extended data
-    g = GaussianMixture(n_components=nb_components)
+    g = GaussianMixture(n_components=nb_components, random_state=1234)
     g.fit(obs)
 
     if toric:
@@ -1170,6 +1128,13 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
         weights = g.weights_
         means = g.means_
         covariances = g.covariances_
+
+    if nb_components == 0:
+        # Happens when the gaussians averages are outside [-180, 180]
+        # an have been eliminated. Fix: increase the number of components
+        # so that at least one is inside [-180,180]
+        warn(f"Found 0 gaussians in interval [-180,180] for the {name_data} GMM. Please retry with a higher number of gaussians. Ignoring the measure for now.", error=True)
+        return
 
     # plot histograms if asked, with the appropriate number of components
     if hist:
@@ -1200,6 +1165,7 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
 
     # plot
     curves = []
+    newx = None # to be defined inside the loop
     for i in range(nb_components):
 
         # store the parameters
@@ -1245,17 +1211,13 @@ def GMM_histo(data_ori, name_data, scan, toric=False, hist=True, col=None, save=
             plt.close()
     else:
         # Plot their sum, do not save figure yet
-        try:
-            plt.plot(newx, sum(curves), c=col, label=name_data)
-        except TypeError:
-            print("N curves:", len(curves))
-            for c in curves:
-                print(c)
+        plt.plot(newx, sum(curves), c=col, label=name_data)
         plt.legend()
 
         # Save the json
-        with open(runDir + "/results/geometry/json/" +name_data + ".json", 'w', encoding='utf-8') as f:
+        with open(runDir + "/results/geometry/json/" + name_data + ".json", 'w', encoding='utf-8') as f:
             json.dump(summary_data, f, indent=4)
+        notify("Saved " + name_data + ".json")
 
 @trace_unhandled_exceptions
 def gmm_aa_dists(scan):
@@ -1423,10 +1385,11 @@ def gmm_aa_dists(scan):
     setproctitle("GMM (all atoms, distances) finished")
 
 @trace_unhandled_exceptions
-def gmm_aa_torsions(scan):
+def gmm_aa_torsions(scan, res):
     """
     Separates the torsion angle measurements by angle type and plots the figures representing the data
     """
+
     setproctitle("GMM (all atoms, torsions)")
 
     # we create lists to store the values ​​of each angle
@@ -1437,23 +1400,23 @@ def gmm_aa_torsions(scan):
     epsilon = []
     zeta = []
     chi = []
-    for angles_deg in retrieve_angles(runDir + "/results/RNANet.db"): 
-        alpha.append(angles_deg[2])
-        beta.append(angles_deg[3])
-        gamma.append(angles_deg[4])
-        delta.append(angles_deg[5])
-        epsilon.append(angles_deg[6])
-        zeta.append(angles_deg[7])
-        chi.append(angles_deg[8])
+    angles_deg = retrieve_angles(runDir + "/results/RNANet.db", res)
 
     # we remove the null values
-    alpha = [i for i in alpha if i != None]
-    beta = [i for i in beta if i != None]
-    gamma = [i for i in gamma if i != None]
-    delta = [i for i in delta if i != None]
-    epsilon = [i for i in epsilon if i != None]
-    zeta = [i for i in zeta if i != None]
-    chi = [i for i in chi if i != None]
+    alpha = angles_deg.alpha.values
+    beta = angles_deg.beta.values
+    gamma = angles_deg.gamma.values
+    delta = angles_deg.delta.values
+    epsilon = angles_deg.epsilon.values
+    zeta = angles_deg.zeta.values
+    chi = angles_deg.chi.values
+    alpha = alpha[~np.isnan(alpha)]
+    beta = beta[~np.isnan(beta)]
+    gamma = gamma[~np.isnan(gamma)]
+    delta = delta[~np.isnan(delta)]
+    epsilon = epsilon[~np.isnan(epsilon)]
+    zeta = zeta[~np.isnan(zeta)]
+    chi  = chi[~np.isnan(chi)]
 
     os.makedirs(runDir + "/results/figures/GMM/all-atoms/torsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/GMM/all-atoms/torsions/")
@@ -1487,7 +1450,7 @@ def gmm_aa_torsions(scan):
     setproctitle("GMM (all atoms, torsions) finished")
 
 @trace_unhandled_exceptions
-def gmm_pyle(scan):
+def gmm_pyle(scan, res):
 
     setproctitle("GMM (Pyle model)")
 
@@ -1541,20 +1504,20 @@ def gmm_pyle(scan):
     eta_base=[]
     theta_base=[]
 
-    for angles_deg in retrieve_eta_theta(runDir + "/results/RNANet.db"): 
-        eta.append(angles_deg[2])
-        theta.append(angles_deg[3])
-        eta_prime.append(angles_deg[4])
-        theta_prime.append(angles_deg[5])
-        eta_base.append(angles_deg[6])
-        theta_base.append(angles_deg[7])
+    angles_deg = retrieve_eta_theta(runDir + "/results/RNANet.db", res)
 
-    eta=[i for i in eta if i != None]
-    theta=[i for i in theta if i != None]
-    eta_prime=[i for i in eta_prime if i != None]
-    theta_prime=[i for i in theta_prime if i != None]
-    eta_base=[i for i in eta_base if i != None]
-    theta_base=[i for i in theta_base if i != None]
+    eta = angles_deg.eta.values
+    theta = angles_deg.theta.values
+    eta_prime = angles_deg.eta_prime.values
+    theta_prime = angles_deg.theta_prime.values
+    eta_base = angles_deg.eta_base.values
+    theta_base = angles_deg.theta_base.values
+    eta = eta[~np.isnan(eta)]
+    theta = theta[~np.isnan(theta)]
+    eta_prime = eta_prime[~np.isnan(eta_prime)]
+    theta_prime = theta_prime[~np.isnan(theta_prime)]
+    eta_base = eta_base[~np.isnan(eta_base)]
+    theta_base = theta_base[~np.isnan(theta_base)]
 
     os.makedirs(runDir + "/results/figures/GMM/Pyle/pseudotorsions/", exist_ok=True)
     os.chdir(runDir + "/results/figures/GMM/Pyle/pseudotorsions/")
@@ -1704,6 +1667,10 @@ def gmm_hrna(scan):
 
 @trace_unhandled_exceptions
 def gmm_hrna_basepairs(scan):
+    """
+    Measures parameters of all kinds of non-canonical basepairs for the HiRE-RNA model.
+    Please see Cragnolini & al 2015 to understand them.
+    """
 
     setproctitle("GMM (HiRE-RNA basepairs)")
 
@@ -1752,9 +1719,9 @@ def gmm_hrna_basepair_type(type_LW, ntpair, data, scan):
     plt.title(f"GMM of plane angles for {type_LW} {ntpair} basepairs", fontsize=10)
 
     plt.subplot(2, 1, 2)
-    GMM_histo(data["Distance"], f"Distance between {type_LW} {ntpair} tips", scan, toric=False, hist=False, col="cyan")
-    GMM_histo(data["dB1"], f"{type_LW} {ntpair} dB1", scan, toric=False, hist=False, col="tomato")
-    GMM_histo(data["dB2"], f"{type_LW} {ntpair} dB2", scan, toric=False, hist=False, col="goldenrod")
+    GMM_histo(data["Distance"], f"{type_LW}_{ntpair}_tips_distance", scan, toric=False, hist=False, col="cyan")
+    GMM_histo(data["dB1"], f"{type_LW}_{ntpair}_dB1", scan, toric=False, hist=False, col="tomato")
+    GMM_histo(data["dB2"], f"{type_LW}_{ntpair}_dB2", scan, toric=False, hist=False, col="goldenrod")
     plt.xlabel("Distance (Angströms)")
     plt.title(f"GMM of distances for {type_LW} {ntpair} basepairs", fontsize=10)
     
@@ -1762,6 +1729,7 @@ def gmm_hrna_basepair_type(type_LW, ntpair, data, scan):
     plt.close()
     setproctitle(f"GMM (HiRE-RNA {type_LW} {ntpair} basepairs) finished")
 
+@trace_unhandled_exceptions
 def merge_jsons():
     """
     Reads the tons of JSON files produced by the geometric analyses, and compiles them into fewer files.
@@ -1770,7 +1738,7 @@ def merge_jsons():
     """
 
     # All atom distances
-    bonds = ["O3'-P", "OP3-P", "P-OP1", "P-OP2", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-O4'", "C4'-C3'", "O4'-C1'", "C1'-C2'", "C2'-O2'", "C2'-C3'", "C3'-O3'", "C1'-N9",
+    bonds = ["O3'-P", "P-OP1", "P-OP2", "P-O5'", "O5'-C5'", "C5'-C4'", "C4'-O4'", "C4'-C3'", "O4'-C1'", "C1'-C2'", "C2'-O2'", "C2'-C3'", "C3'-O3'", "C1'-N9",
              "N9-C8", "C8-N7", "N7-C5", "C5-C6", "C6-O6", "C6-N6", "C6-N1", "N1-C2", "C2-N2", "C2-N3", "N3-C4", "C4-N9", "C4-C5", 
              "C1'-N1", "N1-C6", "C6-C5", "C5-C4", "C4-N3", "N3-C2", "C2-O2", "C2-N1", "C4-N4", "C4-O4"]
     bonds = [ runDir + "/results/geometry/json/" + x + ".json" for x in bonds ]
@@ -1783,17 +1751,17 @@ def merge_jsons():
     concat_jsons(torsions, runDir + "/results/geometry/json/all_atom_torsions.json")
  
     # HiRE-RNA distances
-    hrnabonds = ["P-O5'", "O5'-C5'", "C5'-C4'", "C4'-C1'", "C1'-B1", "B1-B2", "C4'-P"]
+    hrnabonds = [r"P-O5'", r"O5'-C5'", r"C5'-C4'", r"C4'-C1'", r"C1'-B1", r"B1-B2", r"C4'-P"]
     hrnabonds = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnabonds ]
     concat_jsons(hrnabonds, runDir + "/results/geometry/json/hirerna_distances.json")
 
     # HiRE-RNA angles
-    hrnaangles = ["P-O5'-C5'", "O5'-C5'-C4'", "C5'-C4'-C1'", "C4'-C1'-B1", "C1'-B1-B2", "C4'-P-O5'", "C5'-C4'-P", "C1'-C4'-P"]
+    hrnaangles = [r"P-O5'-C5'", r"O5'-C5'-C4'", r"C5'-C4'-C1'", r"C4'-C1'-B1", r"C1'-B1-B2", r"C4'-P-O5'", r"C5'-C4'-P", r"C1'-C4'-P"]
     hrnaangles = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnaangles ]
     concat_jsons(hrnaangles, runDir + "/results/geometry/json/hirerna_angles.json")
 
     # HiRE-RNA torsions
-    hrnators = ["P-O5'-C5'-C4'", "O5'-C5'-C4'-C1'", "C5'-C4'-C1'-B1", "C4'-C1'-B1-B2", "C4'-P°-O5'°-C5'°", "C5'-C4'-P°-O5'°", "C1'-C4'-P°-O5'°", "O5'-C5'-C4'-P°"]
+    hrnators = [r"P-O5'-C5'-C4'", r"O5'-C5'-C4'-C1'", r"C5'-C4'-C1'-B1", r"C4'-C1'-B1-B2", r"C4'-P°-O5'°-C5'°", r"C5'-C4'-P°-O5'°", r"C1'-C4'-P°-O5'°", r"O5'-C5'-C4'-P°"]
     hrnators = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnators ]
     concat_jsons(hrnators, runDir + "/results/geometry/json/hirerna_torsions.json")
 
@@ -1819,13 +1787,11 @@ def merge_jsons():
             os.remove(f)
         except FileNotFoundError:
             pass
-    for f in glob.glob(runDir + "/results/geometry/json/Distance*.json"):
+    for f in glob.glob(runDir + "/results/geometry/json/*tips_distance.json"):
         try:
             os.remove(f)
         except FileNotFoundError:
             pass
-
-    return pd.read_csv(f)
 
 @trace_unhandled_exceptions
 def concat_worker(bunch):
@@ -1860,12 +1826,11 @@ def concat_worker(bunch):
     return df_tot
 
 @trace_unhandled_exceptions
-def concat_dataframes(fpath, outfilename):
+def concat_dataframes(fpath, outfilename, nworkers):
     """
     Concatenates the CSV files from fpath folder into a DataFrame gathering all.
     The function splits the file list into nworkers concatenation workers, and then merges the nworkers dataframes.
     """
-    global nworkers
     setproctitle(f"Concatenation of {fpath}")
 
     # Get the list of files
@@ -1892,7 +1857,7 @@ def concat_dataframes(fpath, outfilename):
         start, end = end, end+size
 
     # Run parallel concatenations
-    p = Pool(initializer=init_worker, initargs=(tqdm.get_lock(),), processes=nworkers)
+    p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=nworkers)
     results = p.map(concat_worker, chunks, chunksize=1)
     p.close()
     p.join()

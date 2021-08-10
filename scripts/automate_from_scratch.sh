@@ -1,11 +1,13 @@
 # This is a script supposed to be run periodically as a cron job
+# This one uses argument --from-scratch, so all is recomputed ! /!\ 
+# run it one or twice a year, otherwise, the faster update runs should be enough.
 
 cd /home/lbecquey/Projects/RNANet
 rm -rf latest_run.log errors.txt
 
 # Run RNANet
-bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ -r 20.0 --no-homology --redundant --extract' > latest_run.log 2>&1
-bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ -r 20.0 --redundant --extract -s --stats-opts="-r 20.0 --wadley --hire-rna --distance-matrices" --archive' >> latest_run.log 2>&1
+bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ --from-scratch --ignore-issues -r 20.0 --no-homology --redundant --extract' > latest_run.log 2>&1
+bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ --from-scratch --ignore-issues -r 20.0 --redundant --extract -s --stats-opts="-r 20.0 --wadley --hire-rna --distance-matrices" --archive' >> latest_run.log 2>&1
 echo 'Compressing RNANet.db.gz...' >> latest_run.log
 touch results/RNANet.db                                         # update last modification date
 gzip -k /home/lbecquey/Projects/RNANet/results/RNANet.db        # compress it
@@ -28,7 +30,7 @@ mv /home/lbecquey/Projects/RNANet/results/RNANet.db.gz /home/lbecquey/Projects/R
 # Sync in Seafile
 seaf-cli start >> latest_run.log 2>&1
 echo 'Waiting 10m for SeaFile synchronization...' >> latest_run.log
-sleep 10m
+sleep 15m
 echo `seaf-cli status` >> latest_run.log
 seaf-cli stop >> latest_run.log 2>&1
 echo 'We are '`date`', update completed.' >> latest_run.log

@@ -7,7 +7,7 @@
 # Run this file if you want the base counts, pair-type counts, identity percents, etc
 # in the database.
 
-import getopt, glob, json, os, sqlite3, shlex, subprocess, sys, warnings
+import getopt, json, os, sqlite3, shlex, subprocess, sys, warnings
 import numpy as np
 import pandas as pd
 import scipy.stats as st
@@ -27,7 +27,6 @@ from tqdm import tqdm
 from collections import Counter
 from setproctitle import setproctitle
 from RNAnet import Job, read_cpu_number, sql_ask_database, sql_execute, warn, notify, init_with_tqdm, trace_unhandled_exceptions
-from geometric_stats import *
 
 np.set_printoptions(threshold=sys.maxsize, linewidth=np.inf, precision=8)
 path_to_3D_data = "tobedefinedbyoptions"
@@ -37,6 +36,8 @@ res_thr = 20.0 # default: all structures
 
 LSU_set = ("RF00002", "RF02540", "RF02541", "RF02543", "RF02546")   # From Rfam CLAN 00112
 SSU_set = ("RF00177", "RF02542",  "RF02545", "RF01959", "RF01960")  # From Rfam CLAN 00111
+
+from geometric_stats import *   # after definition of the variables
 
 @trace_unhandled_exceptions
 def reproduce_wadley_results(carbon=4, show=False, sd_range=(1,4), res=2.0):
@@ -934,7 +935,7 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
         coordinates = nt_3d_centers(filename, consider_all_atoms)
         if not len(coordinates):
             # there is not nucleotides in the file, or no C1' atoms for example.
-            warn("No C1' atoms in " + filename)
+            warn("No C1' atoms in " + filename.split('/')[-1] + ", ignoring")
             return None, None, None
     except FileNotFoundError:
         return None, None, None
@@ -951,8 +952,8 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
             try:
                 coordinates_with_gaps.append(coordinates[i - nb_gap])
             except IndexError as e:
-                warn(f"{filename} : {s.seq} at position {i}, we get {e}.", error=True)
-                exit(0)
+                warn(f"{filename.split('/')[-1]} : {s.seq} at position {i}, we get {e}.", error=True)
+                return None, None, None
     
     # Build the pairwise distances
     d = np.zeros((len(s.seq), len(s.seq)), dtype=np.float32)
@@ -1099,7 +1100,7 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     std = np.divide(std, counts, where=counts>0, out=np.full_like(std, np.NaN))
     mask = np.invert(np.isnan(std))
     value = std[mask] - np.power(avg[mask], 2)
-    if ((value[value<0] < -1e-2).any()):
+    if ((value[value < 0] < -1e-2).any()):
         warn("Erasing very negative variance value !")
     value[value<0] = 0.0 # floating point problems !
     std[mask] = np.sqrt(value)
@@ -1127,7 +1128,47 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     if not multithread:
         idxQueue.put(thr_idx) # replace the thread index in the queue
         setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
+    else:
+        # basically, for the rRNAs
+        # we delete the unique csv files for each chain, they wheight hundreds of gigabytes together
+        warn(f"Removing {f} ({label}) individual distance matrices, they weight too much. keeping the averages and standard deviations.")
+        for csv in glob.glob(runDir + '/results/distance_matrices/' + f + '_'+ label + "/*-" + f + ".csv"):
+            try:
+                os.remove(csv)
+            except FileNotFoundError:
+                pass
     return 0
+
+@trace_unhandled_exceptions
+def measure_from_structure(f):
+    """
+    Do geometric measures required on a given filename
+    """
+
+    name = f.split('.')[0]
+
+    global idxQueue
+    thr_idx = idxQueue.get()
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} measure_from_structure({f})")
+
+    # Open the structure 
+    with warnings.catch_warnings():
+        # Ignore the PDB problems. This mostly warns that some chain is discontinuous.
+        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.PDBConstructionWarning)
+        warnings.simplefilter('ignore', Bio.PDB.PDBExceptions.BiopythonWarning)
+        parser = MMCIFParser()
+        s = parser.get_structure(f, os.path.abspath(path_to_3D_data+ "rna_only/" + f))
+    
+    #pyle_measures(name, s, thr_idx)
+    measures_aa(name, s, thr_idx)
+    if DO_HIRE_RNA_MEASURES:
+        measures_hrna(name, s, thr_idx)
+        measures_hrna_basepairs(name, s, path_to_3D_data, thr_idx)
+    if DO_WADLEY_ANALYSIS:
+        measures_pyle(name, s, thr_idx)
+    
+    idxQueue.put(thr_idx) # replace the thread index in the queue
+    setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
 
 def family_order(f):
     # sort the RNA families so that the plots are readable
@@ -1154,7 +1195,11 @@ def nt_3d_centers(cif_file, consider_all_atoms):
     try:
         structure = MMCIFParser().get_structure(cif_file, cif_file)
     except Exception as e:
-        warn(f"{cif_file} : {e}", error=True)
+        warn(f"{cif_file.split('/')[-1]} : {e}", error=True)
+        with open(runDir + "/errors.txt", "a") as f:
+            f.write(f"Exception in nt_3d_centers({cif_file.split('/')[-1]})\n")
+            f.write(str(e))
+            f.write("\n\n")
         return result
     for model in structure:
         for chain in model:
@@ -1205,6 +1250,7 @@ def log_to_pbar(pbar):
         pbar.update(1)
     return update
 
+@trace_unhandled_exceptions
 def process_jobs(joblist):
     """
     Starts a Pool to run the Job() objects in joblist.
@@ -1302,7 +1348,7 @@ if __name__ == "__main__":
             os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/angles/", exist_ok=True)
             os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/torsions/", exist_ok=True)
             os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/basepairs/", exist_ok=True)
-        elif opt == "rescan-nmodes":
+        elif opt == "--rescan-nmodes":
             RESCAN_GMM_COMP_NUM = True
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
@@ -1388,7 +1434,6 @@ if __name__ == "__main__":
             if path.isfile(path_to_3D_data + "datapoints/" + f.split('.')[0]):
                 joblist.append(Job(function=measure_from_structure, args=(f,), how_many_in_parallel=nworkers))   # All-atom distances
     
-    
     process_jobs(joblist)
 
     # Now process the memory-heavy tasks family by family
@@ -1412,24 +1457,23 @@ if __name__ == "__main__":
         general_stats()
         os.makedirs(runDir+"/results/figures/GMM/", exist_ok=True)
         os.makedirs(runDir+"/results/geometry/json/", exist_ok=True)
-        concat_dataframes(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv')
+        concat_dataframes(runDir + '/results/geometry/all-atoms/distances/', 'dist_atoms.csv', nworkers)
         if DO_HIRE_RNA_MEASURES:
-            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/distances/', 'distances_HiRERNA.csv')
-            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_HiRERNA.csv')
-            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/torsions/', 'torsions_HiRERNA.csv')
-            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs_HiRERNA.csv')
+            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/distances/', 'distances_HiRERNA.csv', nworkers)
+            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/angles/', 'angles_HiRERNA.csv', nworkers)
+            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/torsions/', 'torsions_HiRERNA.csv', nworkers)
+            concat_dataframes(runDir + '/results/geometry/HiRE-RNA/basepairs/', 'basepairs_HiRERNA.csv', nworkers)
         if DO_WADLEY_ANALYSIS:
-            concat_dataframes(runDir + '/results/geometry/Pyle/distances/', 'distances_pyle.csv')
-            concat_dataframes(runDir + '/results/geometry/Pyle/angles/', 'flat_angles_pyle.csv')
+            concat_dataframes(runDir + '/results/geometry/Pyle/distances/', 'distances_pyle.csv', nworkers)
+            concat_dataframes(runDir + '/results/geometry/Pyle/angles/', 'flat_angles_pyle.csv', nworkers)
         joblist = []
-        joblist.append(Job(function=gmm_aa_dists, args=(RESCAN_GMM_COMP_NUM)))
-        joblist.append(Job(function=gmm_aa_torsions, args=(RESCAN_GMM_COMP_NUM)))
+        joblist.append(Job(function=gmm_aa_dists, args=(RESCAN_GMM_COMP_NUM,)))
+        joblist.append(Job(function=gmm_aa_torsions, args=(RESCAN_GMM_COMP_NUM, res_thr)))
         if DO_HIRE_RNA_MEASURES:
-            joblist.append(Job(function=gmm_hrna, args=(RESCAN_GMM_COMP_NUM)))
-            joblist.append(Job(function=gmm_hrna_basepairs, args=(RESCAN_GMM_COMP_NUM)))
+            joblist.append(Job(function=gmm_hrna, args=(RESCAN_GMM_COMP_NUM,)))
+            joblist.append(Job(function=gmm_hrna_basepairs, args=(RESCAN_GMM_COMP_NUM,)))
         if DO_WADLEY_ANALYSIS:
-            joblist.append(Job(function=gmm_pyle, args=(RESCAN_GMM_COMP_NUM)))
-        if len(joblist):
-            process_jobs(joblist)
+            joblist.append(Job(function=gmm_pyle, args=(RESCAN_GMM_COMP_NUM, res_thr)))
+        process_jobs(joblist)
         merge_jsons()
 

@@ -3,8 +3,9 @@ import subprocess, os, sys
 
 # Put a list of problematic chains here, they will be properly deleted and recomputed
 problems = [
-    "1k73_1_A",
-    "1k73_1_B"
+    "7nhm_1_A_1-2923"
+    "4wfa_1_X_1-2923"
+    "4wce_1_X_1-2923"
 ]
 
 # provide the path to your data folders, the RNANet.db file, and the RNANet.py file as arguments to this script
@@ -22,6 +23,7 @@ for p in problems:
 
     # Remove the datapoints files and 3D files
     subprocess.run(["rm", '-f', path_to_3D_data + f"/rna_mapped_to_Rfam/{p}.cif"])
+    subprocess.run(["rm", '-f', path_to_3D_data + f"/rna_only/{p}.cif"])
     files = [ f for f in os.listdir(path_to_3D_data + "/datapoints") if p in f ]
     for f in files:
         subprocess.run(["rm", '-f', path_to_3D_data + f"/datapoints/{f}"])
@@ -38,14 +40,14 @@ for p in problems:
             print(' '.join(command))
             subprocess.run(command)
 
-        command = ["python3.8", path_to_RNANet, "--3d-folder", path_to_3D_data, "--seq-folder", path_to_seq_data, "-r", "20.0", "--extract", "--only", p]
+        command = ["python3.8", path_to_RNANet, "--3d-folder", path_to_3D_data, "--seq-folder", path_to_seq_data, "--redundant", "-r", "20.0", "--extract", "--only", p]
     else:
         # Delete the chain from the database, and the associated nucleotides and re_mappings, using foreign keys
         command = ["sqlite3", path_to_db, f"PRAGMA foreign_keys=ON; delete from chain where structure_id=\"{structure}\" and chain_name=\"{chain}\" and rfam_acc is null;"]
         print(' '.join(command))
         subprocess.run(command)
 
-        command = ["python3.8", path_to_RNANet, "--3d-folder", path_to_3D_data, "--seq-folder", path_to_seq_data, "-r", "20.0", "--no-homology", "--extract", "--only", p]
+        command = ["python3.8", path_to_RNANet, "--3d-folder", path_to_3D_data, "--seq-folder", path_to_seq_data, "--redundant", "-r", "20.0", "--no-homology", "--extract", "--only", p]
 
     # Re-run RNANet
     os.chdir(os.path.dirname(os.path.realpath(path_to_db)) + '/../')

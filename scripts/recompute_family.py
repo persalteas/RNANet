@@ -36,6 +36,6 @@ for fam in families:
 
 # Now re run RNANet normally.
 command = ["python3.8", "./RNAnet.py", "--3d-folder", path_to_3D_data, "--seq-folder", path_to_seq_data, "-r", "20.0",
-            "--redundant", "--sina", "--extract", "-s", "--stats-opts=\"--wadley --distance-matrices\""]
+            "--redundant", "--extract", "-s", "--stats-opts=\"-r 20.0 --wadley --hire-rna --distance-matrices\""]
 print(' '.join(command))
 subprocess.run(command)

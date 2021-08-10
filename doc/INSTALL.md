@@ -35,7 +35,7 @@ nohup bash -c 'time docker run --rm -v /path/to/3D/data/folder:/3D -v /path/to/s
 # Method 2 : Classical command line installation (Linux only)
 
 You need to install the dependencies:
-- DSSR 1.9.9 or newer, you need to register to the X3DNA forum [here](http://forum.x3dna.org/site-announcements/download-instructions/) and then download the DSSR binary [on that page](http://forum.x3dna.org/downloads/3dna-download/).  Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
+- DSSR 1.9.9 or newer, you need to register to ask for a DSSR (academic) license [on that page](http://innovation.columbia.edu/technologies/CU20391). Make sure to have the `x3dna-dssr` binary in your $PATH variable so that RNANet.py finds it.
 - Infernal 1.1.4 or newer, to download at [Eddylab](http://eddylab.org/infernal/), several options are available depending on your preferences. Make sure to have the `cmalign`, `cmfetch`, `cmbuild`, `esl-alimanip`, `esl-alimerge`, `esl-alipid` and `esl-reformat` binaries in your $PATH variable, so that RNANet.py can find them.
 - SINA (if you plan to use it), follow [these instructions](https://sina.readthedocs.io/en/latest/install.html) for example. Make sure to have the `sina` binary in your $PATH.
 - Sqlite 3, available under the name *sqlite* in every distro's package manager,

@@ -57,13 +57,14 @@ def trace_unhandled_exceptions(func):
             return func(*args, **kwargs)
         except:
             s = traceback.format_exc()
-            with open(runDir + "/errors.txt", "a") as f:
-                f.write("Exception in "+func.__name__+"\n")
-                f.write(s)
-                f.write("\n\n")
+            if not "KeyboardInterrupt" in s:
+                with open(runDir + "/errors.txt", "a") as f:
+                    f.write("Exception in "+func.__name__+"\n")
+                    f.write(s)
+                    f.write("\n\n")
 
-            warn('Exception in '+func.__name__, error=True)
-            print(s)
+                warn('Exception in '+func.__name__, error=True)
+                print(s)
     return wrapped_func
 
 pd.set_option('display.max_rows', None)
@@ -261,7 +262,7 @@ class Chain:
                     new_s.add(new_model)
 
             # renumber this structure (portion of the original) with the index_chain and save it in a cif file
-            t=pdb.Structure.Structure(new_s.get_id())
+            t = pdb.Structure.Structure(new_s.get_id())
             for model in new_s:
                 new_model_t=pdb.Model.Model(model.get_id())
                 for chain in model:
@@ -288,7 +289,7 @@ class Chain:
                         # particular case 6n5s_1_A, residue 201 in the original cif file (resname = G and HETATM = H_G)
                         if nt == 'A' or (nt == 'G' and (self.chain_label != '6n5s_1_A' or resseq != 201)) or nt == 'C' or nt == 'U' or nt in ['DG', 'DU', 'DC', 'DA', 'DI', 'DT' ] or nt == 'N' or nt == 'I' :
                             res=chain[(' ', resseq, icode_res)]
-                        else : #modified nucleotides (e.g. chain 5l4o_1_A)
+                        else : # modified nucleotides (e.g. chain 5l4o_1_A)
                             het='H_' + nt
                             res=chain[(het, resseq, icode_res)]
                         res_id=res.get_id()
@@ -1599,7 +1600,7 @@ class Pipeline:
         try:
             fam_pbar = tqdm(total=len(self.fam_list), desc="RNA families", position=0, leave=True)
             # Apply work_pssm_remap to each RNA family
-            for i, _ in enumerate(p.imap_unordered(work_pssm_remap, self.fam_list, chunksize=1)):
+            for i, _ in enumerate(p.imap_unordered(partial(work_pssm_remap, useSina=pp.USESINA), self.fam_list, chunksize=1)):
                 # Everytime the iteration finishes on a family, update the global progress bar over the RNA families
                 fam_pbar.update(1)
             fam_pbar.close()
@@ -1654,7 +1655,7 @@ class Pipeline:
         p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=3)
         try:
             pbar = tqdm(total=len(self.loaded_chains), desc="Saving chains to CSV", position=0, leave=True)
-            for _, _2 in enumerate(p.imap_unordered(work_save, self.loaded_chains)):
+            for _, _2 in enumerate(p.imap_unordered(partial(work_save, homology=pp.HOMOLOGY), self.loaded_chains)):
                 pbar.update(1)
             pbar.close()
             p.close()
@@ -1700,18 +1701,28 @@ class Pipeline:
         if self.ARCHIVE:
             os.makedirs(runDir + "/archive", exist_ok=True)
             datestr = time.strftime('%Y%m%d')
+
+            # The text files
             subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
             subprocess.run(["tar", "-C", path_to_3D_data + "/datapoints", "-czf", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", "."])
             subprocess.run(["ln", "-s", runDir + f"/archive/RNANET_datapoints_{datestr}.tar.gz", runDir + f"/archive/RNANET_datapoints_latest.tar.gz"])
 
+            # The alignments
             if self.HOMOLOGY:
-                # gather the alignments
                 os.makedirs(path_to_seq_data + "realigned/3d_only", exist_ok=True)
                 for f in os.listdir(path_to_seq_data + "realigned"):
                     if "3d_only.afa" in f:
                         subprocess.run(["cp", path_to_seq_data + "realigned/" + f, path_to_seq_data + "realigned/3d_only"])
-                subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_alignments_latest.tar.gz"])
-                subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_alignments_latest.tar.gz", "."])
+                subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_3dOnlyAlignments_latest.tar.gz"])
+                subprocess.run(["tar", "-C", path_to_seq_data + "realigned/3d_only" , "-czf", runDir + f"/archive/RNANET_3dOnlyAlignments_latest.tar.gz", "."])
+
+            # The 3D files
+            if os.path.isdir(path_to_3D_data + "rna_mapped_to_Rfam"):
+                subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_MMCIFmappedToRfam_latest.tar.gz"])
+                subprocess.run(["tar", "-C", path_to_3D_data + "rna_mapped_to_Rfam" , "-czf", runDir + f"/archive/RNANET_MMCIFmappedToRfam_latest.tar.gz", "."])
+            if os.path.isdir(path_to_3D_data + "rna_only"):
+                subprocess.run(["rm", "-f", runDir + f"/archive/RNANET_MMCIFall_latest.tar.gz"])
+                subprocess.run(["tar", "-C", path_to_3D_data + "rna_only" , "-czf", runDir + f"/archive/RNANET_MMCIFall_latest.tar.gz", "."])
 
     def sanitize_database(self):
         """Searches for issues in the database and correct them"""
@@ -1813,7 +1824,7 @@ def warn(message, error=False):
     """
     # Cut if too long
     if len(message) > 66:
-        x = message.find(' ', 50, 66)
+        x = message.find(' ', 40, 66)
         if x != -1:
             warn(message[:x], error=error)
             warn(message[x+1:], error=error)
@@ -2809,7 +2820,7 @@ def work_save_pydca(f,alignment):
             warn(e)
 
 @trace_unhandled_exceptions
-def work_pssm_remap(f):
+def work_pssm_remap(f, useSina=False):
     """Computes Position-Specific-Scoring-Matrices given the multiple sequence alignment of the RNA family.
     This also remaps the 3D object sequence with the aligned sequence in the MSA.
     If asked, the 3D object sequence is completed by the consensus nucleotide when one of them is missing.
@@ -2991,7 +3002,7 @@ def work_pssm_remap(f):
     setproctitle(f"RNAnet.py work_pssm_remap({f}) insert/match states")
 
     # Get back the information of match/insertion states from the STK file
-    if (not use_sina) or (f not in SSU_set and f not in LSU_set):
+    if (not useSina) or (f not in SSU_set and f not in LSU_set):
         alignstk = AlignIO.read(path_to_seq_data + "realigned/" + f + "++.stk", "stockholm")
         consensus_2d = alignstk.column_annotations["secondary_structure"]
         del alignstk
@@ -3036,8 +3047,6 @@ def work_pssm_remap(f):
     sql_execute(conn, f"""INSERT OR IGNORE INTO align_column (rfam_acc, index_ali, index_small_ali, cm_coord, freq_A, freq_C, freq_G, freq_U, freq_other,
                           gap_percent, consensus, cons_sec_struct)
                           VALUES (?, 0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, '-', NULL);""", data=(f,))
-    
-    
     
     # Save the number of "used columns" to table family ( = the length of the alignment if it was composed only of the RNANet chains)
     sql_execute(conn, f"UPDATE family SET ali_filtered_len = ? WHERE rfam_acc = ?;", data=(len(columns_to_save), f))
@@ -3171,14 +3180,8 @@ if __name__ == "__main__":
         print(f"Among errors, {len(no_nts_set)} structures seem to contain RNA chains without defined nucleotides:", no_nts_set, flush=True)
     if len(weird_mappings):
         print(f"{len(weird_mappings)} mappings to Rfam were taken as absolute positions instead of residue numbers:", weird_mappings, flush=True)
-    if pp.SELECT_ONLY is None:
+    if pp.HOMOLOGY and pp.SELECT_ONLY is None:
         pp.checkpoint_save_chains()
-
-    if not pp.HOMOLOGY:
-        # Save chains to file
-        for c in pp.loaded_chains:
-            work_save(c, homology=False)
-        print("Completed.")
 
     # At this point, structure, chain and nucleotide tables of the database are up to date.
     # (Modulo some statistics computed by statistics.py)
@@ -3187,33 +3190,34 @@ if __name__ == "__main__":
     # Homology information
     # ===========================================================================
 
-    if pp.SELECT_ONLY is None:
-        # If your job failed, you can comment all the "3D information" part and start from here.
-        pp.checkpoint_load_chains()
+    if pp.HOMOLOGY:
+        if pp.SELECT_ONLY is None:
+            # If your job failed, you can comment all the "3D information" part and start from here.
+            pp.checkpoint_load_chains()
 
-    # Get the list of Rfam families found in the update
-    rfam_acc_to_download = {}
-    for c in pp.loaded_chains:
-        if c.mapping.rfam_acc not in rfam_acc_to_download.keys():
-            rfam_acc_to_download[c.mapping.rfam_acc] = [c]
-        else:
-            rfam_acc_to_download[c.mapping.rfam_acc].append(c)
+        # Get the list of Rfam families found in the update
+        rfam_acc_to_download = {}
+        for c in pp.loaded_chains:
+            if c.mapping.rfam_acc not in rfam_acc_to_download.keys():
+                rfam_acc_to_download[c.mapping.rfam_acc] = [c]
+            else:
+                rfam_acc_to_download[c.mapping.rfam_acc].append(c)
 
-    print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
-    pp.fam_list = sorted(rfam_acc_to_download.keys())
+        print(f"> Identified {len(rfam_acc_to_download.keys())} families to update and re-align with the crystals' sequences")
+        pp.fam_list = sorted(rfam_acc_to_download.keys())
 
-    if len(pp.fam_list):
-        pp.prepare_sequences()
-        pp.realign()
+        if len(pp.fam_list):
+            pp.prepare_sequences()
+            pp.realign()
 
-        # At this point, the family table is almost up to date 
-        # (lacking idty_percent and ali_filtered_length, both set in statistics.py)
+            # At this point, the family table is almost up to date 
+            # (lacking idty_percent and ali_filtered_length, both set in statistics.py)
 
-        thr_idx_mgr = Manager()
-        idxQueue = thr_idx_mgr.Queue()
+            thr_idx_mgr = Manager()
+            idxQueue = thr_idx_mgr.Queue()
 
-        pp.remap()
-        pp.extractCMs()
+            pp.remap()
+            pp.extractCMs()
 
     # At this point, the align_column and re_mapping tables are up-to-date.
 

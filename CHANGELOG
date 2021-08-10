@@ -1,4 +1,36 @@
 ############################################################################################
+v 1.6 beta, August 2021
+
+Aglaé Tabot joins the development team. Khodor Hannoush leaves.
+
+FEATURE CHANGES
+    - Distinct options --cmalign-opts and --cmalign-rrna-opts allow to adapt the parameters for LSU and SSU families.
+      The LSU and SSU are now aligned with Infernal options '--cpu 10 --mxsize 8192 --mxtau 0.1', which is slow, 
+      requires up to 100 GB of RAM, and yields a suboptimal alignment (tau=0.1 is quite bad), but is homogenous with the other families.
+    - The LSU and SSU therefore have defined cm_coords fields, and therefore distance matrices can be computed.
+    - We now provide for download the renumbered (standardised) 3D MMCIF files, the nucleotides being numbered by their "index_chain" in the database.
+    - We now provide for download the sequences of the 3D chains aligned by Rfam family (without Rfam sequences, which have been removed).
+    - statistics.py now computes histograms and a density estimation with Gaussian mixture models for a large set of geometric parameters, 
+      measured on the unmapped data at a given resolution threshold. The parameters include:
+        * All atom bonded distances and torsion angles
+        * Distances, flat angles and torsion angles in the Pyle/VFold model
+        * Distances, flat angles and torsion anfles in the HiRE-RNA model
+        * Sequence-dependant geometric parameters of the basepairs for all non-canonical basepairs in the HiRE-RNA model.
+      The data is saved as JSON files of parameters, and numerous figures are produced to illustrate the distributions.
+      The number of gaussians to use in the GMMs are hard-coded in geometric_stats.py after our first estimation. If you do not want to trust this estimation,
+      you can ignore it with option --rescan-nmodes. An exploration of the number of Gaussians from 1 to 8 will be performed, and the best GMM will be kept. 
+
+BUG CORRECTIONS
+    - New code file geometric_stats.py
+    - New automation script that starts from scratch
+    - Many small fixes
+    - Performance tweaks
+
+TECHNICAL CHANGES
+    - Switched to DSSR Pro.
+    - Switched to esl-alimerge instead of cmalign --merge to merge alignments.
+
+############################################################################################
 v 1.5 beta, April 2021
 
 FEATURE CHANGES
