@@ -32,6 +32,8 @@ BUG CORRECTIONS
 TECHNICAL CHANGES
     - Switched to DSSR Pro.
     - Switched to esl-alimerge instead of cmalign --merge to merge alignments.
+    - Tested successfully with Python 3.9.6 + BioPython 1.79. 
+      However, the production server still runs with Python 3.8.1 + BioPython 1.78.
 
 ############################################################################################
 v 1.5 beta, April 2021

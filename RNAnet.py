@@ -1327,6 +1327,7 @@ class Pipeline:
             conn.execute('pragma journal_mode=wal')
             for eq_class, representative, codelist in tqdm(full_structures_list, desc="Eq. classes"):
                 codes = codelist.replace('+', ',').split(',')
+                representatives = representative.replace('+', ',').split(',')
 
                 # Simply convert the list of codes to Chain() objects
                 if self.REDUNDANT:
@@ -1344,18 +1345,19 @@ class Pipeline:
                         if not len(res) or self.REUSE_ALL:  # the chain is NOT yet in the database, or this is a known issue
                             self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
                 else:
-                    nr = representative.split('|')
-                    pdb_id = nr[0].lower()
-                    pdb_model = int(nr[1])
-                    pdb_chain_id = nr[2].upper()
-                    chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
-                    res = sql_ask_database(conn, f"""SELECT chain_id from chain 
-                                                        WHERE structure_id='{pdb_id}' 
-                                                        AND chain_name='{pdb_chain_id}' 
-                                                        AND rfam_acc = 'unmappd' 
-                                                        AND issue=0""")
-                    if not len(res) or self.REUSE_ALL:  # the chain is NOT yet in the database, or this is a known issue
-                        self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
+                    for rep in representatives:
+                        nr = rep.split('|')
+                        pdb_id = nr[0].lower()
+                        pdb_model = int(nr[1])
+                        pdb_chain_id = nr[2].upper()
+                        chain_label = f"{pdb_id}_{str(pdb_model)}_{pdb_chain_id}"
+                        res = sql_ask_database(conn, f"""SELECT chain_id from chain 
+                                                            WHERE structure_id='{pdb_id}' 
+                                                            AND chain_name='{pdb_chain_id}' 
+                                                            AND rfam_acc = 'unmappd' 
+                                                            AND issue=0""")
+                        if not len(res) or self.REUSE_ALL:  # the chain is NOT yet in the database, or this is a known issue
+                            self.update.append(Chain(pdb_id, pdb_model, pdb_chain_id, chain_label, eq_class))
             conn.close()
 
         if self.SELECT_ONLY is not None:
@@ -2292,7 +2294,7 @@ def execute_joblist(fulljoblist):
                 p.join()
             except KeyboardInterrupt as e:
                 warn("KeyboardInterrupt, killing workers (SIGKILL).", error=True)
-                p.kill()
+                p.terminate()
                 p.join()
                 raise e
 
@@ -2327,7 +2329,7 @@ def work_infer_mappings(update_only, allmappings, fullinference, redundant, code
     # Split the comma-separated list of chain codes into chain codes:
     eq_class = codelist[0]
     codes = codelist[2].replace('+', ',').split(',')
-    representative=codelist[1].replace('+', ',').split(',')[0]
+    representative = codelist[1].replace('+', ',').split(',')[0]
     # Search for mappings that apply to an element of this PDB chains list:
     for c in codes:
         # search for Rfam mappings with this chain c:

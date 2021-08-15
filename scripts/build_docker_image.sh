@@ -21,6 +21,6 @@ docker build -t rnanet:latest ..
 rm x3dna-dssr
 
 # to run, use something like:
-# docker run -v /home/persalteas/Data/RNA/3D/:/3D -v /home/persalteas/Data/RNA/sequences/:/sequences -v /home/persalteas/labo/:/runDir persalteas/rnanet [ additional options here ]
+# docker run -v /home/lbecquey/Data/RNA/3D/:/3D -v /home/lbecquey/Data/RNA/sequences/:/sequences -v /home/lbecquey/labo/:/runDir rnanet [ additional options here ]
 # Without additional options, this runs a standard pass with known issues support, log output, and no statistics. The default resolution threshold is 4.0 Angstroms.
 
