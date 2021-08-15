@@ -8,6 +8,9 @@ FEATURE CHANGES
       The LSU and SSU are now aligned with Infernal options '--cpu 10 --mxsize 8192 --mxtau 0.1', which is slow, 
       requires up to 100 GB of RAM, and yields a suboptimal alignment (tau=0.1 is quite bad), but is homogenous with the other families.
     - The LSU and SSU therefore have defined cm_coords fields, and therefore distance matrices can be computed.
+    - Distances matrices are computed on all availables molecules of the family by default, but you can use statistics.py --non-redundant to only
+      select the equivalence class representatives at a given resolution into account (new option). For storage reasons, rRNAs are always run in 
+      this mode (but this might change in the future : space required is 'only' ~300 GB).
     - We now provide for download the renumbered (standardised) 3D MMCIF files, the nucleotides being numbered by their "index_chain" in the database.
     - We now provide for download the sequences of the 3D chains aligned by Rfam family (without Rfam sequences, which have been removed).
     - statistics.py now computes histograms and a density estimation with Gaussian mixture models for a large set of geometric parameters, 
@@ -23,7 +26,7 @@ FEATURE CHANGES
 BUG CORRECTIONS
     - New code file geometric_stats.py
     - New automation script that starts from scratch
-    - Many small fixes
+    - Many small fixes, leading to the support of many previously "known issues"
     - Performance tweaks
 
 TECHNICAL CHANGES

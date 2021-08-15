@@ -920,14 +920,22 @@ def general_stats():
 
 @trace_unhandled_exceptions
 def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
-    
+    """
+    Get the pairwise distances in one 3D molecule, given its aligned sequence (with gaps).
+    Returns a tuple of numpy arrays:
+    - The first is a boolean matrix, whose values are 1 if the distance is NaN (unresolved residue, or missing atom...), 0 otherwise
+    - The second is the distance matrix (in angströms), unresolved positions are 0 (not NaN)
+    - The third is the square of the second (square-distance matrix), unresolved positions are 0 (not NaN)
+    """
+
     # Identify the right 3D file
-    filename = ''
+    filename = ""
     for file in filelist:
         if file.startswith(s.id.split("RF")[0].replace('-', '').replace('[', '_').replace(']', '_')):
             filename = path_to_3D_data + "rna_mapped_to_Rfam/" + file
             break
     if not len(filename):
+        # chain is not in file list. Maybe you are in non-redundant mode and it is not a representative (normal case).
         return None, None, None
     
     # Get the coordinates of every existing nt in the 3D file
@@ -938,8 +946,8 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
             warn("No C1' atoms in " + filename.split('/')[-1] + ", ignoring")
             return None, None, None
     except FileNotFoundError:
+        warn(f"{label} not found in the mapped mmCIF files")
         return None, None, None
-
 
     # Get the coordinates of every position in the alignment
     nb_gap = 0
@@ -965,7 +973,6 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
                 d[i,j] = get_euclidian_distance(coordinates_with_gaps[i], coordinates_with_gaps[j])
     
     # Save the individual distance matrices
-    # if f not in LSU_set and f not in SSU_set:
     np.savetxt(runDir + '/results/distance_matrices/' + f + '_'+ label + '/'+ s.id.strip("\'") + '.csv', d, delimiter=",", fmt="%.3f")
     
     # For the average and sd, we want to consider only positions of the consensus model. This means:
@@ -979,7 +986,7 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
     while cm_coords[i] is None:
         i += 1
     family_start = int(cm_coords[i])
-    # c = np.zeros((family_end, family_end), dtype=np.float32)    # new matrix of size of the consensus model for the family
+    # new matrix of size of the consensus model for the family
     c = np.NaN * np.ones((family_end, family_end), dtype=np.float32)
     # set to NaN zones that never exist in the 3D data
     for i in range(family_start-1):
@@ -1000,8 +1007,8 @@ def par_distance_matrix(filelist, f, label, cm_coords, consider_all_atoms, s):
     return 1-np.isnan(c).astype(int), np.nan_to_num(c), np.nan_to_num(c*c)
 
 @trace_unhandled_exceptions
-def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
-    np.seterr(divide='ignore') # ignore division by zero issues
+def get_avg_std_distance_matrix(f, res, consider_all_atoms=False, redundancy=False, multithread=False):
+    # np.seterr(divide='ignore') # ignore division by zero issues
 
     if consider_all_atoms:
         label = "base"
@@ -1009,23 +1016,38 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
         label = "backbone"
 
     if not multithread:
-        # This function call is for ONE worker.
-        # Get a worker number for it to position the progress bar
+        # This function call is for ONE worker. Get a worker number for it to position the progress bar.
         global idxQueue
         thr_idx = idxQueue.get()
         setproctitle(f"RNANet statistics.py Worker {thr_idx+1} {f} {label} distance matrices")
 
     os.makedirs(runDir + '/results/distance_matrices/' + f + '_' + label, exist_ok=True )   
+    
+    # Get the list of 3D files. They should exist in the folder from the last RNANet run with --extract option.
+    if redundancy:
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
+            r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}' AND issue=0;")
+        filelist = sorted([ ''.join(list(x))+'.cif' for x in r ])
+    else:
+        filelist = sorted(representatives_from_nrlist(res, mapped_to=f))
 
-    align = AlignIO.read(path_to_seq_data + f"realigned/{f}_3d_only.afa", "fasta")
-    ncols = align.get_alignment_length()
+    # Open the 3D-only alignment. keep only files that will be considered in 3D (e.g. representatives)
+    temp_align = AlignIO.read(path_to_seq_data + f"realigned/{f}_3d_only.afa", "fasta")
+    align = []
+    for s in temp_align:
+        filename = ""
+        for file in filelist:
+            if file.startswith(s.id.split("RF")[0].replace('-', '').replace('[', '_').replace(']', '_')):
+                align.append(s)
+                break
+    ncols = temp_align.get_alignment_length()
     found = 0
     notfound = 0
+
     # retrieve the mappings between this family's alignment and the CM model:
     with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
         conn.execute('pragma journal_mode=wal')
-        r = sql_ask_database(conn, f"SELECT structure_id, '_1_', chain_name, '_', CAST(pdb_start AS TEXT), '-', CAST(pdb_end AS TEXT) FROM chain WHERE rfam_acc='{f}';")
-        filelist = sorted([ ''.join(list(x))+'.cif' for x in r ])
         r = sql_ask_database(conn, f"SELECT cm_coord FROM align_column WHERE rfam_acc = '{f}' AND index_ali > 0 ORDER BY index_ali ASC;")
         cm_coords = [ x[0] for x in r ] # len(cm_coords) is the number of saved columns. There are many None values in the list.
         i = len(cm_coords)-1
@@ -1042,7 +1064,7 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     counts = np.zeros((family_end, family_end))
     avg = np.zeros((family_end, family_end))
     std = np.zeros((family_end, family_end))
-    
+
     if not multithread:
         pbar = tqdm(total = len(align), position=thr_idx+1, desc=f"Worker {thr_idx+1}: {f} {label} distance matrices", unit="chains", leave=False)
         pbar.update(0)
@@ -1054,16 +1076,15 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
                 avg += d
                 std += dsquared
             else:
+                # d is None means the considered RNA is not in the filelist (e.g., not a representative), or is not found.
                 notfound += 1
             pbar.update(1)
         pbar.close()
     else:
         # We split the work for one family on multiple workers.
-        
         p = Pool(initializer=init_with_tqdm, initargs=(tqdm.get_lock(),), processes=nworkers)
         try:
             fam_pbar = tqdm(total=len(align), desc=f"{f} {label} pair distances", position=0, unit="chain", leave=True)
-            # Apply work_pssm_remap to each RNA family
             for i, (contrib, d, dsquared) in enumerate(p.imap_unordered(partial(par_distance_matrix, filelist, f, label, cm_coords, consider_all_atoms), align, chunksize=1)):
                 if d is not None:
                     found += 1
@@ -1128,15 +1149,15 @@ def get_avg_std_distance_matrix(f, consider_all_atoms, multithread=False):
     if not multithread:
         idxQueue.put(thr_idx) # replace the thread index in the queue
         setproctitle(f"RNANet statistics.py Worker {thr_idx+1} finished")
-    else:
-        # basically, for the rRNAs
-        # we delete the unique csv files for each chain, they wheight hundreds of gigabytes together
-        warn(f"Removing {f} ({label}) individual distance matrices, they weight too much. keeping the averages and standard deviations.")
-        for csv in glob.glob(runDir + '/results/distance_matrices/' + f + '_'+ label + "/*-" + f + ".csv"):
-            try:
-                os.remove(csv)
-            except FileNotFoundError:
-                pass
+    # else:
+    #     # basically, for the rRNAs
+    #     # we delete the unique csv files for each chain, they wheight hundreds of gigabytes together
+    #     warn(f"Removing {f} ({label}) individual distance matrices, they weight too much. keeping the averages and standard deviations.")
+    #     for csv in glob.glob(runDir + '/results/distance_matrices/' + f + '_'+ label + "/*-" + f + ".csv"):
+    #         try:
+    #             os.remove(csv)
+    #         except FileNotFoundError:
+    #             pass
     return 0
 
 @trace_unhandled_exceptions
@@ -1195,7 +1216,7 @@ def nt_3d_centers(cif_file, consider_all_atoms):
     try:
         structure = MMCIFParser().get_structure(cif_file, cif_file)
     except Exception as e:
-        warn(f"{cif_file.split('/')[-1]} : {e}", error=True)
+        warn(f"\n{cif_file.split('/')[-1]} : {e}", error=True)
         with open(runDir + "/errors.txt", "a") as f:
             f.write(f"Exception in nt_3d_centers({cif_file.split('/')[-1]})\n")
             f.write(str(e))
@@ -1225,24 +1246,54 @@ def nt_3d_centers(cif_file, consider_all_atoms):
                     result.append(res)
     return(result)
 
-def representatives_from_nrlist(res):
+def representatives_from_nrlist(res, mapped_to=None):
+    """
+    Returns the list of filenames corresponding to the 3D cif files of structures
+    that represent a "cluster" (a redundancy class) at the given resolution.
+
+    If mapped is not None, then the database is searched for a mapping to a family.
+    """
+    
+    # Read the NR file
     nr_code = min([i for i in [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 20.0] if i >= res])
-    fpath = f"/home/data/RNA/3D/latest_nr_list_{nr_code}A.csv"
+    fpath = f"{path_to_3D_data}/latest_nr_list_{nr_code}A.csv"
     repres = []
     df = pd.read_csv(os.path.abspath(fpath))
+
+    # define a function to transform a code into a filename
+    def query_mapping_to(structure, model, chain, family):
+        if family is None:
+            return structure + '_' + model + '_' + chain + ".cif"
+
+        # if we need a mapping start and end, query database
+        with sqlite3.connect(runDir + "/results/RNANet.db") as conn:
+            conn.execute('pragma journal_mode=wal')
+            r = sql_ask_database(conn, f"SELECT pdb_start, pdb_end FROM chain WHERE rfam_acc='{family}' AND structure_id='{structure}' AND chain_name='{chain}' AND issue=0;")
+
+        if not len(r):
+            # there is no chain named like this and mapped to this family
+            return None
+
+        if len(r) > 1:
+            warn(f"Several entries found for structure {structure}-{chain} ({family}) : {len(r)} entries")
+        return structure + '_' + model + '_' + chain + '_' + str(r[0][0]) + '-' + str(r[0][1]) + ".cif"
+
+    # build the list 
     for i in range(df.shape[0]):
         up_name = df["representative"][i]
         if '+' in up_name:
             up_name = up_name.split('+')
             for i in range(len(up_name)):
                 chain = up_name[i].split('|')
-                chain = chain[0].lower() + '_' + chain[1] + '_' + chain[2]
-                repres.append(chain + '.cif')
+                reference = query_mapping_to(chain[0].lower(), chain[1], chain[2], mapped_to)
+                if reference is not None:
+                    repres.append(reference)
         else :
             up_name = up_name.split('|')
-            low_name = up_name[0].lower() + '_' + up_name[1] + '_' + up_name[2]
-            repres.append(low_name + '.cif') 
-        
+            reference = query_mapping_to(up_name[0].lower(), up_name[1], up_name[2], mapped_to)
+            if reference is not None:
+                repres.append(reference)
+
     return repres
 
 def log_to_pbar(pbar):
@@ -1281,11 +1332,12 @@ if __name__ == "__main__":
     DELETE_OLD_DATA = False
     DO_WADLEY_ANALYSIS = False
     DO_AVG_DISTANCE_MATRIX = False
+    REDUNDANT_DIST_MAT = True
     DO_HIRE_RNA_MEASURES = False
     RESCAN_GMM_COMP_NUM = False
     try:
         opts, _ = getopt.getopt( sys.argv[1:], "r:h", 
-                    [ "help", "from-scratch", "wadley", "distance-matrices", "resolution=", 
+                    [ "help", "from-scratch", "wadley", "distance-matrices", "non-redundant", "resolution=", 
                       "3d-folder=", "seq-folder=", "hire-rna", "rescan-nmodes" ])
     except getopt.GetoptError as err:
         print(err)
@@ -1301,14 +1353,17 @@ if __name__ == "__main__":
             print()
             print("-r 20.0 [ --resolution=20.0 ]\tCompute statistics using chains of resolution 20.0A or better.")
             print("--3d-folder=…\t\t\tPath to a folder containing the 3D data files. Required subfolders should be:"
-                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format.")
+                    "\n\t\t\t\t\tdatapoints/\t\tFinal results in CSV file format."
+                    "\n\t\t\t\t\trna_mapped_to_Rfam/\tmmCIF files produced by RNANet (using --extract)."
+                    "\n\t\t\t\t\trna_only/\t\tmmCIF files produced by RNANet in no-homology mode.")
             print("--seq-folder=…\t\t\tPath to a folder containing the sequence and alignment files. Required subfolder:"
                     "\n\t\t\t\t\trealigned/\t\tSequences, covariance models, and alignments by family")
             print("--from-scratch\t\t\tDo not use precomputed results from past runs, recompute everything")
             print("--distance-matrices\t\tCompute average distance between nucleotide pairs for each family.")
+            print("--non-redundant\t\t\tIn distance matrix computation, only use the equivalence class representatives.\n\t\t\t\t  Does not apply to rRNAs, where the option is always True.")
             print("--wadley\t\t\tReproduce Wadley & al 2007 clustering of pseudotorsions.")
-            print("--hire-rna\t\t\tCompute distances between atoms and torsion angles for HiRE-RNA model, and plot GMMs on the data.")
-            print("--rescan-nmodes\t\tDo not assume the number of modes in distances and angles distributions, measure it.")
+            print("--hire-rna\t\t\tCompute distances between atoms and torsion angles for HiRE-RNA model,\n\t\t\t\t  and plot GMMs on the data.")
+            print("--rescan-nmodes\t\t\tDo not assume the number of modes in distances and angles distributions, measure it.")
             sys.exit()
         elif opt == "--version":
             print("RNANet statistics 1.6 beta")
@@ -1350,6 +1405,8 @@ if __name__ == "__main__":
             os.makedirs(runDir + "/results/figures/GMM/HiRE-RNA/basepairs/", exist_ok=True)
         elif opt == "--rescan-nmodes":
             RESCAN_GMM_COMP_NUM = True
+        elif opt == "--non-redundant":
+            REDUNDANT_DIST_MAT = False
 
     # Load mappings. famlist will contain only families with structures at this resolution threshold.
     
@@ -1373,7 +1430,7 @@ if __name__ == "__main__":
     ignored = families[families.n_chains < 3].rfam_acc.tolist()
     famlist.sort(key=family_order)
 
-    print(f"Found {len(famlist)} families with chains of resolution {res_thr}A or better.")
+    print(f"Found {len(famlist)} families with chains or better.")
     if len(ignored):
         print(f"Idty matrices: Ignoring {len(ignored)} families with only one chain:", " ".join(ignored)+'\n')
     
@@ -1413,8 +1470,8 @@ if __name__ == "__main__":
                 e3 = file.split('_')[2]
                 extracted_chains.append(e1 + '[' + e2 + ']' + '-' + e3)
         for f in [ x for x in famlist if (x not in LSU_set and x not in SSU_set) ]:    # Process the rRNAs later only 3 by 3
-            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, True, False)))
-            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, False, False)))
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, res_thr, True, REDUNDANT_DIST_MAT, False)))
+            joblist.append(Job(function=get_avg_std_distance_matrix, args=(f, res_thr, False, REDUNDANT_DIST_MAT, False)))
 
     # Do general family statistics
     joblist.append(Job(function=stats_len)) # Computes figures about chain lengths
@@ -1428,7 +1485,6 @@ if __name__ == "__main__":
     # Do geometric measures
     if n_unmapped_chains:
         os.makedirs(runDir + "/results/geometry/all-atoms/distances/", exist_ok=True)
-        # structure_list = os.listdir(path_to_3D_data + "rna_only")
         structure_list = representatives_from_nrlist(res_thr)
         for f in structure_list:
             if path.isfile(path_to_3D_data + "datapoints/" + f.split('.')[0]):
@@ -1438,12 +1494,17 @@ if __name__ == "__main__":
 
     # Now process the memory-heavy tasks family by family
     if DO_AVG_DISTANCE_MATRIX:
+        print("Computing distances matrices of rRNA families using only the equivalence class representatives, for storage purposes.")
+        # Note that, if the user has more than 300 GB of free storage space, one could use all the rRNAs.
+        # Yes, within an equivalence class, the rRNA molecules are close in sequence and structure.
+        # But yet, having several 3D structures of the same molecule gives an insight about structure flexibility in some regions.
+        # Detect free space automatically ? TODISCUSS + TODECIDE + TODO 
         for f in LSU_set:
-            get_avg_std_distance_matrix(f, True, True)
-            get_avg_std_distance_matrix(f, False, True)
+            get_avg_std_distance_matrix(f, res_thr, True, False, True)
+            get_avg_std_distance_matrix(f, res_thr, False, False, True)
         for f in SSU_set:
-            get_avg_std_distance_matrix(f, True, True)
-            get_avg_std_distance_matrix(f, False, True)
+            get_avg_std_distance_matrix(f, res_thr, True, False, True)
+            get_avg_std_distance_matrix(f, res_thr, False, False, True)
 
     print()
     print()
@@ -1476,4 +1537,5 @@ if __name__ == "__main__":
             joblist.append(Job(function=gmm_pyle, args=(RESCAN_GMM_COMP_NUM, res_thr)))
         process_jobs(joblist)
         merge_jsons()
+
 

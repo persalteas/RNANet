@@ -23,3 +23,5 @@ scripts/*.sh
 scripts/*.tar
 scripts/measure.py
 scripts/recompute_some_chains.py
+scripts/convert_rna_jsons.py
+scripts/recompute_family.py
