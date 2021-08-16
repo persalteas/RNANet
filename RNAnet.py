@@ -2692,7 +2692,10 @@ def use_infernal(rfam_acc, alignopts):
 
         # Align the new sequences
         with open(path_to_seq_data + f"realigned/{rfam_acc}_new.log", 'w') as o:
-            p1 = subprocess.run(["cmalign", "--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
+            cmd = ["cmalign"]
+            if alignopts is not None:
+                cmd += alignopts
+            p1 = subprocess.run(cmd + ["--ifile", path_to_seq_data + f"realigned/{rfam_acc}.ins", 
                                 "--sfile", path_to_seq_data + f"realigned/{rfam_acc}.tsv",
                                 "-o", new_ali_path,
                                 path_to_seq_data + f"realigned/{rfam_acc}.cm",
@@ -2705,6 +2708,7 @@ def use_infernal(rfam_acc, alignopts):
                     warn(f"Not enough RAM to allocate cmalign DP matrix for family {rfam_acc}. Use --sina or --cmalign-opts.", error=True)
                 else:
                     warn(align_errors, error=True)
+                return
         notify("Aligned new sequences together")
 
         # Detect doublons and remove them
@@ -2721,6 +2725,7 @@ def use_infernal(rfam_acc, alignopts):
         except ValueError:
             # Not a stockholm file
             warn(f"New alignment {new_ali_path} is not a Stockholm file !", error=True)
+            return
         new_ids = [r.id for r in new_stk]
         del new_stk
         doublons = [i for i in existing_ids if i in new_ids]

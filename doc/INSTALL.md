@@ -16,7 +16,7 @@
 
 # Method 1 : Installation using Docker
 
-* Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/d/1aff90a9ef214a19b848/files/?p=/rnanet_v1.5b_docker.tar&dl=1). Open a terminal and move to the appropriate directory.
+* Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/d/1aff90a9ef214a19b848/files/?p=/rnanet_v1.6b_docker.tar&dl=1). Open a terminal and move to the appropriate directory.
 * Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
 ```
 $ docker load -i rnanet_v1.5b_docker.tar

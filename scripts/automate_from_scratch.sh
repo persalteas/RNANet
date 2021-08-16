@@ -3,7 +3,7 @@
 # run it one or twice a year, otherwise, the faster update runs should be enough.
 
 cd /home/lbecquey/Projects/RNANet
-rm -rf latest_run.log errors.txt
+rm -rf latest_run.log errors.txt known_issues.txt known_issues_reasons.txt
 
 # Run RNANet
 bash -c 'time python3.8 ./RNAnet.py --3d-folder /home/lbecquey/Data/RNA/3D/ --seq-folder /home/lbecquey/Data/RNA/sequences/ --from-scratch --ignore-issues -r 20.0 --no-homology --redundant --extract' > latest_run.log 2>&1
