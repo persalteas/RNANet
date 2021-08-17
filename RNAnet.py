@@ -2488,7 +2488,20 @@ def work_mmcif(pdb_id):
     # if not, read the CIF header and register the structure
     if not len(r):
         # Load the MMCIF file with Biopython
-        mmCif_info = pdb.MMCIF2Dict.MMCIF2Dict(final_filepath)
+        try:
+            mmCif_info = pdb.MMCIF2Dict.MMCIF2Dict(final_filepath)
+        except ValueError:
+            # mmcif file is empty or wrong. This happens when you interrupt RNANet while it 
+            # downloads. Retry to download it properly.
+            subprocess.run(
+                ["wget", f'http://files.rcsb.org/download/{pdb_id}.cif', "-O", final_filepath],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            try:
+                mmCif_info = pdb.MMCIF2Dict.MMCIF2Dict(final_filepath)
+            except ValueError:
+                warn(f"Empty or wrong {final_filepath.split('/')[-1]} file. Ignoring this structure.")
+                return 1
 
         # Get info about that structure
         try:
