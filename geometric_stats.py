@@ -1730,7 +1730,7 @@ def gmm_hrna_basepair_type(type_LW, ntpair, data, scan):
     setproctitle(f"GMM (HiRE-RNA {type_LW} {ntpair} basepairs) finished")
 
 @trace_unhandled_exceptions
-def merge_jsons():
+def merge_jsons(do_hrna):
     """
     Reads the tons of JSON files produced by the geometric analyses, and compiles them into fewer files.
     It is simple concatenation of the JSONs.
@@ -1744,55 +1744,62 @@ def merge_jsons():
     bonds = [ runDir + "/results/geometry/json/" + x + ".json" for x in bonds ]
     concat_jsons(bonds, runDir + "/results/geometry/json/all_atom_distances.json")
     
-
     # All atom torsions
     torsions = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Xhi", "Zeta"]
     torsions = [ runDir + "/results/geometry/json/" + x + ".json" for x in torsions ]
     concat_jsons(torsions, runDir + "/results/geometry/json/all_atom_torsions.json")
  
-    # HiRE-RNA distances
-    hrnabonds = [r"P-O5'", r"O5'-C5'", r"C5'-C4'", r"C4'-C1'", r"C1'-B1", r"B1-B2", r"C4'-P"]
-    hrnabonds = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnabonds ]
-    concat_jsons(hrnabonds, runDir + "/results/geometry/json/hirerna_distances.json")
-
-    # HiRE-RNA angles
-    hrnaangles = [r"P-O5'-C5'", r"O5'-C5'-C4'", r"C5'-C4'-C1'", r"C4'-C1'-B1", r"C1'-B1-B2", r"C4'-P-O5'", r"C5'-C4'-P", r"C1'-C4'-P"]
-    hrnaangles = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnaangles ]
-    concat_jsons(hrnaangles, runDir + "/results/geometry/json/hirerna_angles.json")
-
-    # HiRE-RNA torsions
-    hrnators = [r"P-O5'-C5'-C4'", r"O5'-C5'-C4'-C1'", r"C5'-C4'-C1'-B1", r"C4'-C1'-B1-B2", r"C4'-P°-O5'°-C5'°", r"C5'-C4'-P°-O5'°", r"C1'-C4'-P°-O5'°", r"O5'-C5'-C4'-P°"]
-    hrnators = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnators ]
-    concat_jsons(hrnators, runDir + "/results/geometry/json/hirerna_torsions.json")
-
-    # HiRE-RNA basepairs
-    for nt1 in ['A', 'C', 'G', 'U']:
-        for nt2 in ['A', 'C', 'G', 'U']:
-            bps = glob.glob(runDir + f"/results/geometry/json/*{nt1}{nt2}*.json")
-            concat_jsons(bps, runDir + f"/results/geometry/json/hirerna_{nt1}{nt2}_basepairs.json")
-
     # Delete previous files
-    for f in bonds + torsions + hrnabonds + hrnaangles + hrnators:
-        try:
-            os.remove(f)
-        except FileNotFoundError:
-            pass
-    for f in glob.glob(runDir + "/results/geometry/json/t*.json"):
-        try:
-            os.remove(f)
-        except FileNotFoundError:
-            pass
-    for f in glob.glob(runDir + "/results/geometry/json/c*.json"):
-        try:
-            os.remove(f)
-        except FileNotFoundError:
-            pass
-    for f in glob.glob(runDir + "/results/geometry/json/*tips_distance.json"):
+    for f in bonds + torsions:
         try:
             os.remove(f)
         except FileNotFoundError:
             pass
 
+    if do_hrna:
+        # HiRE-RNA distances
+        hrnabonds = [r"P-O5'", r"O5'-C5'", r"C5'-C4'", r"C4'-C1'", r"C1'-B1", r"B1-B2", r"C4'-P"]
+        hrnabonds = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnabonds ]
+        concat_jsons(hrnabonds, runDir + "/results/geometry/json/hirerna_distances.json")
+
+        # HiRE-RNA angles
+        hrnaangles = [r"P-O5'-C5'", r"O5'-C5'-C4'", r"C5'-C4'-C1'", r"C4'-C1'-B1", r"C1'-B1-B2", r"C4'-P-O5'", r"C5'-C4'-P", r"C1'-C4'-P"]
+        hrnaangles = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnaangles ]
+        concat_jsons(hrnaangles, runDir + "/results/geometry/json/hirerna_angles.json")
+
+        # HiRE-RNA torsions
+        hrnators = [r"P-O5'-C5'-C4'", r"O5'-C5'-C4'-C1'", r"C5'-C4'-C1'-B1", r"C4'-C1'-B1-B2", r"C4'-P°-O5'°-C5'°", r"C5'-C4'-P°-O5'°", r"C1'-C4'-P°-O5'°", r"O5'-C5'-C4'-P°"]
+        hrnators = [ runDir + "/results/geometry/json/" + x + ".json" for x in hrnators ]
+        concat_jsons(hrnators, runDir + "/results/geometry/json/hirerna_torsions.json")
+
+        # HiRE-RNA basepairs
+        for nt1 in ['A', 'C', 'G', 'U']:
+            for nt2 in ['A', 'C', 'G', 'U']:
+                bps = glob.glob(runDir + f"/results/geometry/json/*{nt1}{nt2}*.json")
+                concat_jsons(bps, runDir + f"/results/geometry/json/hirerna_{nt1}{nt2}_basepairs.json")
+
+        # Delete previous files
+        for f in hrnabonds + hrnaangles + hrnators:
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+        for f in glob.glob(runDir + "/results/geometry/json/t*.json"):
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+        for f in glob.glob(runDir + "/results/geometry/json/c*.json"):
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+        for f in glob.glob(runDir + "/results/geometry/json/*tips_distance.json"):
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+    
 @trace_unhandled_exceptions
 def concat_worker(bunch):
     """
@@ -1876,8 +1883,9 @@ def concat_jsons(flist, outfilename):
     
     result = []
     for f in flist:
-        # if not os.path.isfile(f):
-        #     continue:
+        if not os.path.isfile(f):
+            warn("Unable to find "+f)
+            continue
         with open(f, "rb") as infile:
             result.append(json.load(infile))
 

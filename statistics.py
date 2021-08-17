@@ -1536,6 +1536,6 @@ if __name__ == "__main__":
         if DO_WADLEY_ANALYSIS:
             joblist.append(Job(function=gmm_pyle, args=(RESCAN_GMM_COMP_NUM, res_thr)))
         process_jobs(joblist)
-        merge_jsons()
+        merge_jsons(DO_HIRE_RNA_MEASURES)
 
 

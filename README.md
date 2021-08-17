@@ -10,6 +10,7 @@ Contents:
 * [Database tables documentation](doc/Database.md)
 * [FAQ](doc/FAQ.md)
 * [Troubleshooting](#troubleshooting)
+* [Known Issues and Feature Requests](doc/KnownIssues.md)
 * [Contact](#contact)
 
 ## Cite us
