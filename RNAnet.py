@@ -1225,12 +1225,12 @@ class Pipeline:
                                 path_to_seq_data + "realigned",
                                 path_to_seq_data + "rfam_sequences"])
                 self.REUSE_ALL = True
-            elif opt == "cmalign-opts":
-                self.ALIGNOPTS = arg
-            elif opt == "cmalign-rrna-opts":
-                self.RRNAALIGNOPTS = " ".split(arg)
-            elif opt == "stats-opts":
-                self.STATSOPTS = " ".split(arg)
+            elif opt == "--cmalign-opts":
+                self.ALIGNOPTS = arg.split(" ")
+            elif opt == "--cmalign-rrna-opts":
+                self.RRNAALIGNOPTS = arg.split(" ")
+            elif opt == "--stats-opts":
+                self.STATSOPTS = arg.split(" ")
             elif opt == "--all":
                 self.REUSE_ALL = True
                 self.USE_KNOWN_ISSUES = False
