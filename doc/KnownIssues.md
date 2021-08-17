@@ -1,12 +1,12 @@
 # Known Issues
 
 ## Annotation and numbering issues
-* Some GDPs that are listed as HETATMs in the mmCIF files are not detected correctly to be real nucleotides. (e.g. 1e8o-E)
+* [SOLVED] Some GDPs that are listed as HETATMs in the mmCIF files are not detected correctly to be real nucleotides. (e.g. 1e8o-E)
 * Some chains are truncated in different pieces with different chain names. Reason unknown (e.g. 6ztp-AX)
-* Some chains are not correctly renamed A in the produced separate files (e.g. 1d4r-B)
+* [SOLVED] Some chains are not correctly renamed A in the produced separate files (e.g. 1d4r-B)
 
 ## Alignment issues
-* Chain names appear in triple in the FASTA header (e.g. 1d4r[1]-B 1d4r[1]-B 1d4r[1]-B)
+* [SOLVED] Chain names appear in triple in the FASTA header (e.g. 1d4r[1]-B 1d4r[1]-B 1d4r[1]-B)
 
 # Known feature requests
 * Automated annotation of detected Recurrent Interaction Networks (RINs), see http://carnaval.lri.fr/ .
@@ -17,7 +17,7 @@
 * Possibly, more metrics about the alignments coming from Infernal.
 * Run cmscan ourselves from the NDB instead of using Rfam-PDB mappings ? (Iff this actually makes a real difference, untested yet)
 * Use and save Infernal alignment bounds and truncation information
-* Save if a chain is a representative in BGSU list
+* Save if a chain is a representative or not in BGSU list, so that they can be filtered easily
 * Annotate unstructured regions (on a nucleotide basis)
 
 ## Technical to-do list

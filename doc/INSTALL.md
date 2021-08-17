@@ -1,5 +1,5 @@
 
-* [Required computational resources](#required-computational-resources)
+* [Required hardware resources](#required-computational-resources)
 * [Method 1 : Using Docker](#method-1-:-installation-using-docker)
 * [Method 2 : Classical command-line installation](#method-2-:-classical-command-line-installation-linux-only)
 * [Command options](#command-options)
@@ -16,7 +16,7 @@
         - or customize options --cmalign-opts and --cmalign-rrna-opts with cmalign arguments --cpu (number of cores to use) and --mxsize (max memory to allocate per core), so that it fits your machine. In very hard cases, also increase the parameter --maxtau from 0.05 to 0.1, but this reduces the quality of the alignments.
     - In regular "update" mode, when the alignments already exists, less RAM is required, 64GB should be fine. If not, use the same options than the first time for your update runs.
 	- In 'no homology' mode, just for annotation of the structures without mapping to families, each core can peak to ~3GB (but not all at the same time if you are lucky). Use option --maxcores to reduce the number of cores if you do not have enough RAM. 32GB is fine in most cases. 
-- **Storage**: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. If you compute geometry statistics and parameter distributions, you need to count a 80GB more (permanent) and 100GB more (that will be deleted at the end of the run). So, pick a 500GB partition and you are good to go. The computation speed is much higher if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe M.2) because of constant I/O with the SQlite database.
+- **Storage**: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. If you compute geometry statistics and parameter distributions, you need to count a 80GB more (permanent) and 100GB more (that will be deleted at the end of the run). So, pick a 250GB partition and you are good to go. The computation speed is much higher if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe M.2) because of constant I/O with the SQlite database.
 - **Network** : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but your university may close ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
 
 The IBISC-EvryRNA server example :
@@ -29,7 +29,7 @@ The IBISC-EvryRNA server example :
 * Step 1 : Download the [Docker container](https://entrepot.ibisc.univ-evry.fr/d/1aff90a9ef214a19b848/files/?p=/rnanet_v1.6b_docker.tar&dl=1). Open a terminal and move to the appropriate directory.
 * Step 2 : Extract the archive to a Docker image named *rnanet* in your local installation
 ```
-$ docker load -i rnanet_v1.5b_docker.tar
+$ docker load -i rnanet_v1.6b_docker.tar
 ```
 * Step 3 : Run the container, giving it 3 folders to mount as volumes: a first to store the 3D data, a second to store the sequence data and alignments, and a third to output the results, data and logs:
 ```
