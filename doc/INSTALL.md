@@ -7,12 +7,22 @@
 * [Post-computation tasks](#post-computation-tasks-estimate-quality)
 * [Output files](#output-files)
 
-# Required computational resources
-- CPU: no requirements. The program is optimized for multi-core CPUs, you might want to use Intel Xeons, AMD Ryzens, etc.
-- GPU: not required
-- RAM: 16 GB with a large swap partition is okay. 32 GB is recommended (usage peaks at ~27 GB, but this number depends on your number of CPU cores)
-- Storage: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. Pick a 100GB partition and you are good to go. The computation speed is way better if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe SSD) because of constant I/O with the SQlite database.
-- Network : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but maybe you company/university closes ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
+# Required hardware resources
+- **CPU**: The program is optimized for highly multi-core CPUs. The more you have, the faster the computation. Ensure you have enough RAM to follow.
+- **GPU**: not required.
+- **RAM**: This depends on the usage. 
+	- In regular mode, the first computation of alignments requires a huge 100GB. If you do not have them, you might:
+        - either want to use SINA (--sina) instead of Infernal to align the rRNAs. However, all information related to covariance models will not be available for them (distance matrices, 3D-only alignments...)
+        - or customize options --cmalign-opts and --cmalign-rrna-opts with cmalign arguments --cpu (number of cores to use) and --mxsize (max memory to allocate per core), so that it fits your machine. In very hard cases, also increase the parameter --maxtau from 0.05 to 0.1, but this reduces the quality of the alignments.
+    - In regular "update" mode, when the alignments already exists, less RAM is required, 64GB should be fine. If not, use the same options than the first time for your update runs.
+	- In 'no homology' mode, just for annotation of the structures without mapping to families, each core can peak to ~3GB (but not all at the same time if you are lucky). Use option --maxcores to reduce the number of cores if you do not have enough RAM. 32GB is fine in most cases. 
+- **Storage**: to date, it takes 60 GB for the 3D data (36 GB if you don't use the --extract option), 11 GB for the sequence data, and 7GB for the outputs (5.6 GB database, 1 GB archive of CSV files). You need to add a few more for the dependencies. If you compute geometry statistics and parameter distributions, you need to count a 80GB more (permanent) and 100GB more (that will be deleted at the end of the run). So, pick a 500GB partition and you are good to go. The computation speed is much higher if you use a fast storage device (e.g. SSD instead of hard drive, or even better, a NVMe M.2) because of constant I/O with the SQlite database.
+- **Network** : We query the Rfam public MySQL server on port 4497. Make sure your network enables communication (there should not be any issue on private networks, but your university may close ports by default). You will get an error message if the port is not open. Around 30 GB of data is downloaded.
+
+The IBISC-EvryRNA server example :
+* Intel Xeon E7-4850 v4 (60 cores, 2.10GHz)
+* 112 GB of RAM
+* 250 GB of hard-disk storage
 
 # Method 1 : Installation using Docker
 
@@ -57,50 +67,52 @@ nohup bash -c 'time ~/Projects/RNANet/RNAnet.py --3d-folder ~/Data/RNA/3D/ --seq
 The detailed list of options is below:
 
 ```
--h [ --help ]			Print this help message
---version			Print the program version
+-h [ --help ]                   Print this help message
+--version                       Print the program version
 
 Select what to do:
 --------------------------------------------------------------------------------------------------------------
--f [ --full-inference ]		Infer new mappings even if Rfam already provides some. Yields more copies of
-				 chains mapped to different families.
--s				Run statistics computations after completion
---stats-opts=…			Pass additional command line options to the statistics.py script, e.g. "--wadley --distance-matrices"
---extract			Extract the portions of 3D RNA chains to individual mmCIF files.
---keep-hetatm=False		(True | False) Keep ions, waters and ligands in produced mmCIF files. 
-				 Does not affect the descriptors.
---no-homology			Do not try to compute PSSMs and do not align sequences.
-				 Allows to yield more 3D data (consider chains without a Rfam mapping).
+-f [ --full-inference ]         Infer new mappings even if Rfam already provides some. Yields more copies of
+                                 chains mapped to different families.
+-s                              Run statistics computations after completion
+--stats-opts=…                  Pass additional command line options to the statistics.py script, e.g. "--wadley --distance-matrices"
+--extract                       Extract the portions of 3D RNA chains to individual mmCIF files.
+--keep-hetatm=False             (True | False) Keep ions, waters and ligands in produced mmCIF files. 
+                                 Does not affect the descriptors.
+--no-homology                   Do not try to compute PSSMs and do not align sequences.
+                                 Allows to yield more 3D data (consider chains without a Rfam mapping).
 
 Select how to do it:
 --------------------------------------------------------------------------------------------------------------
---3d-folder=…			Path to a folder to store the 3D data files. Subfolders will contain:
-					RNAcifs/		Full structures containing RNA, in mmCIF format
-					rna_mapped_to_Rfam/	Extracted 'pure' portions of RNA chains mapped to families
-					rna_only/	Extracted 'pure' RNA chains, not truncated
-					datapoints/		Final results in CSV file format.
---seq-folder=…			Path to a folder to store the sequence and alignment files. Subfolders will be:
-					rfam_sequences/fasta/	Compressed hits to Rfam families
-					realigned/		Sequences, covariance models, and alignments by family
---sina				Align large subunit LSU and small subunit SSU ribosomal RNA using SINA instead of Infernal,
-				 the other RNA families will be aligned using infernal.
---maxcores=…			Limit the number of cores to use in parallel portions to reduce the simultaneous
-				 need of RAM. Should be a number between 1 and your number of CPUs. Note that portions
-				 of the pipeline already limit themselves to 50% or 70% of that number by default.
---cmalign-opts=…		A string of additional options to pass to cmalign aligner, e.g. "--nonbanded --mxsize 2048"
---archive			Create tar.gz archives of the datapoints text files and the alignments,
-				 and update the link to the latest archive. 
---no-logs			Do not save per-chain logs of the numbering modifications.
+--3d-folder=…                   Path to a folder to store the 3D data files. Subfolders will contain:
+                                        RNAcifs/                Full structures containing RNA, in mmCIF format
+                                        rna_mapped_to_Rfam/     Extracted 'pure' portions of RNA chains mapped to families
+                                        rna_only/       	Extracted 'pure' RNA chains, not truncated
+                                        datapoints/             Final results in CSV file format.
+--seq-folder=…                  Path to a folder to store the sequence and alignment files. Subfolders will be:
+                                        rfam_sequences/fasta/   Compressed hits to Rfam families
+                                        realigned/              Sequences, covariance models, and alignments by family
+--sina                          Align large subunit LSU and small subunit SSU ribosomal RNA using SINA instead of Infernal,
+                                 the other RNA families will be aligned using infernal.
+--maxcores=…                    Limit the number of cores to use in parallel portions to reduce the simultaneous
+                                 need of RAM. Should be a number between 1 and your number of CPUs. Note that portions
+                                 of the pipeline already limit themselves to 50% or 70% of that number by default.
+--cmalign-opts=…                A string of additional options to pass to cmalign aligner, e.g. "--nonbanded --mxsize 2048"
+--cmalign-rrna-opts=…   	Like cmalign-opts, but applied for rRNA (large families, memory-heavy jobs).
+--archive                       Create tar.gz archives of the datapoints text files and the alignments,
+                                 and update the link to the latest archive. 
+--no-logs                       Do not save per-chain logs of the numbering modifications.
 
 Select which data we are interested in:
 --------------------------------------------------------------------------------------------------------------
--r 4.0 [ --resolution=4.0 ]	Maximum 3D structure resolution to consider a RNA chain.
---all				Process chains even if they already are in the database.
---redundant			Process all members of the equivalence classes not only the representative.
---only				Ask to process a specific chains only (e.g. 4v49, 4v49_1_AA, or 4v49_1_AA_5-1523).
---ignore-issues			Do not ignore already known issues and attempt to compute them.
---update-homologous		Re-download Rfam and SILVA databases, realign all families, and recompute all CSV files.
---from-scratch			Delete database, local 3D and sequence files, and known issues, and recompute.
+-r 4.0 [ --resolution=4.0 ]     Maximum 3D structure resolution to consider a RNA chain.
+--all                           Process chains even if they already are in the database.
+--redundant                     Process all members of the equivalence classes not only the representative.
+--only                          Ask to process a specific chains only (could be 4v49, 4v49_1_AA, or 4v49_1_AA_5-1523).
+--ignore-issues                 Do not ignore already known issues and attempt to compute them.
+--update-homologous             Re-download Rfam and SILVA databases, realign all families, and recompute all CSV files.
+--from-scratch                  Delete database, local 3D and sequence files, and known issues, and recompute.
+
 
 ```
 Options --3d-folder and --seq-folder are mandatory for command-line installations, but should not be used for installations with Docker. In the Docker container, they are set by default to the paths you provide with the -v options.

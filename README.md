@@ -18,15 +18,13 @@ Contents:
 
 Additional relevant references:
 
-The "ProteinNet" philosophy which inspired this work:
-* AlQuraishi, M. (2019b). **ProteinNet: A standardized data set for machine learning of protein structure.** *BMC Bioinformatics*, 20(1), 311
-
 If you use our annotations by DSSR, you might want to cite:
 * Lu, X.-J.et al.(2015). **DSSR: An integrated software tool for dissecting the spatial structure of RNA.** *Nucleic Acids Research*, 43(21), e142–e142.
 
 If you use our multiple sequence alignments and homology data, you might want to cite:
-* Pruesse, E. et al.(2012). **Sina: accurate high-throughput multiple sequence alignment of ribosomal RNA genes.** *Bioinformatics*, 28(14), 1823–1829
 * Nawrocki, E. P. and Eddy, S. R. (2013). **Infernal 1.1: 100-fold faster RNA homology searches.** *Bioinformatics*, 29(22), 2933–2935.
+* Pruesse, E. et al.(2012). **Sina: accurate high-throughput multiple sequence alignment of ribosomal RNA genes.** *Bioinformatics*, 28(14), 1823–1829
+
 
 
 # What is RNANet ?
@@ -39,7 +37,8 @@ Most interestingly, nucleotides have been renumered in a standardized way, and t
 
 ## Methodology
 We use the Rfam mappings between 3D structures and known Rfam families, using the sequences that are known to belong to an Rfam family (hits provided in RF0XXXX.fasta files from Rfam).
-Future versions might compute a real MSA-based clusering directly with Rfamseq ncRNA sequences, like ProteinNet does with protein sequences, but this requires a tool similar to jackHMMER in the Infernal software suite, which is not available yet.
+Future versions might compute a real MSA-based clusering directly with Rfamseq ncRNA sequences, like ProteinNet does with protein sequences, but this requires a tool similar to jackHMMER in the Infernal software suite, which is not available yet. 
+If interested by such approaches, the user may check tools like RNAlien.
 
 This script prepares the dataset from available public data in PDB, RNA 3D Hub, Rfam and SILVA.
 
@@ -48,15 +47,16 @@ This script prepares the dataset from available public data in PDB, RNA 3D Hub, 
 The script follows these steps:
 
 To gather structures:
-* Gets a list of 3D structures containing RNA from BGSU's non-redundant list (but keeps the redundant structures /!\\),
+* Gets a list of 3D structures containing RNA from BGSU's non-redundant list (redundancy can be kept or eliminated, see command line option `--redundant`),
 * Asks Rfam for mappings of these structures onto Rfam families (~50% of structures have a direct mapping, some more are inferred using the redundancy list)
 * Downloads the corresponding 3D structures (mmCIFs)
-* If desired, extracts the right chain portions that map onto an Rfam family to a separate mmCIF file
+* Standardizes the residue numbering from 1 to N, including missing residues (gaps)
+* If desired, extracts the renumbered chain portions that map onto an Rfam family to a separate mmCIF file
 
 To compute homology information:
-* Extract the sequence for every 3D chain
+* Extracts the sequence of every 3D chain
 * Downloads Rfamseq ncRNA sequence hits for the concerned Rfam families (or ARB databases of SSU or LSU sequences from SILVA for rRNAs)
-* Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using `cmalign --cyk`, except for ribosomal LSU and SSU, where SINA is used)
+* Realigns Rfamseq hits and sequences from the 3D structures together to obtain a multiple sequence alignment for each Rfam family (using `cmalign`, but SINA can be used for ribosomal LSU and SSU)
 * Computes nucleotide frequencies at every position for each alignment
 * Map each nucleotide of a 3D chain to its position in the corresponding family sequence alignment
 
@@ -64,6 +64,15 @@ To compute 3D annotations:
 * Run DSSR on every RNA structure to get a variety of descriptors per position, describing secondary and tertiary structure. Basepair types annotations include intra-chain and inter-chain interactions.
 
 Finally, export this data from the SQLite database into flat CSV files.
+
+Statistical analysis of the structures:
+* Computes statistics about the amount of data from various resolutions and experimental methods (by RNA family)
+* Computes basic statistics about the frequency of (modified) nucleotides by chain and by family,
+* Computes basic statistics about the frequencies of non-canonical interactions,
+* Computes density estimations (using Gaussian mixtures) for various geometrical parameters like distances and torsion angles for different representations : all-atom, the Pyle/VFold model, and the HiRE-RNA model,
+* Computes pairwise residue distance matrices for each chain, and average + std-dev by RNA family
+* Computes sequence identity matrices for each RNA family (based on the alignments)
+* Saves covariance models (Infernal .cm files) for each RNA family
 
 ## Data provided
 
