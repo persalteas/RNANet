@@ -1145,7 +1145,7 @@ Could not find nucleotides of chain U3 in annotation 7a5k.json. Either there is 
 Could not find nucleotides of chain U in annotation 6nu2.json. Either there is a problem with 6nu2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7a5g_1_U3
-Could not download and/or find annotations for 7a5g_1_U3.
+Could not find nucleotides of chain U3 in annotation 7a5g.json. Either there is a problem with 7a5g mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6nu3_1_U
 Could not find nucleotides of chain U in annotation 6nu3.json. Either there is a problem with 6nu3 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
@@ -2173,9 +2173,6 @@ Sequence is too short. (< 5 resolved nts)
 6o7h_1_K
 Sequence is too short. (< 5 resolved nts)
 
-7a5g_1_A3
-Could not download and/or find annotations for 7a5g_1_A3.
-
 7l6t_1_C
 Sequence is too short. (< 5 resolved nts)
 
@@ -2452,9 +2449,6 @@ Sequence is too short. (< 5 resolved nts)
 5flx_1_Z
 Could not find nucleotides of chain Z in annotation 5flx.json. Either there is a problem with 5flx mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7a5g_1_B3
-Could not download and/or find annotations for 7a5g_1_B3.
-
 6eri_1_AX
 Could not find nucleotides of chain AX in annotation 6eri.json. Either there is a problem with 6eri mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
@@ -2562,9 +2556,6 @@ Could not find nucleotides of chain BB in annotation 6z1p.json. Either there is 
 
 6z1p_1_BA
 Could not find nucleotides of chain BA in annotation 6z1p.json. Either there is a problem with 6z1p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7a5g_1_A6
-Could not download and/or find annotations for 7a5g_1_A6.
 
 2uxd_1_X
 Sequence is too short. (< 5 resolved nts)
@@ -3163,12 +3154,6 @@ Sequence is too short. (< 5 resolved nts)
 7a5j_1_X
 Could not find nucleotides of chain X in annotation 7a5j.json. Either there is a problem with 7a5j mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7a5g_1_24
-Could not download and/or find annotations for 7a5g_1_24.
-
-7a5g_1_C
-Could not download and/or find annotations for 7a5g_1_C.
-
 6sag_1_R
 Sequence is too short. (< 5 resolved nts)
 
@@ -3365,7 +3350,7 @@ Sequence is too short. (< 5 resolved nts)
 Sequence is too short. (< 5 resolved nts)
 
 7a5g_1_J
-Could not download and/or find annotations for 7a5g_1_J.
+Could not find nucleotides of chain J in annotation 7a5g.json. Either there is a problem with 7a5g mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6gx6_1_B
 Sequence is too short. (< 5 resolved nts)
@@ -4558,67 +4543,52 @@ Could not find nucleotides of chain A in annotation 7d0f.json. Either there is a
 7o7z_1_AH_144-220
 Could not find nucleotides of chain AH in annotation 7o7z.json. Either there is a problem with 7o7z mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7a5g_1_A3_1-1454
-Could not download and/or find annotations for 7a5g_1_A3_1-1454.
-
-7a5g_1_A6_4-949
-Could not download and/or find annotations for 7a5g_1_A6_4-949.
-
 4c9d_1_D_29-1
 Mapping is reversed, this case is not supported (yet).
 
 4c9d_1_C_29-1
 Mapping is reversed, this case is not supported (yet).
 
-7a5g_1_24_1-70
-Could not download and/or find annotations for 7a5g_1_24_1-70.
-
-7a5g_1_C_1-70
-Could not download and/or find annotations for 7a5g_1_C_1-70.
-
-7a5g_1_j_1-73
-Could not download and/or find annotations for 7a5g_1_j_1-73.
+7aih_1_1_2400-2963
+Could not find nucleotides of chain 1 in annotation 7aih.json. Either there is a problem with 7aih mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7aih_1_1_2984-3610
 Could not find nucleotides of chain 1 in annotation 7aih.json. Either there is a problem with 7aih mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7aih_1_1_2400-2963
-Could not find nucleotides of chain 1 in annotation 7aih.json. Either there is a problem with 7aih mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
-7ane_1_2_2489-3115
+7ane_1_2_1904-2468
 Could not find nucleotides of chain 2 in annotation 7ane.json. Either there is a problem with 7ane mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7ane_1_2_1904-2468
+7ane_1_2_2489-3115
 Could not find nucleotides of chain 2 in annotation 7ane.json. Either there is a problem with 7ane mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 5g2x_1_A_595-692
 Sequence is too short. (< 5 resolved nts)
 
-7aor_1_2_2589-3210
+7aor_1_2_2020-2579
 Could not find nucleotides of chain 2 in annotation 7aor.json. Either there is a problem with 7aor mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7aor_1_2_2020-2579
+7aor_1_2_2589-3210
 Could not find nucleotides of chain 2 in annotation 7aor.json. Either there is a problem with 7aor mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7a5p_1_2_259-449
 Could not find nucleotides of chain 2 in annotation 7a5p.json. Either there is a problem with 7a5p mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7aor_1_A_2589-3210
-Could not find nucleotides of chain A in annotation 7aor.json. Either there is a problem with 7aor mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
-
 7aor_1_A_2020-2579
 Could not find nucleotides of chain A in annotation 7aor.json. Either there is a problem with 7aor mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7am2_1_1_2491-3117
-Could not find nucleotides of chain 1 in annotation 7am2.json. Either there is a problem with 7am2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+7aor_1_A_2589-3210
+Could not find nucleotides of chain A in annotation 7aor.json. Either there is a problem with 7aor mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7am2_1_1_1904-2470
 Could not find nucleotides of chain 1 in annotation 7am2.json. Either there is a problem with 7am2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
-7ane_1_1_2489-3115
-Could not find nucleotides of chain 1 in annotation 7ane.json. Either there is a problem with 7ane mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+7am2_1_1_2491-3117
+Could not find nucleotides of chain 1 in annotation 7am2.json. Either there is a problem with 7am2 mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 7ane_1_1_1904-2468
+Could not find nucleotides of chain 1 in annotation 7ane.json. Either there is a problem with 7ane mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
+
+7ane_1_1_2489-3115
 Could not find nucleotides of chain 1 in annotation 7ane.json. Either there is a problem with 7ane mmCIF download, or the bases are not resolved in the structure. Delete it and retry.
 
 6uz7_1_8_2140-2825

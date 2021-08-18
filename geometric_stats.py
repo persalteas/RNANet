@@ -55,7 +55,7 @@ modes_data = {
     "P-O5'-C5'":2, "O5'-C5'-C4'":1, "C5'-C4'-P":2, "C5'-C4'-C1'":2, "C4'-P-O5'":2, "C4'-C1'-B1":2, "C1'-C4'-P":2, "C1'-B1-B2":2,
 
     # HiRE-RNA, torsions
-    "P-O5'-C5'-C4'":1, "O5'-C5'-C4'-P°":3, "O5'-C5'-C4'-C1'":3, "C5'-C4'-P°-O5'°":3, "C5'-C4'-C1'-B1":2, "C4'-P°-O5'°-C5'°":3, "C4'-C1'-B1-B2":3, "C1'-C4'-P°-O5'°":3,
+    "P-O5'-C5'-C4'":3, "O5'-C5'-C4'-P°":3, "O5'-C5'-C4'-C1'":3, "C5'-C4'-P°-O5'°":3, "C5'-C4'-C1'-B1":2, "C4'-P°-O5'°-C5'°":3, "C4'-C1'-B1-B2":3, "C1'-C4'-P°-O5'°":3,
 
     # HiRE-RNA, basepairs
     "cWW_AA_tips_distance":3, "cWW_AA_C1'-B1-B1pair":1, "cWW_AA_B1-B1pair-C1'pair":1, "cWW_AA_C4'-C1'-B1-B1pair":2, "cWW_AA_B1-B1pair-C1'pair-C4'pair":3, "cWW_AA_alpha_1":2, "cWW_AA_alpha_2":3, "cWW_AA_dB1":3, "cWW_AA_dB2":3, 
@@ -172,7 +172,7 @@ modes_data = {
     "tWH_CG_tips_distance":4, "tWH_CG_C1'-B1-B1pair":2, "tWH_CG_B1-B1pair-C1'pair":1, "tWH_CG_C4'-C1'-B1-B1pair":2, "tWH_CG_B1-B1pair-C1'pair-C4'pair":3, "tWH_CG_alpha_1":2, "tWH_CG_alpha_2":1, "tWH_CG_dB1":3, "tWH_CG_dB2":2, 
     "cHW_CG_tips_distance":3, "cHW_CG_C1'-B1-B1pair":2, "cHW_CG_B1-B1pair-C1'pair":2, "cHW_CG_C4'-C1'-B1-B1pair":1, "cHW_CG_B1-B1pair-C1'pair-C4'pair":2, "cHW_CG_alpha_1":1, "cHW_CG_alpha_2":2, "cHW_CG_dB1":2, "cHW_CG_dB2":2, 
     "tHW_CG_tips_distance":5, "tHW_CG_C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair":2, "tHW_CG_C4'-C1'-B1-B1pair":1, "tHW_CG_B1-B1pair-C1'pair-C4'pair":2, "tHW_CG_alpha_1":3, "tHW_CG_alpha_2":2, "tHW_CG_dB1":4, "tHW_CG_dB2":3, 
-    "cWS_CG_tips_distance":2, "cWS_CG_C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair":1, "cWS_CG_C4'-C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair-C4'pair":1, "cWS_CG_alpha_1":1, "cWS_CG_alpha_2":2, "cWS_CG_dB1":2, "cWS_CG_dB2":3, 
+    "cWS_CG_tips_distance":2, "cWS_CG_C1'-B1-B1pair":1, "cWS_CG_B1-B1pair-C1'pair":1, "cWS_CG_C4'-C1'-B1-B1pair":2, "cWS_CG_B1-B1pair-C1'pair-C4'pair":1, "cWS_CG_alpha_1":1, "cWS_CG_alpha_2":2, "cWS_CG_dB1":2, "cWS_CG_dB2":3, 
     "tWS_CG_tips_distance":2, "tWS_CG_C1'-B1-B1pair":3, "tWS_CG_B1-B1pair-C1'pair":1, "tWS_CG_C4'-C1'-B1-B1pair":2, "tWS_CG_B1-B1pair-C1'pair-C4'pair":1, "tWS_CG_alpha_1":2, "tWS_CG_alpha_2":1, "tWS_CG_dB1":2, "tWS_CG_dB2":4, 
     "cSW_CG_tips_distance":7, "cSW_CG_C1'-B1-B1pair":1, "cSW_CG_B1-B1pair-C1'pair":2, "cSW_CG_C4'-C1'-B1-B1pair":2, "cSW_CG_B1-B1pair-C1'pair-C4'pair":3, "cSW_CG_alpha_1":1, "cSW_CG_alpha_2":2, "cSW_CG_dB1":1, "cSW_CG_dB2":3, 
     "tSW_CG_tips_distance":4, "tSW_CG_C1'-B1-B1pair":1, "tSW_CG_B1-B1pair-C1'pair":2, "tSW_CG_C4'-C1'-B1-B1pair":3, "tSW_CG_B1-B1pair-C1'pair-C4'pair":2, "tSW_CG_alpha_1":1, "tSW_CG_alpha_2":2, "tSW_CG_dB1":7, "tSW_CG_dB2":2, 
@@ -190,7 +190,7 @@ modes_data = {
     "tWH_CU_tips_distance":1, "tWH_CU_C1'-B1-B1pair":2, "tWH_CU_B1-B1pair-C1'pair":2, "tWH_CU_C4'-C1'-B1-B1pair":3, "tWH_CU_B1-B1pair-C1'pair-C4'pair":2, "tWH_CU_alpha_1":3, "tWH_CU_alpha_2":3, "tWH_CU_dB1":5, "tWH_CU_dB2":2, 
     "cHW_CU_tips_distance":3, "cHW_CU_C1'-B1-B1pair":2, "cHW_CU_B1-B1pair-C1'pair":2, "cHW_CU_C4'-C1'-B1-B1pair":1, "cHW_CU_B1-B1pair-C1'pair-C4'pair":3, "cHW_CU_alpha_1":2, "cHW_CU_alpha_2":2, "cHW_CU_dB1":1, "cHW_CU_dB2":3, 
     "tHW_CU_tips_distance":8, "tHW_CU_C1'-B1-B1pair":1, "tHW_CU_B1-B1pair-C1'pair":1, "tHW_CU_C4'-C1'-B1-B1pair":3, "tHW_CU_B1-B1pair-C1'pair-C4'pair":2, "tHW_CU_alpha_1":1, "tHW_CU_alpha_2":2, "tHW_CU_dB1":3, "tHW_CU_dB2":3, 
-    "cWS_CU_tips_distance":4, "cWS_CU_C1'-B1-B1pair":1, "cWS_CU_B1-B1pair-C1'pair":2, "cWS_CU_C4'-C1'-B1-B1pair":2, "cWS_CU_B1-B1pair-C1'pair-C4'pair":2, "cWS_CU_alpha_1":3, "cWS_CU_alpha_2":2, "cWS_CU_dB1":4, "cWS_CU_dB2":2, 
+    "cWS_CU_tips_distance":4, "cWS_CU_C1'-B1-B1pair":1, "cWS_CU_B1-B1pair-C1'pair":2, "cWS_CU_C4'-C1'-B1-B1pair":3, "cWS_CU_B1-B1pair-C1'pair-C4'pair":2, "cWS_CU_alpha_1":3, "cWS_CU_alpha_2":2, "cWS_CU_dB1":4, "cWS_CU_dB2":2, 
     "tWS_CU_tips_distance":5, "tWS_CU_C1'-B1-B1pair":3, "tWS_CU_B1-B1pair-C1'pair":1, "tWS_CU_C4'-C1'-B1-B1pair":2, "tWS_CU_B1-B1pair-C1'pair-C4'pair":2, "tWS_CU_alpha_1":2, "tWS_CU_alpha_2":1, "tWS_CU_dB1":3, "tWS_CU_dB2":5, 
     "cSW_CU_tips_distance":3, "cSW_CU_C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair":2, "cSW_CU_C4'-C1'-B1-B1pair":2, "cSW_CU_B1-B1pair-C1'pair-C4'pair":3, "cSW_CU_alpha_1":3, "cSW_CU_alpha_2":3, "cSW_CU_dB1":2, "cSW_CU_dB2":4, 
     "tSW_CU_tips_distance":7, "tSW_CU_C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair":2, "tSW_CU_C4'-C1'-B1-B1pair":2, "tSW_CU_B1-B1pair-C1'pair-C4'pair":2, "tSW_CU_alpha_1":2, "tSW_CU_alpha_2":2, "tSW_CU_dB1":2, "tSW_CU_dB2":2, 
@@ -203,7 +203,7 @@ modes_data = {
     "cSS_CU_tips_distance":5, "cSS_CU_C1'-B1-B1pair":2, "cSS_CU_B1-B1pair-C1'pair":2, "cSS_CU_C4'-C1'-B1-B1pair":1, "cSS_CU_B1-B1pair-C1'pair-C4'pair":1, "cSS_CU_alpha_1":2, "cSS_CU_alpha_2":3, "cSS_CU_dB1":6, "cSS_CU_dB2":1, 
     "tSS_CU_tips_distance":5, "tSS_CU_C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair":3, "tSS_CU_C4'-C1'-B1-B1pair":2, "tSS_CU_B1-B1pair-C1'pair-C4'pair":2, "tSS_CU_alpha_1":3, "tSS_CU_alpha_2":3, "tSS_CU_dB1":7, "tSS_CU_dB2":2, 
     "cWW_GA_tips_distance":5, "cWW_GA_C1'-B1-B1pair":1, "cWW_GA_B1-B1pair-C1'pair":1, "cWW_GA_C4'-C1'-B1-B1pair":2, "cWW_GA_B1-B1pair-C1'pair-C4'pair":2, "cWW_GA_alpha_1":1, "cWW_GA_alpha_2":1, "cWW_GA_dB1":2, "cWW_GA_dB2":1, 
-    "tWW_GA_tips_distance":6, "tWW_GA_C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair":1, "tWW_GA_C4'-C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair-C4'pair":2, "tWW_GA_alpha_1":1, "tWW_GA_alpha_2":2, "tWW_GA_dB1":1, "tWW_GA_dB2":2, 
+    "tWW_GA_tips_distance":6, "tWW_GA_C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair":1, "tWW_GA_C4'-C1'-B1-B1pair":1, "tWW_GA_B1-B1pair-C1'pair-C4'pair":2, "tWW_GA_alpha_1":2, "tWW_GA_alpha_2":2, "tWW_GA_dB1":1, "tWW_GA_dB2":2, 
     "cWH_GA_tips_distance":2, "cWH_GA_C1'-B1-B1pair":1, "cWH_GA_B1-B1pair-C1'pair":1, "cWH_GA_C4'-C1'-B1-B1pair":3, "cWH_GA_B1-B1pair-C1'pair-C4'pair":2, "cWH_GA_alpha_1":2, "cWH_GA_alpha_2":1, "cWH_GA_dB1":2, "cWH_GA_dB2":2, 
     "tWH_GA_tips_distance":7, "tWH_GA_C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair":2, "tWH_GA_C4'-C1'-B1-B1pair":1, "tWH_GA_B1-B1pair-C1'pair-C4'pair":2, "tWH_GA_alpha_1":2, "tWH_GA_alpha_2":2, "tWH_GA_dB1":1, "tWH_GA_dB2":6, 
     "cHW_GA_tips_distance":4, "cHW_GA_C1'-B1-B1pair":2, "cHW_GA_B1-B1pair-C1'pair":2, "cHW_GA_C4'-C1'-B1-B1pair":2, "cHW_GA_B1-B1pair-C1'pair-C4'pair":3, "cHW_GA_alpha_1":1, "cHW_GA_alpha_2":2, "cHW_GA_dB1":1, "cHW_GA_dB2":4, 
@@ -227,7 +227,7 @@ modes_data = {
     "cHW_GC_tips_distance":4, "cHW_GC_C1'-B1-B1pair":1, "cHW_GC_B1-B1pair-C1'pair":1, "cHW_GC_C4'-C1'-B1-B1pair":2, "cHW_GC_B1-B1pair-C1'pair-C4'pair":2, "cHW_GC_alpha_1":1, "cHW_GC_alpha_2":1, "cHW_GC_dB1":3, "cHW_GC_dB2":4, 
     "tHW_GC_tips_distance":5, "tHW_GC_C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair":2, "tHW_GC_C4'-C1'-B1-B1pair":2, "tHW_GC_B1-B1pair-C1'pair-C4'pair":2, "tHW_GC_alpha_1":2, "tHW_GC_alpha_2":2, "tHW_GC_dB1":2, "tHW_GC_dB2":4, 
     "cWS_GC_tips_distance":8, "cWS_GC_C1'-B1-B1pair":1, "cWS_GC_B1-B1pair-C1'pair":1, "cWS_GC_C4'-C1'-B1-B1pair":2, "cWS_GC_B1-B1pair-C1'pair-C4'pair":2, "cWS_GC_alpha_1":2, "cWS_GC_alpha_2":1, "cWS_GC_dB1":2, "cWS_GC_dB2":1, 
-    "tWS_GC_tips_distance":2, "tWS_GC_C1'-B1-B1pair":1, "tWS_GC_B1-B1pair-C1'pair":1, "tWS_GC_C4'-C1'-B1-B1pair":3, "tWS_GC_B1-B1pair-C1'pair-C4'pair":2, "tWS_GC_alpha_1":1, "tWS_GC_alpha_2":1, "tWS_GC_dB1":4, "tWS_GC_dB2":5, 
+    "tWS_GC_tips_distance":2, "tWS_GC_C1'-B1-B1pair":1, "tWS_GC_B1-B1pair-C1'pair":1, "tWS_GC_C4'-C1'-B1-B1pair":3, "tWS_GC_B1-B1pair-C1'pair-C4'pair":2, "tWS_GC_alpha_1":2, "tWS_GC_alpha_2":1, "tWS_GC_dB1":4, "tWS_GC_dB2":5, 
     "cSW_GC_tips_distance":4, "cSW_GC_C1'-B1-B1pair":2, "cSW_GC_B1-B1pair-C1'pair":3, "cSW_GC_C4'-C1'-B1-B1pair":1, "cSW_GC_B1-B1pair-C1'pair-C4'pair":2, "cSW_GC_alpha_1":3, "cSW_GC_alpha_2":2, "cSW_GC_dB1":3, "cSW_GC_dB2":2, 
     "tSW_GC_tips_distance":2, "tSW_GC_C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair":3, "tSW_GC_C4'-C1'-B1-B1pair":1, "tSW_GC_B1-B1pair-C1'pair-C4'pair":2, "tSW_GC_alpha_1":2, "tSW_GC_alpha_2":2, "tSW_GC_dB1":4, "tSW_GC_dB2":2, 
     "cHH_GC_tips_distance":1, "cHH_GC_C1'-B1-B1pair":3, "cHH_GC_B1-B1pair-C1'pair":1, "cHH_GC_C4'-C1'-B1-B1pair":2, "cHH_GC_B1-B1pair-C1'pair-C4'pair":1, "cHH_GC_alpha_1":2, "cHH_GC_alpha_2":2, "cHH_GC_dB1":3, "cHH_GC_dB2":3, 
@@ -1884,7 +1884,7 @@ def concat_jsons(flist, outfilename):
     result = []
     for f in flist:
         if not os.path.isfile(f):
-            warn("Unable to find "+f)
+            warn("Unable to find "+f.split('/')[-1])
             continue
         with open(f, "rb") as infile:
             result.append(json.load(infile))
